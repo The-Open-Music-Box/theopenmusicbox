@@ -47,12 +47,11 @@
 </template>
 
 <script setup>
-import { ref, getCurrentInstance, onMounted } from 'vue'
-
+import { ref, onMounted } from 'vue'
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
 import { EllipsisVerticalIcon } from '@heroicons/vue/20/solid'
-import axios from 'axios'
 import DeleteDialog from './DeleteDialog.vue'
+import dataService from '../services/dataService'
 
 const files = ref([])
 const statuses = {
@@ -60,49 +59,36 @@ const statuses = {
     'In progress': 'text-gray-600 bg-gray-50 ring-gray-500/10',
     Archived: 'text-yellow-800 bg-yellow-50 ring-yellow-600/20',
 }
-const { proxy } = getCurrentInstance()
 
-const openDialogUpload = ref(false)
 const openDialogDelete = ref(false)
 const selectedFile = ref(null)
 const componentKey = ref(0)
 
-const checkAudioMap = async () => {
-    try {
-        const response = await axios.get('api/get_audio_files')
-        console.log('Fetched audio files:', response.data.audio_files)
-        files.value = response.data.audio_files
-    } catch (error) {
-        console.error('Error getting the list:', error)
-    }
+const loadFiles = async () => {
+  try {
+    const response = await dataService.getAudioFiles()
+    files.value = response
+  } catch (error) {
+    console.error('Error loading files:', error)
+  }
 }
 
 const showDeleteDialog = (file) => {
-    selectedFile.value = file
-    openDialogDelete.value = true
+  selectedFile.value = file
+  openDialogDelete.value = true
 }
 
 const deleteFile = async (file) => {
-    try {
-        await axios.post('/api/remove_file', { audio_file: file.name })
-        files.value = files.value.filter(f => f.id !== file.id)
-        openDialogDelete.value = false
-    } catch (error) {
-        console.error('Error deleting file:', error)
-    }
+  try {
+    await dataService.deleteFile(file.id)
+    files.value = files.value.filter(f => f.id !== file.id)
+    openDialogDelete.value = false
+  } catch (error) {
+    console.error('Error deleting file:', error)
+  }
 }
 
 onMounted(() => {
-    checkAudioMap()
-    console.log('filesList component mounted')
-    proxy.$socketService.on('audio_map_responce', (updatedFiles) => {
-        console.log('Received audio_map_responce:')
-        files.value = updatedFiles
-        checkAudioMap()
-    })
-    checkAudioMap()
-
+  loadFiles()
 })
-
-
 </script>
