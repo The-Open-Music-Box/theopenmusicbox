@@ -1,29 +1,17 @@
-import { io, Socket } from 'socket.io-client'
+// src/services/socketService.ts
 
-class SocketService {
-  private socket: Socket
+import mockSocketService from './mockSocketService';
+import realSocketService from './realSocketService';
 
-  constructor() {
-    this.socket = io('http://localhost:5001')
-  }
+const USE_MOCK = true;
 
-  setupSocketConnection() {
-    this.socket.on('connect', () => {
-      console.log('Connected to server')
-    })
+const socketService = USE_MOCK ? mockSocketService : realSocketService;
 
-    this.socket.on('disconnect', () => {
-      console.log('Disconnected from server')
-    })
-  }
-
-  emit(event: string, data: any) {
-    this.socket.emit(event, data)
-  }
-
-  on(event: string, callback: (data: any) => void) {
-    this.socket.on(event, callback)
-  }
+// Types pour la documentation et l'autocomplétion
+export interface SocketService {
+  setupSocketConnection(): void;
+  emit(event: string, data: any): void;
+  on(event: string, callback: (data: any) => void): void;
 }
 
-export default new SocketService()
+export default socketService as SocketService;
