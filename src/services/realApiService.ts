@@ -58,6 +58,15 @@ class RealApiService {
       throw error
     }
   }
+  async checkHealth() {
+    try {
+      const response = await apiClient.get('api/health')
+      return response.data
+    } catch (error) {
+      console.error('Health check error:', error)
+      throw error
+    }
+  }
 }
 
 export default new RealApiService()

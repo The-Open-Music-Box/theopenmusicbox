@@ -52,6 +52,9 @@ import { Bars3Icon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 
+import dataService from '../services/dataService'
+
+
 const navigation = ref([
   { name: 'Home', href: '/', current: true },
   { name: 'About', href: '/about', current: false },
@@ -60,10 +63,11 @@ const navigation = ref([
 
 const checkBackendConnection = async () => {
   try {
-    const response = await axios.get('/api') // Assurez-vous que le chemin est correct
-    console.log(response.data.message)
+    // Utiliser le service existant au lieu d'un appel axios direct
+    const response = await dataService.checkHealth() // Ajouter cette méthode à vos services
+    console.log('Backend connection successful:', response)
   } catch (error) {
-    console.error('Error connecting to the backend:', error)
+    console.error('Backend connection error:', error)
   }
 }
 

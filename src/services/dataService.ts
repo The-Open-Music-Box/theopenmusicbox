@@ -29,6 +29,11 @@ const dataService = {
     return USE_MOCK 
       ? mockDataService.getStats()
       : realApiService.getStats()
+  },
+  checkHealth() {
+    return USE_MOCK 
+      ? mockDataService.checkHealth()
+      : realApiService.checkHealth()
   }
 }
 

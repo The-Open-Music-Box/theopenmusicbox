@@ -83,6 +83,10 @@ interface AudioFile {
         mockAudioFiles.splice(index, 1);
       }
     }
+    async checkHealth() {
+      await this.simulateDelay()
+      return { status: 'ok', message: 'Mock server is healthy' }
+    }
   }
   
   export default new MockDataService();
