@@ -45,21 +45,34 @@
     </TransitionRoot>
 </template>
 
-<script setup>
-import { ref, defineProps, defineEmits } from 'vue'
+<script setup lang="ts">
+import { defineProps, defineEmits } from 'vue'
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 
-const props = defineProps({
-    open: Boolean,
-    file: Object
-})
+interface AudioFile {
+  id: number
+  name: string
+  status: string
+  duration: number
+  createdAt: string
+}
 
-const emit = defineEmits(['close', 'confirm'])
+interface Props {
+  open: boolean
+  file: AudioFile | null
+}
+
+const props = defineProps<Props>()
+
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'confirm', file: AudioFile): void
+}>()
 
 const confirmDeletion = () => {
-    if (props.file) {
-        emit('confirm', props.file)
-    }
+  if (props.file) {
+    emit('confirm', props.file)
+  }
 }
 </script>

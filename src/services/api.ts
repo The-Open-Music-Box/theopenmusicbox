@@ -1,5 +1,5 @@
 // src/services/api.ts
-import axios from 'axios'
+import axios, { AxiosProgressEvent, AxiosRequestConfig } from 'axios'
 import config from '../config'
 
 // Création du client axios avec la configuration de base
@@ -88,9 +88,9 @@ export default {
   },
 
   // Vous pouvez ajouter d'autres méthodes selon vos besoins
-  async post(endpoint: string, data: any) {
+  async post(endpoint: string, data: any, config?: AxiosRequestConfig) {
     try {
-      const response = await apiClient.post(endpoint, data)
+      const response = await apiClient.post(endpoint, data, config)
       return response.data
     } catch (error) {
       console.error('POST request error for endpoint:', endpoint)

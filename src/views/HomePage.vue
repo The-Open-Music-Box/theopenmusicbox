@@ -28,9 +28,9 @@
 </template>
 
 <script setup>
-import AudioPlayer from '../components/AudioPlayer.vue'
-import UploadForm from '../components/UploadForm.vue'
-import FilesList from '../components/FilesList.vue'
+import AudioPlayer from '../components/audio/AudioPlayer.vue'
+import UploadForm from '../components/upload/UploadForm.vue'
+import FilesList from '../components/files/FilesList.vue'
 import GeneralInfo from '../components/StatsInfo.vue'
 import { ref } from 'vue'
 
