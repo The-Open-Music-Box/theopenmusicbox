@@ -29,7 +29,7 @@
 
 <script setup>
 import AudioPlayer from '../components/audio/AudioPlayer.vue'
-import UploadForm from '../components/upload/UploadForm.vue'
+import UploadForm from '../components/upload/UploadFormContainer.vue'
 import FilesList from '../components/files/FilesList.vue'
 import GeneralInfo from '../components/StatsInfo.vue'
 import { ref } from 'vue'
