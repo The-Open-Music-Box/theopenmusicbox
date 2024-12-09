@@ -1,3 +1,4 @@
+// components/files/FileItem.vue
 <template>
     <div class="flex items-center justify-between gap-x-6 py-5">
       <div class="min-w-0">
@@ -6,28 +7,19 @@
           <FileStatus :status="file.status" />
         </div>
       </div>
-      <FileActions :file="file" @delete="$emit('delete', file)" />
+      <FileActions :file="file"  />
     </div>
   </template>
   
   <script setup lang="ts">
-  import { defineProps, defineEmits } from 'vue'
-  import FileStatus from './FileStatus.vue'
+  import { defineProps } from 'vue'
   import FileActions from './FileActions.vue'
-  
-  export interface AudioFile {
-    id: number
-    name: string
-    status: string
-    duration: number
-    createdAt: string
-  }
+  import { AudioFile, FileStatus } from '../files/types' 
+
   
   defineProps<{
     file: AudioFile
   }>()
   
-  defineEmits<{
-    (e: 'delete', file: AudioFile): void
-  }>()
+
   </script>
