@@ -5,6 +5,7 @@
       <FileItem 
         :file="file" 
       />
+      
     </li>
   </ul>
 </template>

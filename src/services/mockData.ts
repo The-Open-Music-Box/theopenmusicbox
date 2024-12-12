@@ -1,13 +1,6 @@
 // src/services/mockData.ts
+import { AudioFile, FileStatus, FILE_STATUS } from '../components/files/types'
 
-// Types pour notre application
-interface AudioFile {
-    id: number;
-    name: string;
-    status: string;
-    duration: number;
-    createdAt: string;
-  }
   
   interface Stats {
     battery: number;
@@ -20,21 +13,21 @@ interface AudioFile {
     {
       id: 1,
       name: "Summer Vibes.mp3",
-      status: "associer",
+      status: FILE_STATUS.ASSOCIATED,  // Au lieu de "associer"
       duration: 180,
       createdAt: "2024-01-15"
     },
     {
       id: 2,
       name: "Guitar Solo.mp3",
-      status: "In progress",
+      status: FILE_STATUS.IN_PROGRESS,  // Au lieu de "In progress"
       duration: 240,
       createdAt: "2024-01-16"
     },
     {
       id: 3,
       name: "Piano Concert.mp3",
-      status: "Archived",
+      status: FILE_STATUS.ARCHIVED,  // Au lieu de "Archived"
       duration: 360,
       createdAt: "2024-01-17"
     }
@@ -68,7 +61,7 @@ interface AudioFile {
       const newFile: AudioFile = {
         id: mockAudioFiles.length + 1,
         name: file.name,
-        status: "In progress",
+        status: FILE_STATUS.IN_PROGRESS,
         duration: Math.floor(Math.random() * 300) + 60,
         createdAt: new Date().toISOString().split('T')[0]
       };

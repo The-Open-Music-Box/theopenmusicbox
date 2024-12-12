@@ -5,7 +5,7 @@
         <div class="flex h-16 items-center justify-between px-4 sm:px-0">
           <div class="flex items-center">
             <div class="flex-shrink-0">
-              <img class="h-10 w-10" src="https://tailwindui.com/img/logos/workflow-mark-indigo-500.svg"
+              <img class="h-10 w-10" src="@/assets/logo.jpg"
                 alt="The Music Box" />
             </div>
             <div class="hidden md:block">

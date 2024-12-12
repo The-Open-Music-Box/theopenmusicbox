@@ -1,8 +1,8 @@
 <template>
     <div class="flex items-center space-x-4">
       <img
-        :src="track.imageUrl || '/api/placeholder/88/88'"
-        :alt="track.name"
+      src="@/assets/placeholder.jpg"
+      :alt="track.name"
         width="88"
         height="88"
         class="flex-none rounded-lg bg-slate-100"

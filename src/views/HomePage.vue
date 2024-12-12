@@ -19,8 +19,13 @@
             </div>
           </div>
           <UploadForm />
-          <FilesList />
-          <GeneralInfo />
+
+          <div v-if="isLoading">Chargement...</div>
+    <div v-else-if="error">Erreur : {{ error }}</div>
+    <div v-else>
+      <FilesList :files="files" />
+    </div>          
+    <GeneralInfo />
         </div>
       </div>
     </main>
@@ -28,12 +33,24 @@
 </template>
 
 <script setup>
+import { onMounted } from 'vue'
 import AudioPlayer from '../components/audio/AudioPlayer.vue'
 import UploadForm from '../components/upload/UploadFormContainer.vue'
 import FilesList from '../components/files/FilesList.vue'
 import GeneralInfo from '../components/StatsInfo.vue'
 import { ref } from 'vue'
+import { useFilesStore } from '../components/files/composables/useFilesStore'
 
 const uploadProgress = ref(0)
+const { files, isLoading, error, loadFiles } = useFilesStore()
 
+onMounted(async () => {
+  console.log('HomePage mounted, loading files...')
+  try {
+    await loadFiles()
+    console.log('Files loaded successfully:', files.value)
+  } catch (err) {
+    console.error('Error loading files:', err)
+  }
+})
 </script>
