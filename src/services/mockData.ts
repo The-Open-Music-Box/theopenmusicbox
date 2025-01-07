@@ -7,6 +7,18 @@ import { AudioFile, FileStatus, FILE_STATUS } from '../components/files/types'
     songCount: number;
     freeSpace: number;
   }
+  interface ComponentHealth {
+    status: string
+    timestamp: number
+  }
+  
+  interface SystemHealth {
+    components: {
+      [key: string]: ComponentHealth
+    }
+    status: string
+    timestamp: number
+  }
   
   // Données mockées
   const mockAudioFiles: AudioFile[] = [
@@ -40,6 +52,7 @@ import { AudioFile, FileStatus, FILE_STATUS } from '../components/files/types'
   };
   
   // Service de mock
+
   class MockDataService {
     private simulateDelay(min = 200, max = 800): Promise<void> {
       const delay = Math.random() * (max - min) + min;
@@ -76,10 +89,51 @@ import { AudioFile, FileStatus, FILE_STATUS } from '../components/files/types'
         mockAudioFiles.splice(index, 1);
       }
     }
-    async checkHealth() {
-      await this.simulateDelay()
-      return { status: 'ok', message: 'Mock server is healthy' }
-    }
+    async checkHealth(): Promise<SystemHealth> {
+    await this.simulateDelay();
+    
+    const currentTimestamp = Math.floor(Date.now() / 1000);
+    
+    return {
+      components: {
+        audio: {
+          status: "ready",
+          timestamp: currentTimestamp
+        },
+        config: {
+          status: "ready",
+          timestamp: currentTimestamp
+        },
+        gpio: {
+          status: "ready",
+          timestamp: currentTimestamp
+        },
+        ir_detector: {
+          status: "disabled",
+          timestamp: currentTimestamp
+        },
+        led: {
+          status: "disabled",
+          timestamp: currentTimestamp
+        },
+        light_sensor: {
+          status: "disabled",
+          timestamp: currentTimestamp
+        },
+        motor: {
+          status: "disabled",
+          timestamp: currentTimestamp
+        },
+        nfc: {
+          status: "disabled",
+          timestamp: currentTimestamp
+        }
+      },
+      status: "healthy",
+      timestamp: currentTimestamp
+    };
+  }
+
   }
   
   export default new MockDataService();

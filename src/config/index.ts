@@ -4,14 +4,14 @@
 const config = {
     // API Configuration
     api: {
-      baseURL: process.env.VUE_APP_API_URL || 'http://localhost:5001',
+      baseURL: process.env.VUE_APP_API_URL ,
       timeout: 30000,
       withCredentials: false
     },
     
     // Socket Configuration
     socket: {
-      url: process.env.VUE_APP_SOCKET_URL || 'http://localhost:5001',
+      url: process.env.VUE_APP_SOCKET_URL ,
       options: {
         transports: ['websocket'],
         autoConnect: false,
@@ -35,7 +35,7 @@ const config = {
     
     // Audio Player Configuration
     audio: {
-      baseUrl: process.env.VUE_APP_AUDIO_URL || 'http://localhost:5001/audio',
+      baseUrl: process.env.VUE_APP_API_URL + 'audio' ,
       defaultVolume: 1.0,
       bufferLength: 3
     }

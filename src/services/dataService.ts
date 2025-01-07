@@ -7,6 +7,12 @@ const USE_MOCK = true // Variable pour basculer entre mock et réel
 
 // Service qui fait le pont entre les composants et la source de données
 const dataService = {
+  async checkHealth() {
+    return USE_MOCK 
+      ? mockDataService.checkHealth()
+      : realApiService.checkHealth()
+  },
+
   getAudioFiles() {
     return USE_MOCK 
       ? mockDataService.getAudioFiles()
@@ -30,11 +36,7 @@ const dataService = {
       ? mockDataService.getStats()
       : realApiService.getStats()
   },
-  checkHealth() {
-    return USE_MOCK 
-      ? mockDataService.checkHealth()
-      : realApiService.checkHealth()
-  }
+
 }
 
 export default dataService

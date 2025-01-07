@@ -8,8 +8,29 @@ const apiClient = axios.create({
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json'
-  }
+  },
+  timeout: 5000 // 5 seconds timeout for health check
 })
+
+// interface HealthCheckResponse {
+//   status: 'ok' | 'error'
+//   message: string
+//   timestamp?: string
+//   version?: string
+// }
+interface ComponentHealth {
+  status: string
+  timestamp: number
+}
+
+interface SystemHealth {
+  components: {
+    [key: string]: ComponentHealth
+  }
+  status: string
+  timestamp: number
+}
+
 
 class RealApiService {
   async getAudioFiles() {
@@ -58,15 +79,40 @@ class RealApiService {
       throw error
     }
   }
-  async checkHealth() {
+
+  // async checkHealth(): Promise<HealthCheckResponse> {
+  //   try {
+  //     const response = await apiClient.get('api/health')
+  //     return {
+  //       status: response.data.status || 'ok',
+  //       message: response.data.message || 'Service is healthy',
+  //       timestamp: new Date().toISOString(),
+  //       version: response.data.version
+  //     }
+  //   } catch (error) {
+  //     console.error('Health check error:', error)
+  //     const errorResponse: HealthCheckResponse = {
+  //       status: 'error',
+  //       message: 'Service is unavailable',
+  //       timestamp: new Date().toISOString()
+  //     }
+  //     throw errorResponse
+  //   }
+  // }
+  async checkHealth(): Promise<SystemHealth> {
     try {
-      const response = await apiClient.get('api/health')
+      const response = await apiClient.get('system/health')
       return response.data
     } catch (error) {
       console.error('Health check error:', error)
-      throw error
+      throw {
+        components: {},
+        status: 'error',
+        timestamp: Date.now() / 1000
+      }
     }
-  }
+
+}
 }
 
 export default new RealApiService()
