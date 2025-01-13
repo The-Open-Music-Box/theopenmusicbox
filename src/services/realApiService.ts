@@ -1,10 +1,10 @@
 // src/services/realApiService.ts
 
-import axios from 'axios'
+import axios, { AxiosError } from 'axios'
 
 // Configuration de base d'axios pour notre API
 const apiClient = axios.create({
-  baseURL: 'http://localhost:5001/',
+  baseURL: process.env.VUE_APP_API_URL,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json'
@@ -35,10 +35,17 @@ interface SystemHealth {
 class RealApiService {
   async getAudioFiles() {
     try {
-      const response = await apiClient.get('api/get_audio_files')
-      return response.data.audio_files
-    } catch (error) {
-      console.error('Error fetching audio files:', error)
+      console.log('Fetching audio files from API...')
+      const response = await apiClient.get('/api/audio/files')
+      console.log('Audio files response:', response)
+      return response.data.files || []
+    } catch (err) {
+      const error = err as AxiosError
+      console.error('Error fetching audio files:', {
+        response: error.response?.data,
+        status: error.response?.status,
+        headers: error.response?.headers
+      })
       throw error
     }
   }
@@ -101,10 +108,22 @@ class RealApiService {
   // }
   async checkHealth(): Promise<SystemHealth> {
     try {
-      const response = await apiClient.get('system/health')
-      return response.data
-    } catch (error) {
-      console.error('Health check error:', error)
+      const response = await apiClient.get('/api/system/health')
+      console.log('Health check response:', response)
+      return {
+        components: response.data.components,
+        status: response.data.status,
+        timestamp: response.data.timestamp
+      }
+    } catch (err) {
+      // Type l'erreur comme AxiosError
+      const error = err as AxiosError
+      console.log('Full error details:', {
+        response: error.response?.data,
+        status: error.response?.status,
+        headers: error.response?.headers
+      })
+  
       throw {
         components: {},
         status: 'error',

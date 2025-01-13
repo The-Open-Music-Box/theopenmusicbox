@@ -3,7 +3,7 @@
 import mockDataService from './mockData'
 import realApiService from './realApiService'
 
-const USE_MOCK = true // Variable pour basculer entre mock et réel
+const USE_MOCK = process.env.VUE_APP_USE_MOCK === 'true' // Variable pour basculer entre mock et réel
 
 // Service qui fait le pont entre les composants et la source de données
 const dataService = {

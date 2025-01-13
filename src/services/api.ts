@@ -4,7 +4,7 @@ import config from '../config'
 
 // Création du client axios avec la configuration de base
 const apiClient = axios.create({
-  baseURL: config.api.baseURL,
+  baseURL: process.env.VUE_APP_API_URL,
   timeout: config.api.timeout,
   withCredentials: config.api.withCredentials,
   headers: {

@@ -9,10 +9,18 @@ module.exports = defineConfig({
   
   devServer: {
     proxy: {
-      '/': {
-        target: 'http://localhost:5001',
+      '^/api': {
+        target: 'http://10.0.0.153:5003',
+        changeOrigin: true,
         ws: false,
+        logLevel: 'debug',  // Pour plus de détails dans les logs
+        onError: (err, req, res) => {
+          console.log('Proxy Error:', err);
+      },
+      onProxyReq: (proxyReq, req, res) => {
+        console.log('Proxying:', req.method, req.url, '→', proxyReq.path);
       }
+    }
     },
   },
   
