@@ -192,7 +192,7 @@ class Config:
             nfc_path = Path(self._nfc_mapping)
             nfc_path.parent.mkdir(parents=True, exist_ok=True)
             if not nfc_path.exists():
-                nfc_path.write_text('[]')
+                nfc_path.write_text('[]', encoding='utf-8')
 
         except Exception as exc:
             raise AppError.configuration_error(
