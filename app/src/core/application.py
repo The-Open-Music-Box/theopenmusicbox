@@ -8,6 +8,22 @@ logger = ImprovedLogger(__name__)
 class Application:
     def __init__(self, container: Container):
         self._container = container
+        self._setup_nfc()
+
+    def _setup_nfc(self):
+        self._container.nfc.start_nfc_reader()
+        self._container.nfc.tag_subject.subscribe(
+            on_next=self._handle_tag_scanned,
+            on_error=self._handle_nfc_error
+        )
+
+    def _handle_tag_scanned(self, tag):
+        tag_uid = tag['uid'].replace(':', '').upper()
+        logger.log(LogLevel.INFO, f"Tag scanned: {tag_uid}")
+
+    def _handle_nfc_error(self, error):
+        logger.log(LogLevel.ERROR, f"NFC error: {error}")
+
     def cleanup(self):
         if self._container:
             self._container.cleanup()
