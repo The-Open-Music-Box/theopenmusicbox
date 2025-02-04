@@ -1,5 +1,6 @@
 # app/src/core/container.py
 
+from typing import Optional
 from eventlet.semaphore import Semaphore
 
 from src.config import Config
@@ -8,6 +9,7 @@ from src.module.gpio.gpio_interface import GPIOInterface
 from src.module.gpio.gpio_factory import get_gpio_controller
 from src.module.nfc.nfc_interface import NFCInterface
 from src.module.nfc.nfc_factory import get_nfc_handler
+from src.helpers.exceptions import AppError
 
 logger = ImprovedLogger(__name__)
 
@@ -30,10 +32,14 @@ class Container:
         return self._gpio
 
     @property
-    def nfc(self) -> NFCInterface:
+    def nfc(self) -> Optional[NFCInterface]:
         if not self._nfc:
-            self._nfc = get_nfc_handler(self.bus_lock)
-            logger.log(LogLevel.INFO, "NFC initialized")
+            try:
+                self._nfc = get_nfc_handler(self.bus_lock)
+                logger.log(LogLevel.INFO, "NFC initialized")
+            except AppError as e:
+                logger.log(LogLevel.WARNING, "NFC hardware not available, continuing without NFC support")
+                self._nfc = None
         return self._nfc
 
     def cleanup(self):
