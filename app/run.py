@@ -4,13 +4,13 @@ import sys
 from pathlib import Path
 import traceback
 
-project_root = Path(__file__).resolve().parent
-sys.path.append(str(project_root))
-
 from src.server import create_server, run_server
 from src.config import Config
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from src.helpers.exceptions import AppError
 
+project_root = Path(__file__).resolve().parent
+sys.path.append(str(project_root))
 logger = ImprovedLogger(__name__)
 
 def main():
