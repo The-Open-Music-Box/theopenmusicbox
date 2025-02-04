@@ -4,7 +4,7 @@ import sys
 
 from eventlet.semaphore import Semaphore
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .light_sensor_interface import LightSensorInterface
 
 logger = ImprovedLogger(__name__)

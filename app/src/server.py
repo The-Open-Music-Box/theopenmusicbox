@@ -4,18 +4,20 @@ import signal
 import sys
 
 import eventlet
-
+eventlet.monkey_patch(os=False)
 from eventlet.event import Event
 
 from flask import Flask
 from flask_socketio import SocketIO
 from flask_cors import CORS
 
-from config import Config
-from monitoring.improved_logger import ImprovedLogger, LogLevel
-from helpers.exceptions import AppError
+from .config import Config
+from .monitoring.improved_logger import ImprovedLogger, LogLevel
+from .helpers.exceptions import AppError
 from .core import Application, Container
-eventlet.monkey_patch(os=False)
+from .routes.api_routes import init_routes
+
+
 
 logger = ImprovedLogger(__name__)
 

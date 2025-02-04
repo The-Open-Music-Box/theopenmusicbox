@@ -2,12 +2,12 @@
 
 from eventlet.semaphore import Semaphore
 
-from app.src.config import Config
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.module.gpio.gpio_interface import GPIOInterface
-from app.src.module.gpio.gpio_factory import get_gpio_controller
-from app.src.module.nfc.nfc_interface import NFCInterface
-from app.src.module.nfc.nfc_factory import get_nfc_handler
+from src.config import Config
+from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from src.module.gpio.gpio_interface import GPIOInterface
+from src.module.gpio.gpio_factory import get_gpio_controller
+from src.module.nfc.nfc_interface import NFCInterface
+from src.module.nfc.nfc_factory import get_nfc_handler
 
 logger = ImprovedLogger(__name__)
 

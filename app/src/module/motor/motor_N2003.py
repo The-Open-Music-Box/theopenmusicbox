@@ -1,11 +1,10 @@
 # app/src/module/motor/motor_N2003.py
 
 import eventlet
-from typing import Callable, Dict
-from eventlet.semaphore import Semaphore
+from typing import Callable
+from src.module.gpio.gpio_interface import GPIOInterface, PinMode
+from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .motor_interface import MotorInterface, MotorDirection
-from ..gpio.gpio_interface import GPIOInterface, PinMode
-from ...monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 

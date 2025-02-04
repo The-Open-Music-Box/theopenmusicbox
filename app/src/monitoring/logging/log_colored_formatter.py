@@ -3,9 +3,9 @@
 import logging
 
 from colorama import Fore, Style
-from log_base_formatter import BaseLogFormatter
-from log_filter import LogFilter
-from log_color_scheme import ColorScheme
+from .log_base_formatter import BaseLogFormatter
+from .log_filter import LogFilter
+from .log_color_scheme import ColorScheme
 
 class ColoredLogFormatter(BaseLogFormatter, logging.Formatter):
     def __init__(self, fmt=None, datefmt=None):

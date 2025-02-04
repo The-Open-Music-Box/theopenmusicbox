@@ -8,8 +8,8 @@ import board
 import busio
 import adafruit_bh1750
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.helpers.exceptions import AppError
+from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from src.helpers.exceptions import AppError
 from .light_sensor_interface import LightSensorInterface, LightLevel
 
 logger = ImprovedLogger(__name__)

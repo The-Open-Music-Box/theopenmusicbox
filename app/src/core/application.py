@@ -1,6 +1,6 @@
 # app/src/core/application.py
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .container import Container
 
 logger = ImprovedLogger(__name__)

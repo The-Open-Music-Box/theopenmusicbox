@@ -1,8 +1,10 @@
 # app/src/module/motor/motor_factory.py
 
 import sys
+from src.module.gpio.gpio_interface import GPIOInterface
+
 from .motor_interface import MotorInterface
-from ..gpio.gpio_interface import GPIOInterface
+from .motor_mock import MockMotor
 
 def get_motor_controller(gpio: GPIOInterface) -> MotorInterface:
 

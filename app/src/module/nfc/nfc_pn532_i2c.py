@@ -10,8 +10,8 @@ import time
 from rx.subject import Subject
 from adafruit_pn532.i2c import PN532_I2C
 
-from app.src.helpers.exceptions import AppError, ErrorSeverity
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from src.helpers.exceptions import AppError, ErrorSeverity
+from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .nfc_interface import NFCInterface
 
 logger = ImprovedLogger(__name__)
