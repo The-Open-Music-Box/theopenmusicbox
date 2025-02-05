@@ -43,7 +43,27 @@ class Container:
         return self._nfc
 
     def cleanup(self):
+        logger.log(LogLevel.INFO, "Starting container cleanup")
+
+        # Clean up NFC
         if self._nfc:
-            self._nfc.cleanup()
+            try:
+                self._nfc.cleanup()
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error cleaning up NFC: {e}")
+            self._nfc = None
+
+        # Clean up GPIO
         if self._gpio:
-            self._gpio.cleanup_all()
+            try:
+                self._gpio.cleanup_all()
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error cleaning up GPIO: {e}")
+            self._gpio = None
+
+        # Release bus lock if held
+        try:
+            if self.bus_lock and self.bus_lock.locked():
+                self.bus_lock.release()
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error releasing bus lock: {e}")

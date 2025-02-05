@@ -29,5 +29,10 @@ class Application:
         logger.log(LogLevel.ERROR, f"NFC error: {error}")
 
     def cleanup(self):
-        if self._container:
-            self._container.cleanup()
+        logger.log(LogLevel.INFO, "Starting application cleanup")
+        try:
+            if self._container:
+                if self._container.nfc:
+                    self._container.nfc.cleanup()
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error during application cleanup: {e}")

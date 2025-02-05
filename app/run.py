@@ -1,8 +1,8 @@
 # app/run.py
 
 import sys
-from pathlib import Path
 import traceback
+from pathlib import Path
 
 from src.server import create_server, run_server
 from src.config import Config
@@ -11,7 +11,9 @@ from src.helpers.exceptions import AppError
 
 project_root = Path(__file__).resolve().parent
 sys.path.append(str(project_root))
+
 logger = ImprovedLogger(__name__)
+
 
 def main():
     try:
@@ -24,10 +26,11 @@ def main():
         return 0
 
     except AppError as e:
-        logger.log(LogLevel.ERROR, f"Application error: {str(e)}", exc_info=True)
+        logger.log(LogLevel.ERROR, f"Application error: {str(e)}")
         return 1
+
     except Exception as e:
-        logger.log(LogLevel.ERROR, f"Unexpected error: {str(e)}", exc_info=True)
+        logger.log(LogLevel.ERROR, f"Unexpected error: {str(e)}")
         traceback.print_exc()
         return 1
 
