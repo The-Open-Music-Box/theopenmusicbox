@@ -42,11 +42,23 @@ class APIRoutes:
                 logger.log(LogLevel.ERROR, f"Error serving static file: {str(e)}")
                 return jsonify({"error": "File not found"}), 404
 
-        @self.api.route('/system/health')
+        @self.api.route('/health')
         def health_check():
-            return jsonify({
-                "status": "ok"
-            })
+            try:
+                app = current_app
+                container = app.container
+
+                status = {
+                    "status": "ok",
+                    "components": {
+                        "websocket": bool(app.socketio),
+                        "gpio": bool(container.gpio),
+                        "nfc": bool(container.nfc)
+                    }
+                }
+                return jsonify(status)
+            except Exception as e:
+                return jsonify({"status": "error", "message": str(e)}), 500
 
 def init_routes(app, socketio):
     routes = APIRoutes(app, socketio)
