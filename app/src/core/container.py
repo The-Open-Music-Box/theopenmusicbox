@@ -26,7 +26,7 @@ class Container:
             try:
                 self._gpio = get_gpio_controller()
                 logger.log(LogLevel.INFO, "GPIO initialized")
-            except Exception as e:
+            except AppError as e:
                 logger.log(LogLevel.ERROR, f"GPIO init failed: {e}")
                 raise
         return self._gpio
@@ -38,7 +38,7 @@ class Container:
                 self._nfc = get_nfc_handler(self.bus_lock)
                 logger.log(LogLevel.INFO, "NFC initialized")
             except AppError as e:
-                logger.log(LogLevel.WARNING, "NFC hardware not available, continuing without NFC support")
+                logger.log(LogLevel.WARNING, f"NFC hardware not available: {str(e)}")
                 self._nfc = None
         return self._nfc
 

@@ -11,12 +11,15 @@ class Application:
         self._setup_nfc()
 
     def _setup_nfc(self):
-        if self._container.nfc:
-            self._container.nfc.start_nfc_reader()
-            self._container.nfc.tag_subject.subscribe(
-                on_next=self._handle_tag_scanned,
-                on_error=self._handle_nfc_error
-            )
+        try:
+            if self._container.nfc:
+                self._container.nfc.start_nfc_reader()
+                self._container.nfc.tag_subject.subscribe(
+                    on_next=self._handle_tag_scanned,
+                    on_error=self._handle_nfc_error
+                )
+        except Exception as e:
+            logger.log(LogLevel.WARNING, f"NFC setup failed: {str(e)}")
 
     def _handle_tag_scanned(self, tag):
         tag_uid = tag['uid'].replace(':', '').upper()
