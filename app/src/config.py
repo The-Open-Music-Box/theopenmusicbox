@@ -110,7 +110,7 @@ class Config:
 
     @property
     def nfc_mapping_file(self) -> str:
-        return os.environ['NFC_MAPPING']
+        return str(Path(__file__).parent.parent / os.environ['NFC_MAPPING'])
 
     @property
     def cors_allowed_origins(self) -> str:

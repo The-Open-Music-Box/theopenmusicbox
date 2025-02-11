@@ -3,6 +3,7 @@
 from flask import Blueprint, jsonify, current_app
 from flask_socketio import emit
 from pathlib import Path
+import json
 
 from ..monitoring.improved_logger import ImprovedLogger, LogLevel
 
@@ -59,6 +60,20 @@ class APIRoutes:
                 return jsonify(status)
             except Exception as e:
                 return jsonify({"status": "error", "message": str(e)}), 500
+
+        @self.api.route('/nfc_mapping')
+        def get_nfc_mapping():
+            try:
+                mapping_path = Path(current_app.container.config.nfc_mapping_file)
+                if not mapping_path.exists():
+                    return jsonify([])
+
+                with open(mapping_path, encoding='utf-8') as f:
+                    mapping = json.load(f)
+                return jsonify(mapping)
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error reading NFC mapping: {str(e)}")
+                return jsonify({"error": "Failed to read NFC mapping"}), 500
 
 def init_routes(app, socketio):
     routes = APIRoutes(app, socketio)

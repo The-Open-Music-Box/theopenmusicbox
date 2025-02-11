@@ -21,6 +21,10 @@ class Container:
         self.bus_lock = Semaphore()
 
     @property
+    def config(self) -> Config:
+        return self._config
+
+    @property
     def gpio(self) -> GPIOInterface:
         if not self._gpio:
             try:
