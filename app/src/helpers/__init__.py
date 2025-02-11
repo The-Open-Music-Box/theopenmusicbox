@@ -6,10 +6,12 @@ from .exceptions import (
     ErrorSeverity,
     ErrorContext
 )
+from .system_dependency_checker import SystemDependencyChecker
 
 __all__ = [
     'AppError',
     'ErrorCategory',
     'ErrorSeverity',
-    'ErrorContext'
+    'ErrorContext',
+    'SystemDependencyChecker'
 ]

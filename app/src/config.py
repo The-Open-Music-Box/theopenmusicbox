@@ -106,7 +106,7 @@ class Config:
 
     @property
     def upload_folder(self) -> str:
-        return os.environ['UPLOAD_FOLDER']
+        return str(Path(__file__).parent.parent / os.environ['UPLOAD_FOLDER'])
 
     @property
     def nfc_mapping_file(self) -> str:

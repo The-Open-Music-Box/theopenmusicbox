@@ -14,10 +14,23 @@ from .config import Config
 from .monitoring.improved_logger import ImprovedLogger, LogLevel
 from .core import Application, Container
 from .routes.api_routes import init_routes
+from .helpers.system_dependency_checker import SystemDependencyChecker
+from .helpers.exceptions import AppError
 
 logger = ImprovedLogger(__name__)
 
 def create_server(config: Config):
+    # Vérifier les dépendances système au démarrage
+    dependency_errors = SystemDependencyChecker.check_dependencies()
+    if dependency_errors:
+        for error in dependency_errors:
+            logger.log(LogLevel.ERROR, f"System dependency error: {error.message}")
+        raise AppError.configuration_error(
+            message="Missing required system dependencies",
+            config_key="dependencies",
+            details={"errors": [e.message for e in dependency_errors]}
+        )
+
     static_folder = Path(__file__).resolve().parent.parent / 'static'
     static_folder.mkdir(parents=True, exist_ok=True)
 
@@ -29,10 +42,15 @@ def create_server(config: Config):
 
     socketio = SocketIO(
         app,
-        cors_allowed_origins=config.cors_allowed_origins,
+        cors_allowed_origins="*",
         async_mode='eventlet',
         logger=config.debug,
-        engineio_logger=config.debug
+        engineio_logger=config.debug,
+        ping_timeout=60,
+        ping_interval=25,
+        async_handlers=True,
+        allow_upgrades=True,
+        transports=['websocket', 'polling']
     )
 
     container = Container(config)
