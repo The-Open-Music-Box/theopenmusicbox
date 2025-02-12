@@ -1,52 +1,53 @@
 # app/src/services/youtube/service.py
 
-from urllib.parse import urlparse
 from uuid import uuid4
-from typing import Dict, Any
+from typing import Dict
+from pathlib import Path
 
 from src.services.notification_service import DownloadNotifier
-from src.services.nfc_service import NFCMappingService
+from src.services.nfc_mapping_service import NFCMappingService
+from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .downloader import YouTubeDownloader
 
-def validate_youtube_url(url: str) -> bool:
-    parsed = urlparse(url)
-    return parsed.netloc in ['www.youtube.com', 'youtube.com', 'youtu.be']
+logger = ImprovedLogger(__name__)
 
 class YouTubeService:
     def __init__(self, socketio, config):
         self.socketio = socketio
         self.config = config
+        self.nfc_service = NFCMappingService(config.nfc_mapping_file)
 
-    def process_download(self, url: str) -> Dict[str, Any]:
+    def process_download(self, url: str) -> Dict:
         download_id = str(uuid4())
         notifier = DownloadNotifier(self.socketio, download_id)
 
-        downloader = YouTubeDownloader(
-            self.config.upload_folder,
-            progress_callback=notifier.notify
-        )
+        try:
+            downloader = YouTubeDownloader(
+                upload_folder=self.config.upload_folder,
+                progress_callback=lambda p: notifier.notify(**p)
+            )
 
-        result = downloader.download(url)
+            result = downloader.download(url)
+            logger.log(LogLevel.INFO, f"Download result received: {result}")
 
-        nfc_service = NFCMappingService(self.config.nfc_mapping_file)
-        new_mapping = {
-            "id": str(uuid4()),
-            "type": "playlist",
-            "idtagnfc": "",
-            "path": result['folder']
-        }
-        mapping = nfc_service.read_mapping()
-        mapping.append(new_mapping)
-        nfc_service.save_mapping(mapping)
+            playlist_data = {
+                'title': result['title'],
+                'youtube_id': result['id'],
+                'path': result['folder'],
+                'tracks': result.get('chapters', [])
+            }
+            logger.log(LogLevel.INFO, f"Playlist data prepared: {playlist_data}")
 
-        notifier.notify('completed',
-            folder=result['folder'],
-            message='Download completed!'
-        )
+            playlist_id = self.nfc_service.add_playlist(playlist_data)
+            logger.log(LogLevel.INFO, f"Playlist created with ID: {playlist_id}")
 
-        return {
-            "status": "success",
-            "download_id": download_id,
-            "folder": result['folder'],
-            "mapping": new_mapping
-        }
+            return {
+                'status': 'success',
+                'playlist_id': playlist_id,
+                'data': result
+            }
+
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Process failed with error: {str(e)}", exc_info=True)
+            notifier.notify(status='error', error=str(e))
+            raise

@@ -3,7 +3,7 @@
 from flask import Blueprint, current_app, request, jsonify
 
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.services import YouTubeService, validate_youtube_url
+from src.services import YouTubeService
 
 logger = ImprovedLogger(__name__)
 
@@ -20,11 +20,12 @@ class YouTubeRoutes:
     def _init_routes(self):
         @self.api.route('/youtube/download', methods=['POST'])
         def download_youtube():
+            logger.log(LogLevel.INFO, "Received YouTube download request")
             if not request.is_json:
                 return jsonify({"error": "Content-Type must be application/json"}), 400
 
             url = request.json.get('url')
-            if not url or not validate_youtube_url(url):
+            if not url:
                 return jsonify({"error": "Invalid YouTube URL"}), 400
 
             try:

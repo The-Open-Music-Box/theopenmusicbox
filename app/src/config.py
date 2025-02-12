@@ -5,6 +5,9 @@ from typing import Any
 from dotenv import load_dotenv
 import os
 from .helpers.exceptions import AppError
+from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+
+logger = ImprovedLogger(__name__)
 
 class Config:
     REQUIRED_SETTINGS = {
