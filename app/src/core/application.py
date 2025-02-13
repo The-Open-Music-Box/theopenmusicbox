@@ -9,6 +9,7 @@ class Application:
     def __init__(self, container: Container):
         self._container = container
         self._setup_nfc()
+        self._setup_audio()
 
     def _setup_nfc(self):
         try:
@@ -28,11 +29,20 @@ class Application:
     def _handle_nfc_error(self, error):
         logger.log(LogLevel.ERROR, f"NFC error: {error}")
 
+    def _setup_audio(self):
+        try:
+            if self._container.audio:
+                logger.log(LogLevel.INFO, "Audio system ready")
+        except Exception as e:
+            logger.log(LogLevel.WARNING, f"Audio setup failed: {str(e)}")
+
     def cleanup(self):
         logger.log(LogLevel.INFO, "Starting application cleanup")
         try:
             if self._container:
                 if self._container.nfc:
                     self._container.nfc.cleanup()
+                if self._container.audio:
+                    self._container.audio.cleanup()
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during application cleanup: {e}")

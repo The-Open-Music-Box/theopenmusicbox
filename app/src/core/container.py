@@ -10,6 +10,8 @@ from src.module.gpio.gpio_factory import get_gpio_controller
 from src.module.nfc.nfc_interface import NFCInterface
 from src.module.nfc.nfc_factory import get_nfc_handler
 from src.helpers.exceptions import AppError
+from src.module.audio_player.audio_interface import AudioPlayerInterface
+from src.module.audio_player.audio_factory import get_audio_player
 
 logger = ImprovedLogger(__name__)
 
@@ -18,6 +20,7 @@ class Container:
         self._config = config
         self._gpio = None
         self._nfc = None
+        self._audio = None
         self.bus_lock = Semaphore()
 
     @property
@@ -46,6 +49,17 @@ class Container:
                 self._nfc = None
         return self._nfc
 
+    @property
+    def audio(self) -> AudioPlayerInterface:
+        if not self._audio:
+            try:
+                self._audio = get_audio_player()
+                logger.log(LogLevel.INFO, "Audio initialized")
+            except AppError as e:
+                logger.log(LogLevel.ERROR, f"Audio init failed: {e}")
+                raise
+        return self._audio
+
     def cleanup(self):
         logger.log(LogLevel.INFO, "Starting container cleanup")
 
@@ -64,6 +78,14 @@ class Container:
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error cleaning up GPIO: {e}")
             self._gpio = None
+
+        # Clean up audio
+        if self._audio:
+            try:
+                self._audio.cleanup()
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error cleaning up audio: {e}")
+            self._audio = None
 
         # Release bus lock if held
         try:
