@@ -84,20 +84,20 @@ class NFCPN532I2C(NFCInterface):
         uid_string = ':'.join([hex(i)[2:].zfill(2) for i in uid])
         current_time = time.time()
 
-        if (uid_string == self._last_tag and
-            current_time - self._last_read_time < self.TAG_COOLDOWN):
-            return None
+        if uid_string != self._last_tag or (current_time - self._last_read_time >= self.TAG_COOLDOWN):
+            self._last_tag = uid_string
+            self._last_read_time = current_time
 
-        self._last_tag = uid_string
-        self._last_read_time = current_time
+            tag_data = {
+                'uid': uid_string,
+                'timestamp': current_time
+            }
 
-        self._tag_subject.on_next({
-            'uid': uid_string,
-            'timestamp': current_time
-        })
+            logger.log(LogLevel.INFO, f"Emitting tag data: {tag_data}")
+            self._tag_subject.on_next(tag_data)
+            return uid_string
 
-        logger.log(LogLevel.INFO, f"Tag read: {uid_string}")
-        return uid_string
+        return None
 
     def _nfc_reader_loop(self) -> None:
         logger.log(LogLevel.INFO, "Starting reader loop")
@@ -106,18 +106,24 @@ class NFCPN532I2C(NFCInterface):
         while not self._stop_event.ready():
             try:
                 if error_count >= self.MAX_ERRORS:
+                    logger.log(LogLevel.WARNING, "Max errors reached, reinitializing hardware")
                     self._initialize_hardware()
                     error_count = 0
 
-                if self.read_nfc():
+                # Log l'état de la lecture
+                result = self.read_nfc()
+                if result:
+                    logger.log(LogLevel.INFO, f"Successfully read tag: {result}")
                     error_count = 0
+                else:
+                    logger.log(LogLevel.DEBUG, "No tag detected in this cycle")
 
                 eventlet.sleep(self.RETRY_DELAY)
 
             except Exception as e:
                 error_count += 1
-                logger.log(LogLevel.ERROR, "Reader loop error", exc_info=e)
-                eventlet.sleep(min(2 ** error_count, 10))  # backoff exponentiel
+                logger.log(LogLevel.ERROR, f"Reader loop error #{error_count}: {str(e)}")
+                eventlet.sleep(min(2 ** error_count, 10))
 
     def start_nfc_reader(self) -> None:
         spawn_n(self._nfc_reader_loop)
