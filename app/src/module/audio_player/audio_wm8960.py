@@ -1,9 +1,8 @@
 # app/src/module/audio_player/audio_wm8960.py
 
-import os
 import pygame
 from pathlib import Path
-from typing import Optional, List
+from typing import List
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from src.helpers.exceptions import AppError
 from .audio_interface import AudioPlayerInterface
@@ -17,6 +16,7 @@ class AudioPlayerWM8960(AudioPlayerInterface):
             self._current_playlist: List[str] = []
             self._current_index = 0
             self._is_playing = False
+            self._playlist_finished = False
             pygame.mixer.music.set_endevent(pygame.USEREVENT)
             self._setup_event_handler()
             logger.log(LogLevel.INFO, "Audio system initialized")
@@ -51,12 +51,22 @@ class AudioPlayerWM8960(AudioPlayerInterface):
             time.sleep(0.1)
 
     def _handle_track_end(self):
-        if self._current_playlist and self._is_playing:
-            self.next_track()
+        if not self._current_playlist:
+            self._playlist_finished = True
+            return
+
+        if self._is_playing:
+            self._current_index += 1
+            if self._current_index < len(self._current_playlist):
+                self.play(self._current_playlist[self._current_index])
+            else:
+                self._playlist_finished = True
+                self.stop()
 
     def set_playlist(self, file_paths: List[str]) -> None:
         self._current_playlist = [str(Path(p)) for p in file_paths if Path(p).exists()]
         self._current_index = 0
+        self._playlist_finished = False
         if self._current_playlist:
             self.play(self._current_playlist[0])
 
@@ -65,24 +75,30 @@ class AudioPlayerWM8960(AudioPlayerInterface):
             pygame.mixer.music.load(file_path)
             pygame.mixer.music.play()
             self._is_playing = True
+            self._playlist_finished = False
             logger.log(LogLevel.INFO, f"Playing: {file_path}")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Play error: {str(e)}")
             raise
 
     def pause(self) -> None:
-        pygame.mixer.music.pause()
-        self._is_playing = False
+        if self._is_playing:
+            pygame.mixer.music.pause()
+            self._is_playing = False
+            logger.log(LogLevel.INFO, "Playback paused")
 
     def resume(self) -> None:
-        pygame.mixer.music.unpause()
-        self._is_playing = True
+        if not self._is_playing and not self._playlist_finished:
+            pygame.mixer.music.unpause()
+            self._is_playing = True
+            logger.log(LogLevel.INFO, "Playback resumed")
 
     def stop(self) -> None:
         pygame.mixer.music.stop()
         self._is_playing = False
         self._current_playlist = []
         self._current_index = 0
+        self._playlist_finished = True
 
     def next_track(self) -> None:
         if not self._current_playlist:
@@ -95,6 +111,9 @@ class AudioPlayerWM8960(AudioPlayerInterface):
             return
         self._current_index = (self._current_index - 1) % len(self._current_playlist)
         self.play(self._current_playlist[self._current_index])
+
+    def is_finished(self) -> bool:
+        return self._playlist_finished
 
     @property
     def is_playing(self) -> bool:

@@ -19,7 +19,7 @@ logger = ImprovedLogger(__name__)
 class NFCPN532I2C(NFCInterface):
     READ_TIMEOUT = 0.1
     RETRY_DELAY = 0.1
-    TAG_COOLDOWN = 1.0
+    TAG_COOLDOWN = 0.5
     MAX_ERRORS = 3
 
     def __init__(self, lock: Semaphore) -> None:
