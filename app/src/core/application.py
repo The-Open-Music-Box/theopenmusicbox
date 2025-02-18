@@ -1,6 +1,8 @@
 # app/src/core/application.py
 
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from src.services.nfc_mapping_service import NFCMappingService
+from pathlib import Path
 from .container import Container
 
 logger = ImprovedLogger(__name__)
@@ -8,6 +10,7 @@ logger = ImprovedLogger(__name__)
 class Application:
     def __init__(self, container: Container):
         self._container = container
+        self._nfc_mapping = NFCMappingService(container.config.nfc_mapping_file)
         self._setup_nfc()
         self._setup_audio()
 
@@ -23,8 +26,38 @@ class Application:
             logger.log(LogLevel.WARNING, f"NFC setup failed: {str(e)}")
 
     def _handle_tag_scanned(self, tag):
-        tag_uid = tag['uid'].replace(':', '').upper()
-        logger.log(LogLevel.INFO, f"Tag scanned: {tag_uid}")
+        try:
+            tag_uid = tag['uid'].replace(':', '').upper()
+            logger.log(LogLevel.INFO, f"Tag scanned: {tag_uid}")
+
+            mapping = self._nfc_mapping.read_mapping()
+            playlist = next((item for item in mapping if item['idtagnfc'] == tag_uid and item['type'] == 'playlist'), None)
+
+            if playlist:
+                self._play_playlist(playlist)
+            else:
+                logger.log(LogLevel.INFO, f"No playlist mapping found for tag: {tag_uid}")
+
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error handling tag: {str(e)}")
+
+    def _play_playlist(self, playlist):
+        try:
+            base_path = Path(self._container.config.upload_folder) / playlist['path']
+            track_paths = [
+                str(base_path / track['filename'])
+                for track in playlist['tracks']
+                if Path(base_path / track['filename']).exists()
+            ]
+
+            if track_paths:
+                self._container.audio.set_playlist(track_paths)
+                logger.log(LogLevel.INFO, f"Started playlist: {playlist['title']}")
+            else:
+                logger.log(LogLevel.WARNING, f"No valid tracks found for playlist: {playlist['title']}")
+
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error playing playlist: {str(e)}")
 
     def _handle_nfc_error(self, error):
         logger.log(LogLevel.ERROR, f"NFC error: {error}")

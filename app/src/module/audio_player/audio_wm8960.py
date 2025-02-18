@@ -14,9 +14,11 @@ class AudioPlayerWM8960(AudioPlayerInterface):
     def __init__(self):
         try:
             pygame.mixer.init(frequency=44100, channels=2)
-            self._current_playlist: Optional[List[str]] = None
+            self._current_playlist: List[str] = []
             self._current_index = 0
             self._is_playing = False
+            pygame.mixer.music.set_endevent(pygame.USEREVENT)
+            self._setup_event_handler()
             logger.log(LogLevel.INFO, "Audio system initialized")
         except Exception as e:
             raise AppError.hardware_error(
@@ -25,6 +27,38 @@ class AudioPlayerWM8960(AudioPlayerInterface):
                 operation="init",
                 details={"error": str(e)}
             )
+
+    def _setup_event_handler(self):
+        pygame.init()
+        pygame.event.set_allowed(pygame.USEREVENT)
+        self._start_event_loop()
+
+    def _start_event_loop(self):
+        def check_events():
+            for event in pygame.event.get():
+                if event.type == pygame.USEREVENT:
+                    self._handle_track_end()
+
+        import threading
+        self._event_thread = threading.Thread(target=lambda: self._run_event_loop(check_events))
+        self._event_thread.daemon = True
+        self._event_thread.start()
+
+    def _run_event_loop(self, callback):
+        import time
+        while True:
+            callback()
+            time.sleep(0.1)
+
+    def _handle_track_end(self):
+        if self._current_playlist and self._is_playing:
+            self.next_track()
+
+    def set_playlist(self, file_paths: List[str]) -> None:
+        self._current_playlist = [str(Path(p)) for p in file_paths if Path(p).exists()]
+        self._current_index = 0
+        if self._current_playlist:
+            self.play(self._current_playlist[0])
 
     def play(self, file_path: str) -> None:
         try:
@@ -47,6 +81,8 @@ class AudioPlayerWM8960(AudioPlayerInterface):
     def stop(self) -> None:
         pygame.mixer.music.stop()
         self._is_playing = False
+        self._current_playlist = []
+        self._current_index = 0
 
     def next_track(self) -> None:
         if not self._current_playlist:

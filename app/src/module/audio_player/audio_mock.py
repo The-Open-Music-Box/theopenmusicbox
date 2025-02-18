@@ -1,47 +1,56 @@
 # app/src/module/audio_player/audio_mock.py
 
-from typing import Optional, List
+from typing import List
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .audio_interface import AudioPlayerInterface
 
 logger = ImprovedLogger(__name__)
 
-class MockAudioPlayer(AudioPlayerInterface):
+class AudioPlayerMock(AudioPlayerInterface):
     def __init__(self):
-        self._current_playlist: Optional[List[str]] = None
+        self._current_playlist: List[str] = []
         self._current_index = 0
         self._is_playing = False
-        logger.log(LogLevel.INFO, "Mock audio player initialized")
+        logger.log(LogLevel.INFO, "Mock Audio Player initialized")
+
+    def set_playlist(self, file_paths: List[str]) -> None:
+        self._current_playlist = file_paths
+        self._current_index = 0
+        if self._current_playlist:
+            self.play(self._current_playlist[0])
+        logger.log(LogLevel.INFO, f"Mock: Setting playlist with {len(file_paths)} tracks")
 
     def play(self, file_path: str) -> None:
         self._is_playing = True
-        logger.log(LogLevel.INFO, f"Mock playing: {file_path}")
+        logger.log(LogLevel.INFO, f"Mock: Playing {file_path}")
 
     def pause(self) -> None:
         self._is_playing = False
-        logger.log(LogLevel.INFO, "Mock playback paused")
+        logger.log(LogLevel.INFO, "Mock: Playback paused")
 
     def resume(self) -> None:
         self._is_playing = True
-        logger.log(LogLevel.INFO, "Mock playback resumed")
+        logger.log(LogLevel.INFO, "Mock: Playback resumed")
 
     def stop(self) -> None:
         self._is_playing = False
-        logger.log(LogLevel.INFO, "Mock playback stopped")
+        self._current_playlist = []
+        self._current_index = 0
+        logger.log(LogLevel.INFO, "Mock: Playback stopped")
 
     def next_track(self) -> None:
         if not self._current_playlist:
             return
         self._current_index = (self._current_index + 1) % len(self._current_playlist)
         self.play(self._current_playlist[self._current_index])
-        logger.log(LogLevel.INFO, "Mock next track")
+        logger.log(LogLevel.INFO, "Mock: Skipped to next track")
 
     def previous_track(self) -> None:
         if not self._current_playlist:
             return
         self._current_index = (self._current_index - 1) % len(self._current_playlist)
         self.play(self._current_playlist[self._current_index])
-        logger.log(LogLevel.INFO, "Mock previous track")
+        logger.log(LogLevel.INFO, "Mock: Skipped to previous track")
 
     @property
     def is_playing(self) -> bool:
@@ -49,4 +58,4 @@ class MockAudioPlayer(AudioPlayerInterface):
 
     def cleanup(self) -> None:
         self.stop()
-        logger.log(LogLevel.INFO, "Mock audio player cleaned up")
+        logger.log(LogLevel.INFO, "Mock: Audio player cleaned up")

@@ -1,8 +1,13 @@
 # app/src/module/audio_player/audio_interface.py
 
 from abc import ABC, abstractmethod
+from typing import List
 
 class AudioPlayerInterface(ABC):
+    @abstractmethod
+    def set_playlist(self, file_paths: List[str]) -> None:
+        """Set and start playing a list of audio files"""
+
     @abstractmethod
     def play(self, file_path: str) -> None:
         """Play an audio file"""
