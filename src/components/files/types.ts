@@ -10,13 +10,19 @@ export const FILE_STATUS = {
 // Create a type from the object values
 export type FileStatus = typeof FILE_STATUS[keyof typeof FILE_STATUS]
 
-// Update the AudioFile interface to use the new FileStatus type
+export interface PlayList {
+  id: number
+  name: string
+  files: AudioFile[]
+}
+
 export interface AudioFile {
   id: number
   name: string
   status: FileStatus
   duration: number
   createdAt: string
+  playlistId?: number
 }
 
 // Type-safe status styling configuration
