@@ -10,7 +10,7 @@ logger = ImprovedLogger(__name__)
 
 class MotorN2003(MotorInterface):
     PINS = {
-        'IN1': 22,
+        'IN1': 16,
         'IN2': 23,
         'IN3': 24,
         'IN4': 25
