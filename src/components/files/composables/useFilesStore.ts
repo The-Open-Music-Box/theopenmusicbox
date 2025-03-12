@@ -12,7 +12,7 @@ export function useFilesStore() {
     isLoading.value = true
     error.value = null
     try {
-      files.value = await dataService.getAudioFiles()
+      files.value = await dataService.getPlaylists()
     } catch (err) {
       error.value = "Erreur lors du chargement des fichiers"
       console.error('Error loading files:', err)

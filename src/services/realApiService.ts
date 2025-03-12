@@ -50,20 +50,28 @@ class RealApiService {
     }
   }
 
-  async uploadFile(file: File) {
-    const formData = new FormData()
-    formData.append('file', file)
+  async uploadFile(file: File | FormData, options?: { 
+    headers?: Record<string, string>; 
+    onUploadProgress?: (progress: any) => void;
+  }) {
+    const formData = file instanceof File ? (() => {
+      const fd = new FormData();
+      fd.append('file', file);
+      return fd;
+    })() : file;
     
     try {
       const response = await apiClient.post('api/upload', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      })
-      return response.data
+          'Content-Type': 'multipart/form-data',
+          ...options?.headers
+        },
+        onUploadProgress: options?.onUploadProgress
+      });
+      return response.data;
     } catch (error) {
-      console.error('Error uploading file:', error)
-      throw error
+      console.error('Error uploading file:', error);
+      throw error;
     }
   }
 
@@ -130,8 +138,39 @@ class RealApiService {
         timestamp: Date.now() / 1000
       }
     }
+  }
 
-}
+  async downloadFile(fileId: number, onProgress?: (progress: number) => void) {
+    try {
+      const response = await apiClient.get(`/api/audio/download/${fileId}`, {
+        responseType: 'blob',
+        onDownloadProgress: (progressEvent) => {
+          if (onProgress && progressEvent.total) {
+            const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
+            onProgress(progress)
+          }
+        }
+      })
+      return response.data
+    } catch (error) {
+      console.error('Error downloading file:', error)
+      throw error
+    }
+  }
+
+  downloadFileUrl(fileId: number): string {
+    return `${apiClient.defaults.baseURL}/api/audio/download/${fileId}`
+  }
+
+  async getUploadSessionId(): Promise<string> {
+    try {
+      const response = await apiClient.post('/api/upload/session')
+      return response.data.sessionId
+    } catch (error) {
+      console.error('Error getting upload session:', error)
+      throw error
+    }
+  }
 }
 
 export default new RealApiService()

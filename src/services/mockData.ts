@@ -82,19 +82,32 @@ import { AudioFile, FileStatus, FILE_STATUS, PlayList } from '../components/file
   
 
   
-    async uploadFile(file: File, playlistId = 1): Promise<AudioFile> {
+    async uploadFile(file: File | FormData, options?: { 
+      headers?: Record<string, string>; 
+      onUploadProgress?: (progress: any) => void;
+    }, playlistId = 1): Promise<AudioFile> {
       await this.simulateDelay(1000, 2000);
       
-      // Créer le nouveau fichier audio
+      // Handle progress simulation
+      if (options?.onUploadProgress) {
+        for (let i = 0; i <= 100; i += 20) {
+          await this.simulateDelay(100, 200);
+          options.onUploadProgress({ progress: i });
+        }
+      }
+    
+      const actualFile = file instanceof File ? file : (file.get('file') as File);
+      
+      // Create new audio file
       const newFile: AudioFile = {
         id: Math.max(...mockPlaylists.flatMap(p => p.files).map(f => f.id)) + 1,
-        name: file.name,
+        name: actualFile.name,
         status: FILE_STATUS.IN_PROGRESS,
         duration: Math.floor(Math.random() * 300) + 60,
         createdAt: new Date().toISOString().split('T')[0],
         playlistId
       };
-  
+    
       // Trouver la playlist et ajouter le fichier
       const playlist = mockPlaylists.find(p => p.id === playlistId);
       if (playlist) {
@@ -102,7 +115,7 @@ import { AudioFile, FileStatus, FILE_STATUS, PlayList } from '../components/file
       } else {
         throw new Error('Playlist not found');
       }
-  
+    
       return newFile;
     }
   
@@ -174,6 +187,33 @@ import { AudioFile, FileStatus, FILE_STATUS, PlayList } from '../components/file
     };
   }
 
+    async downloadFile(fileId: number, onProgress?: (progress: number) => void) {
+      await this.simulateDelay();
+      // Simulate download progress
+      if (onProgress) {
+        for (let i = 0; i <= 100; i += 20) {
+          await this.simulateDelay(100, 200);
+          onProgress(i);
+        }
+      }
+      return new Blob(['mock file content'], { type: 'audio/mpeg' });
+    }
+
+    downloadFileUrl(fileId: number): string {
+      return `mock://download/${fileId}`;
+    }
+
+    async getUploadSessionId(): Promise<string> {
+      await this.simulateDelay();
+      const buffer = new Uint16Array(8);
+      crypto.getRandomValues(buffer);
+      
+      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c, i) {
+        const r = (buffer[i % 8] & 0x0F) + 0x01;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+      });
+    }
   }
   
   export default new MockDataService();

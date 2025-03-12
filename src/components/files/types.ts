@@ -23,6 +23,8 @@ export interface AudioFile {
   duration: number
   createdAt: string
   playlistId?: number
+  isAlbum?: boolean
+  albumFiles?: AudioFile[]
 }
 
 // Type-safe status styling configuration
