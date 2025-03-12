@@ -9,8 +9,9 @@ from src.config import Config
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from src.helpers.exceptions import AppError
 
+# Add the app directory to Python path so 'src' can be imported
 project_root = Path(__file__).resolve().parent
-sys.path.append(str(project_root))
+sys.path.insert(0, str(project_root))
 
 logger = ImprovedLogger(__name__)
 
