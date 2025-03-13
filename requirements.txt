@@ -1,7 +1,18 @@
 eventlet==0.37.0
 Flask==3.0.3
 Flask-SocketIO==5.4.1
+Flask-CORS==4.0.0
 python-dotenv==1.0.1
 python-socketio==5.11.4
 colorama
 yt-dlp
+Werkzeug==3.0.1
+mutagen==1.47.0
+pygame==2.5.2
+RPi.GPIO==0.7.1  # Pour le Raspberry Pi
+spidev==3.6      # Pour le lecteur NFC
+requests==2.31.0  # Pour les tests API
+rich==13.7.0
+websocket-client==1.7.0
+PyAudio==0.2.14  # Pour la lecture audio
+pydub==0.25.1

@@ -1,6 +1,7 @@
 # app/src/core/container.py
 
 from typing import Optional
+from abc import ABC, abstractmethod
 from eventlet.semaphore import Semaphore
 
 from src.config import Config
@@ -12,20 +13,56 @@ from src.module.nfc.nfc_factory import get_nfc_handler
 from src.helpers.exceptions import AppError
 from src.module.audio_player.audio_interface import AudioPlayerInterface
 from src.module.audio_player.audio_factory import get_audio_player
+from src.services.notification_service import PlaybackSubject
 
 logger = ImprovedLogger(__name__)
 
+class EventPublisher(ABC):
+    @abstractmethod
+    def publish_event(self, event_type: str, data: dict):
+        pass
+
+class SocketIOPublisher(EventPublisher):
+    def __init__(self, socketio):
+        self._socketio = socketio
+
+    def publish_event(self, event_type: str, data: dict):
+        self._socketio.emit(event_type, data)
+
 class Container:
-    def __init__(self, config: Config):
+    def __init__(self, config: Config, event_publisher: Optional[EventPublisher] = None):
         self._config = config
+        self._event_publisher = event_publisher
+        self._playback_subject = PlaybackSubject()
         self._gpio = None
         self._nfc = None
         self._audio = None
         self.bus_lock = Semaphore()
 
+        # Set up event forwarding if event_publisher is provided
+        if self._event_publisher:
+            self._setup_event_publisher()
+
+    def _setup_event_publisher(self):
+        """Set up forwarding of Rx events to WebSocket"""
+        self._playback_subject.status_stream.subscribe(
+            on_next=lambda event: self._event_publisher.publish_event('playback_status', event.data) if event.event_type == 'status' else None
+        )
+        self._playback_subject.progress_stream.subscribe(
+            on_next=lambda event: self._event_publisher.publish_event('track_progress', event.data) if event.event_type == 'progress' else None
+        )
+
     @property
     def config(self) -> Config:
         return self._config
+
+    @property
+    def event_publisher(self) -> EventPublisher:
+        return self._event_publisher
+
+    @property
+    def playback_subject(self) -> PlaybackSubject:
+        return self._playback_subject
 
     @property
     def gpio(self) -> GPIOInterface:
@@ -50,14 +87,14 @@ class Container:
         return self._nfc
 
     @property
-    def audio(self) -> AudioPlayerInterface:
+    def audio(self) -> Optional[AudioPlayerInterface]:
         if not self._audio:
             try:
-                self._audio = get_audio_player()
+                self._audio = get_audio_player(self._playback_subject)
                 logger.log(LogLevel.INFO, "Audio initialized")
             except AppError as e:
-                logger.log(LogLevel.ERROR, f"Audio init failed: {e}")
-                raise
+                logger.log(LogLevel.WARNING, f"Audio hardware not available: {str(e)}")
+                self._audio = None
         return self._audio
 
     def cleanup(self):

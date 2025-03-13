@@ -89,3 +89,11 @@ class AppError(Exception):
             details={"timeout_value": timeout_value},
             **kwargs
         )
+
+class InvalidFileError(Exception):
+    """Exception levée quand un fichier est invalide"""
+    pass
+
+class ProcessingError(Exception):
+    """Exception levée lors du traitement d'un fichier"""
+    pass

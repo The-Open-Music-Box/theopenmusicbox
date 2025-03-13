@@ -1,0 +1,34 @@
+# Requirements pour macOS
+# Bibliothèques principales
+Flask==3.0.3
+Flask-SocketIO==5.4.1
+Flask-CORS==4.0.0
+Werkzeug==3.0.1
+
+# Gestion des WebSockets
+eventlet==0.37.0
+python-socketio==5.11.4
+websocket-client==1.7.0  # Pour les tests WebSocket
+
+# Utilitaires
+python-dotenv==1.0.1
+colorama==0.4.6
+requests==2.31.0
+
+# Gestion des médias
+yt-dlp==2024.3.10
+mutagen==1.47.0
+
+# Audio - Version spécifique pour macOS
+# Note: Utilisation de simpleaudio au lieu de pygame pour une meilleure compatibilité
+# Installer d'abord: brew install portaudio
+simpleaudio==1.0.4
+
+# Dépendances optionnelles pour le développement
+pytest==8.0.2
+pytest-cov==4.1.0
+
+# Mise à jour de pip recommandée:
+# pip install --upgrade pip
+
+rich==13.7.0  # Pour l'interface terminal

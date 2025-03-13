@@ -16,6 +16,7 @@ from .core import Application, Container
 from .routes.api_routes import init_routes
 from .helpers.system_dependency_checker import SystemDependencyChecker
 from .helpers.exceptions import AppError
+from .core.container import SocketIOPublisher
 
 logger = ImprovedLogger(__name__)
 
@@ -53,7 +54,9 @@ def create_server(config: Config):
         transports=['websocket', 'polling']
     )
 
-    container = Container(config)
+    # Create event publisher and container
+    event_publisher = SocketIOPublisher(socketio)
+    container = Container(config, event_publisher)
     app.container = container
     app.socketio = socketio
 

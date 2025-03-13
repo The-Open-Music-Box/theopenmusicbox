@@ -40,10 +40,37 @@ class Application:
 
     def _setup_audio(self):
         try:
-            if self._container.audio:
+            if self._container.audio and self._container.playback_subject:
+                # Subscribe to playback status events for logging
+                self._container.playback_subject.status_stream.subscribe(
+                    on_next=self._handle_playback_status,
+                    on_error=self._handle_audio_error
+                )
+                # Subscribe to track progress events for logging
+                self._container.playback_subject.progress_stream.subscribe(
+                    on_next=self._handle_track_progress,
+                    on_error=self._handle_audio_error
+                )
                 logger.log(LogLevel.INFO, "Audio system ready")
         except Exception as e:
             logger.log(LogLevel.WARNING, f"Audio setup failed: {str(e)}")
+
+    def _handle_playback_status(self, event):
+        try:
+            if event.event_type == 'status':
+                logger.log(LogLevel.INFO, "Playback status update", extra=event.data)
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error handling playback status: {str(e)}")
+
+    def _handle_track_progress(self, event):
+        try:
+            if event.event_type == 'progress':
+                logger.log(LogLevel.DEBUG, "Track progress update", extra=event.data)
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error handling track progress: {str(e)}")
+
+    def _handle_audio_error(self, error):
+        logger.log(LogLevel.ERROR, f"Audio error: {error}")
 
     def cleanup(self):
         logger.log(LogLevel.INFO, "Starting application cleanup")
