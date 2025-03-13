@@ -3,6 +3,7 @@
 from typing import Optional
 from abc import ABC, abstractmethod
 from eventlet.semaphore import Semaphore
+import eventlet
 
 from src.config import Config
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
@@ -99,34 +100,43 @@ class Container:
 
     def cleanup(self):
         logger.log(LogLevel.INFO, "Starting container cleanup")
+        cleanup_timeout = 5  # seconds
+
+        def cleanup_with_timeout(resource_name, cleanup_func):
+            try:
+                with eventlet.Timeout(cleanup_timeout):
+                    cleanup_func()
+                logger.log(LogLevel.INFO, f"{resource_name} cleanup completed")
+            except eventlet.Timeout:
+                logger.log(LogLevel.ERROR, f"{resource_name} cleanup timed out after {cleanup_timeout} seconds")
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error cleaning up {resource_name}: {e}")
 
         # Clean up NFC
         if self._nfc:
-            try:
-                self._nfc.cleanup()
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error cleaning up NFC: {e}")
+            cleanup_with_timeout("NFC", self._nfc.cleanup)
             self._nfc = None
 
         # Clean up GPIO
         if self._gpio:
-            try:
-                self._gpio.cleanup_all()
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error cleaning up GPIO: {e}")
+            cleanup_with_timeout("GPIO", self._gpio.cleanup_all)
             self._gpio = None
 
         # Clean up audio
         if self._audio:
-            try:
-                self._audio.cleanup()
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error cleaning up audio: {e}")
+            cleanup_with_timeout("Audio", self._audio.cleanup)
             self._audio = None
 
         # Release bus lock if held
         try:
             if self.bus_lock and self.bus_lock.locked():
-                self.bus_lock.release()
-        except Exception as e:
+                with eventlet.Timeout(1):
+                    self.bus_lock.release()
+        except (eventlet.Timeout, Exception) as e:
             logger.log(LogLevel.ERROR, f"Error releasing bus lock: {e}")
+
+        # Force garbage collection to ensure resources are freed
+        import gc
+        gc.collect()
+
+        logger.log(LogLevel.INFO, "Container cleanup completed")

@@ -66,13 +66,41 @@ def create_server(config: Config):
     init_routes(app, socketio)
 
     def shutdown_handler(signum, frame):
-        logger.log(LogLevel.INFO, "Shutdown signal received")
-        if hasattr(app, 'container'):
-            app.container.cleanup()
-        sys.exit(0)
+        logger.log(LogLevel.INFO, f"Shutdown signal received: {signal.Signals(signum).name}")
+        try:
+            # Close all active socket connections
+            if hasattr(app, 'socketio'):
+                app.socketio.server.disconnect()
+                logger.log(LogLevel.INFO, "All socket connections closed")
 
+            # Cleanup container resources
+            if hasattr(app, 'container'):
+                app.container.cleanup()
+                logger.log(LogLevel.INFO, "Container cleanup completed")
+
+            # Give a short grace period for resources to be released
+            eventlet.sleep(1)
+
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error during shutdown: {e}")
+        finally:
+            sys.exit(0)
+
+    def reload_handler(signum, frame):
+        logger.log(LogLevel.INFO, "Reload signal (SIGUSR1) received")
+        try:
+            if hasattr(app, 'socketio'):
+                app.socketio.server.disconnect()
+            if hasattr(app, 'container'):
+                app.container.cleanup()
+            # Don't exit - systemd will restart the service
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error during reload: {e}")
+
+    # Register signal handlers
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
+    signal.signal(signal.SIGUSR1, reload_handler)
 
     return app, socketio
 
@@ -89,6 +117,11 @@ def run_server(app, socketio, config: Config):
         )
     except Exception as e:
         logger.log(LogLevel.ERROR, f"Server error: {str(e)}")
-        if hasattr(app, 'container'):
-            app.container.cleanup()
+        try:
+            if hasattr(app, 'socketio'):
+                app.socketio.server.disconnect()
+            if hasattr(app, 'container'):
+                app.container.cleanup()
+        except Exception as cleanup_error:
+            logger.log(LogLevel.ERROR, f"Error during cleanup after server error: {cleanup_error}")
         raise
