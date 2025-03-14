@@ -8,31 +8,31 @@ logger = ImprovedLogger(__name__)
 
 def get_led_hat(num_pixels: int = 36, brightness: float = 0.2) -> LedHatInterface:
     """
-    Retourne l'implémentation appropriée du contrôleur LED en fonction de la plateforme.
-    Si l'implémentation réelle échoue, aucun fallback n'est effectué et une exception est levée.
+    Returns the appropriate LED controller implementation based on the platform.
+    If the real implementation fails, no fallback is performed and an exception is raised.
 
-    Le composant est optionnel et ne doit pas empêcher l'application de démarrer.
-    Son statut peut être remonté dans la route health.
+    The component is optional and should not prevent the application from starting.
+    Its status can be reported in the health route.
 
     Args:
-        num_pixels: Nombre de LEDs sur le ruban
-        brightness: Luminosité des LEDs (0.0 à 1.0)
+        num_pixels: Number of LEDs on the strip
+        brightness: LED brightness (0.0 to 1.0)
 
     Returns:
-        Une instance de LedHatInterface
+        An instance of LedHatInterface
 
     Raises:
-        ImportError: Si les bibliothèques nécessaires ne sont pas disponibles
-        Exception: Si l'initialisation du matériel échoue
+        ImportError: If the necessary libraries are not available
+        Exception: If hardware initialization fails
     """
     if sys.platform == 'darwin' or sys.platform == 'win32':
-        # Utiliser l'implémentation mock pour macOS et Windows
+        # Use mock implementation for macOS and Windows
         from .ledhat_mock import MockLedHat
         logger.log(LogLevel.INFO, f"Creating mock LED hat with {num_pixels} pixels")
         return MockLedHat(num_pixels=num_pixels, brightness=brightness)
     else:
-        # Utiliser l'implémentation réelle pour Raspberry Pi (Linux)
-        # Pas de fallback automatique, si ça échoue, le composant sera en erreur
+        # Use real implementation for Raspberry Pi (Linux)
+        # No automatic fallback, if it fails, the component will be in error
         from .ledhat_rpi_ws281x import RpiWs281xLedHat
         logger.log(LogLevel.INFO, f"Creating Raspberry Pi LED hat with {num_pixels} pixels")
         return RpiWs281xLedHat(num_pixels=num_pixels, brightness=brightness)

@@ -5,69 +5,69 @@ from typing import Tuple, Optional, Dict, Any
 
 class LedHatInterface(ABC):
     """
-    Interface abstraite pour contrôler un ruban de LED RGB.
+    Abstract interface for controlling an RGB LED strip.
     """
 
     @abstractmethod
     def set_pixel(self, i: int, color: Tuple[int, int, int]) -> None:
         """
-        Définit la couleur d'un pixel spécifique.
+        Set the color of a specific pixel.
 
         Args:
-            i: Index du pixel
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
+            i: Pixel index
+            color: RGB tuple (r, g, b) with values from 0 to 255
         """
         pass
 
     @abstractmethod
     def set_all_pixels(self, color: Tuple[int, int, int]) -> None:
         """
-        Définit tous les pixels à la même couleur.
+        Set all pixels to the same color.
 
         Args:
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
+            color: RGB tuple (r, g, b) with values from 0 to 255
         """
         pass
 
     @abstractmethod
     def clear(self) -> None:
-        """Éteint tous les pixels."""
+        """Turn off all pixels."""
         pass
 
     @abstractmethod
     def start_animation(self, animation_name: str, **kwargs) -> None:
         """
-        Démarre une animation en continu dans un thread séparé.
+        Start a continuous animation in a separate thread.
 
         Args:
-            animation_name: Nom de l'animation à exécuter
-            **kwargs: Paramètres spécifiques à l'animation
+            animation_name: Name of the animation to run
+            **kwargs: Animation-specific parameters
         """
         pass
 
     @abstractmethod
     def stop_animation(self) -> None:
-        """Arrête l'animation en cours."""
+        """Stop the current animation."""
         pass
 
     @abstractmethod
     def close(self) -> None:
-        """Nettoie et libère les ressources."""
+        """Clean up and release resources."""
         pass
 
     @abstractmethod
     def cleanup(self) -> None:
-        """Alias pour close() pour compatibilité avec le container."""
+        """Alias for close() for container compatibility."""
         pass
 
     @property
     @abstractmethod
     def current_animation(self) -> Optional[str]:
-        """Retourne le nom de l'animation en cours, ou None si aucune animation n'est en cours."""
+        """Returns the name of the current animation, or None if no animation is running."""
         pass
 
     @property
     @abstractmethod
     def animation_params(self) -> Dict[str, Any]:
-        """Retourne les paramètres de l'animation en cours."""
+        """Returns the parameters of the current animation."""
         pass

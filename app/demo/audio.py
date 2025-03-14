@@ -3,45 +3,45 @@
 import time
 import sys
 
-# On utilise pygame pour la lecture audio et mutagen pour récupérer la durée du MP3
+# We use pygame for audio playback and mutagen to get the MP3 duration
 try:
     import pygame
 except ImportError:
-    print("Veuillez installer pygame (pip install pygame)")
+    print("Please install pygame (pip install pygame)")
     sys.exit(1)
 
 try:
     from mutagen.mp3 import MP3
 except ImportError:
-    print("Veuillez installer mutagen (pip install mutagen)")
+    print("Please install mutagen (pip install mutagen)")
     sys.exit(1)
 
-# Nom du fichier MP3
+# MP3 file name
 audio_file = "test.mp3"
 
-# Récupération de la durée du fichier MP3
+# Get the MP3 file duration
 try:
     audio_info = MP3(audio_file)
     duration = audio_info.info.length
 except Exception as e:
-    print("Erreur lors de la lecture des informations du fichier MP3 :", e)
+    print("Error reading MP3 file information:", e)
     sys.exit(1)
 
-# Initialisation du module mixer de pygame
+# Initialize pygame mixer module
 pygame.mixer.init()
 try:
     pygame.mixer.music.load(audio_file)
 except Exception as e:
-    print("Erreur lors du chargement du fichier audio :", e)
+    print("Error loading audio file:", e)
     sys.exit(1)
 
-print("Lecture de '{}' (durée : {:.1f} secondes)".format(audio_file, duration))
+print("Playing '{}' (duration: {:.1f} seconds)".format(audio_file, duration))
 pygame.mixer.music.play()
 
 start_time = time.time()
 
-# Fonction pour afficher une barre de progression
-def afficher_progression(elapsed, total, bar_length=50):
+# Function to display a progress bar
+def display_progress(elapsed, total, bar_length=50):
     progress = elapsed / total
     if progress > 1:
         progress = 1
@@ -49,12 +49,12 @@ def afficher_progression(elapsed, total, bar_length=50):
     bar = '#' * filled_length + '-' * (bar_length - filled_length)
     return "[{}] {:>6.2f}%".format(bar, progress * 100)
 
-# Boucle de mise à jour de la progression
+# Progress update loop
 while pygame.mixer.music.get_busy():
     elapsed = time.time() - start_time
-    progress_bar = afficher_progression(elapsed, duration)
+    progress_bar = display_progress(elapsed, duration)
     sys.stdout.write("\r" + progress_bar)
     sys.stdout.flush()
     time.sleep(0.1)
 
-print("\nLecture terminée.")
+print("\nPlayback completed.")

@@ -4,7 +4,7 @@ import yt_dlp
 import logging
 from pathlib import Path
 
-# Configuration des logs
+# Log configuration
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s | %(levelname)s | %(message)s',
@@ -14,7 +14,7 @@ logger = logging.getLogger('youtube-downloader')
 
 def download_and_split():
     url = "https://www.youtube.com/watch?v=QR_HmidODnM"
-    logger.info(f"Début du téléchargement: {url}")
+    logger.info(f"Starting download: {url}")
 
     ydl_opts = {
         'format': 'bestaudio/best',
@@ -32,20 +32,20 @@ def download_and_split():
 
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            logger.info("Extraction des informations de la vidéo...")
+            logger.info("Extracting video information...")
             info = ydl.extract_info(url, download=True)
-            logger.info(f"Téléchargement terminé: {info.get('title', 'Unknown title')}")
+            logger.info(f"Download completed: {info.get('title', 'Unknown title')}")
 
             chapters = info.get('chapters', [])
             if chapters:
-                logger.info(f"Nombre de chapitres trouvés: {len(chapters)}")
+                logger.info(f"Number of chapters found: {len(chapters)}")
                 for chapter in chapters:
-                    logger.info(f"Chapitre extrait: {chapter.get('title', 'Unknown chapter')}")
+                    logger.info(f"Chapter extracted: {chapter.get('title', 'Unknown chapter')}")
             else:
-                logger.warning("Aucun chapitre trouvé dans la vidéo")
+                logger.warning("No chapters found in the video")
 
     except Exception as e:
-        logger.error(f"Erreur lors du téléchargement: {str(e)}")
+        logger.error(f"Error during download: {str(e)}")
         raise
 
 def log_progress(d):
@@ -53,14 +53,14 @@ def log_progress(d):
         total = d.get('total_bytes', 0) or d.get('total_bytes_estimate', 0)
         if total > 0:
             percentage = (d['downloaded_bytes'] / total) * 100
-            logger.info(f"Téléchargement: {percentage:.1f}%")
+            logger.info(f"Downloading: {percentage:.1f}%")
     elif d['status'] == 'finished':
-        logger.info("Téléchargement audio terminé, début du post-traitement...")
+        logger.info("Audio download completed, starting post-processing...")
 
 if __name__ == "__main__":
     try:
         download_and_split()
     except KeyboardInterrupt:
-        logger.info("Arrêt manuel du script")
+        logger.info("Script manually stopped")
     except Exception as e:
-        logger.error(f"Erreur critique: {str(e)}")
+        logger.error(f"Critical error: {str(e)}")

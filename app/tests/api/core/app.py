@@ -100,7 +100,7 @@ class Application:
 
                 # Then handle status messages
                 if 'error' in content:
-                    self.window.content_win.attron(curses.color_pair(1))  # Rouge pour les erreurs
+                    self.window.content_win.attron(curses.color_pair(1))  # Red for errors
                     self.window.content_win.addstr(y, 1, "ERROR:")
                     self.window.content_win.addstr(y + 1, 2, str(content['error']))
                     self.window.content_win.attroff(curses.color_pair(1))
@@ -116,8 +116,8 @@ class Application:
                 # Finally display formatted data
                 for key, value in content.items():
                     if key not in ['status', 'error', 'message']:
-                        # En-tête de section
-                        self.window.content_win.attron(curses.color_pair(2))  # Jaune pour les en-têtes
+                        # Section header
+                        self.window.content_win.attron(curses.color_pair(2))  # Yellow for headers
                         header = f"=== {key} ==="
                         self.window.content_win.addstr(y, 1, header)
                         self.window.content_win.attroff(curses.color_pair(2))
@@ -128,7 +128,7 @@ class Application:
                                 if y >= height - 1:
                                     break
                                 if isinstance(item, dict):
-                                    # Formatage des éléments de dictionnaire
+                                    # Format dictionary items
                                     item_str = " | ".join(f"{k}: {v}" for k, v in item.items())
                                 else:
                                     item_str = str(item)
@@ -146,15 +146,15 @@ class Application:
                                 value_str = value_str[:width-7] + "..."
                             self.window.content_win.addstr(y, 2, value_str)
                             y += 1
-                        y += 1  # Espace entre les sections
+                        y += 1  # Space between sections
 
             elif content is None:
-                self.window.content_win.attron(curses.color_pair(3))  # Vert pour succès
+                self.window.content_win.attron(curses.color_pair(3))  # Green for success
                 self.window.content_win.addstr(y, 1, "SUCCESS: Operation completed successfully")
                 self.window.content_win.attroff(curses.color_pair(3))
                 y += 2
             elif isinstance(content, list):
-                self.window.content_win.attron(curses.color_pair(4))  # Cyan pour les listes
+                self.window.content_win.attron(curses.color_pair(4))  # Cyan for lists
                 self.window.content_win.addstr(y, 1, "=== Results ===")
                 self.window.content_win.attroff(curses.color_pair(4))
                 y += 1
@@ -168,7 +168,7 @@ class Application:
                     self.window.content_win.addstr(y, 2, item_str)
                     y += 1
             else:
-                # Gestion des chaînes de caractères
+                # Handle string content
                 content_str = str(content)
                 if content_str.strip():
                     lines = content_str.split('\n')
@@ -180,7 +180,7 @@ class Application:
                         self.window.content_win.addstr(y, 1, line)
                         y += 1
 
-            # Force le rafraîchissement de la fenêtre
+            # Force window refresh
             self.window.refresh_all()
 
         except Exception as e:
@@ -192,7 +192,7 @@ class Application:
                 self.window.content_win.attroff(curses.color_pair(1))
                 self.window.refresh_all()
             except:
-                pass  # Si on ne peut même pas afficher l'erreur, on la log simplement
+                pass  # If we can't even display the error, we log it simply
 
     def run(self) -> None:
         """Run the application."""
@@ -296,13 +296,13 @@ class Application:
         """Get and display all playlists."""
         try:
             response = self.api.get_playlists()
-            logger.info(f"Received response: {response}")  # Log pour debug
+            logger.info(f"Received response: {response}")  # Log for debug
 
-            # Si nous avons une erreur, l'afficher
+            # If we have an error, display it
             if 'error' in response:
                 return {"error": response['error']}
 
-            # Si nous avons des données dans la réponse
+            # If we have data in the response
             if response.get('status') == 'success' and 'data' in response:
                 playlists = response['data']
                 if not playlists:
@@ -326,7 +326,7 @@ class Application:
                     "Instructions": "Use 'Play Playlist' option and enter a number to select a playlist"
                 }
 
-            # Si nous n'avons ni erreur ni données valides
+            # If we have neither error nor valid data
             return {"error": "Unexpected response format from server"}
 
         except Exception as e:

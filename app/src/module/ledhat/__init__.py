@@ -1,16 +1,16 @@
 # app/src/module/ledhat/__init__.py
 
 """
-Module pour contrôler un ruban de LED pour l'application.
-Fournit une interface abstraite et des implémentations spécifiques à la plateforme.
+Module for controlling an LED strip for the application.
+Provides an abstract interface and platform-specific implementations.
 
-Ce module offre:
-- Une interface unifiée pour les opérations LED
-- Deux implémentations: une réelle pour Raspberry Pi et une mock pour les tests/développement
-- Une détection automatique de la plateforme
-- Un composant optionnel qui ne bloque pas le démarrage de l'application
+This module offers:
+- A unified interface for LED operations
+- Two implementations: a real one for Raspberry Pi and a mock for testing/development
+- Automatic platform detection
+- An optional component that doesn't block application startup
 
-Le composant est conçu pour être optionnel et son statut peut être remonté dans la route health.
+The component is designed to be optional and its status can be reported in the health route.
 """
 
 from .ledhat_interface import LedHatInterface

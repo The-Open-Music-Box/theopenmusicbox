@@ -10,20 +10,20 @@ logger = ImprovedLogger(__name__)
 
 class MockLedHat(LedHatInterface):
     """
-    Implémentation mock du contrôleur de ruban LED pour les tests et le développement.
+    Mock implementation of the LED strip controller for testing and development.
     """
 
     def __init__(self, num_pixels: int = 36, brightness: float = 0.2):
         """
-        Initialise le contrôleur mock de ruban LED.
+        Initialize the mock LED strip controller.
 
         Args:
-            num_pixels: Nombre de LEDs sur le ruban
-            brightness: Luminosité des LEDs (0.0 à 1.0)
+            num_pixels: Number of LEDs on the strip
+            brightness: LED brightness (0.0 to 1.0)
         """
         self.num_pixels = num_pixels
         self.brightness = brightness
-        self.pixels = [(0, 0, 0)] * num_pixels  # Simule un tableau de pixels
+        self.pixels = [(0, 0, 0)] * num_pixels  # Simulates a pixel array
         self._running = False
         self._current_animation = None
         self._animation_params = {}
@@ -32,11 +32,11 @@ class MockLedHat(LedHatInterface):
 
     def set_pixel(self, i: int, color: Tuple[int, int, int]) -> None:
         """
-        Définit la couleur d'un pixel spécifique.
+        Set the color of a specific pixel.
 
         Args:
-            i: Index du pixel
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
+            i: Pixel index
+            color: RGB tuple (r, g, b) with values from 0 to 255
         """
         if 0 <= i < self.num_pixels:
             self.pixels[i] = color
@@ -44,33 +44,33 @@ class MockLedHat(LedHatInterface):
 
     def set_all_pixels(self, color: Tuple[int, int, int]) -> None:
         """
-        Définit tous les pixels à la même couleur.
+        Set all pixels to the same color.
 
         Args:
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
+            color: RGB tuple (r, g, b) with values from 0 to 255
         """
         self.pixels = [color] * self.num_pixels
         logger.log(LogLevel.DEBUG, f"[MockLedHat] Set all pixels to color {color}")
 
     def clear(self) -> None:
-        """Éteint tous les pixels."""
+        """Turn off all pixels."""
         self.pixels = [(0, 0, 0)] * self.num_pixels
         logger.log(LogLevel.DEBUG, "[MockLedHat] Cleared all pixels")
 
     def start_animation(self, animation_name: str, **kwargs) -> None:
         """
-        Démarre une animation en continu dans un thread séparé.
+        Start a continuous animation in a separate thread.
 
         Args:
-            animation_name: Nom de l'animation à exécuter
-            **kwargs: Paramètres spécifiques à l'animation
+            animation_name: Name of the animation to run
+            **kwargs: Animation-specific parameters
         """
         self.stop_animation()
         self._current_animation = animation_name
         self._animation_params = kwargs
         self._running = True
 
-        # Démarrer l'animation dans un thread séparé
+        # Start the animation in a separate thread
         self._animation_thread = threading.Thread(
             target=self._run_animation,
             args=(animation_name, kwargs),
@@ -81,45 +81,45 @@ class MockLedHat(LedHatInterface):
 
     def _run_animation(self, animation_name: str, kwargs: dict) -> None:
         """
-        Simule l'exécution de l'animation spécifiée dans un thread séparé.
+        Simulates the execution of the specified animation in a separate thread.
 
         Args:
-            animation_name: Nom de l'animation à exécuter
-            kwargs: Paramètres spécifiques à l'animation
+            animation_name: Name of the animation to run
+            kwargs: Animation-specific parameters
         """
         try:
-            # Simuler l'animation en cours pendant quelques secondes
+            # Simulate the animation running for a few seconds
             animation_duration = kwargs.get('duration', 10)
             start_time = time.time()
 
             while self._running and (time.time() - start_time < animation_duration):
-                # Simuler une mise à jour de l'animation
+                # Simulate an animation update
                 logger.log(LogLevel.DEBUG, f"[MockLedHat] Running animation '{animation_name}' (t={time.time() - start_time:.1f}s)")
-                time.sleep(0.5)  # Réduire la fréquence des logs
+                time.sleep(0.5)  # Reduce log frequency
 
             logger.log(LogLevel.INFO, f"[MockLedHat] Animation '{animation_name}' completed or stopped")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"[MockLedHat] Error in animation {animation_name}: {e}")
         finally:
-            # Réinitialiser l'état si l'animation se termine
+            # Reset state if the animation ends
             if self._current_animation == animation_name:
                 self._running = False
                 self._current_animation = None
                 self._animation_params = {}
 
     def stop_animation(self) -> None:
-        """Arrête l'animation en cours."""
+        """Stop the current animation."""
         if self._running:
             self._running = False
             if self._animation_thread and self._animation_thread.is_alive():
-                self._animation_thread.join(timeout=1.0)  # Attendre que le thread se termine
+                self._animation_thread.join(timeout=1.0)  # Wait for the thread to terminate
             self._current_animation = None
             self._animation_params = {}
             self._animation_thread = None
             logger.log(LogLevel.INFO, "[MockLedHat] Animation stopped")
 
     def close(self) -> None:
-        """Nettoie et libère les ressources."""
+        """Clean up and release resources."""
         try:
             logger.log(LogLevel.INFO, "Cleaning up mock LED hat resources")
             self.stop_animation()
@@ -129,15 +129,15 @@ class MockLedHat(LedHatInterface):
             logger.log(LogLevel.ERROR, f"Error during mock LED hat cleanup: {e}")
 
     def cleanup(self) -> None:
-        """Alias pour close() pour compatibilité avec le container."""
+        """Alias for close() for container compatibility."""
         self.close()
 
     @property
     def current_animation(self) -> Optional[str]:
-        """Retourne le nom de l'animation en cours, ou None si aucune animation n'est en cours."""
+        """Returns the name of the current animation, or None if no animation is running."""
         return self._current_animation
 
     @property
     def animation_params(self) -> Dict[str, Any]:
-        """Retourne les paramètres de l'animation en cours."""
+        """Returns the parameters of the current animation."""
         return self._animation_params.copy()

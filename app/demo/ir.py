@@ -3,13 +3,13 @@
 import RPi.GPIO as GPIO
 import time
 
-# Configuration du GPIO
+# GPIO configuration
 IR_PIN = 20
 
 def setup():
-    # Configurer le mode de numérotation des broches
+    # Configure pin numbering mode
     GPIO.setmode(GPIO.BCM)
-    # Configurer le pin comme entrée avec résistance pull-up
+    # Configure the pin as an input with pull-up resistor
     GPIO.setup(IR_PIN, GPIO.IN, pull_up_down=GPIO.PUD_UP)
     print(f"Récepteur IR configuré sur GPIO {IR_PIN}")
 
@@ -20,21 +20,21 @@ def detect_signal():
         last_change = time.time()
 
         while True:
-            # Lire l'état actuel du pin
+            # Read current pin status
             current_value = GPIO.input(IR_PIN)
 
-            # Si l'état a changé, enregistrer l'événement
+            # If the state has changed, log the event
             if current_value != prev_value:
                 now = time.time()
                 duration = now - last_change
                 state = "Haut" if current_value else "Bas"
                 print(f"Signal {state}, durée: {duration:.6f} secondes")
 
-                # Mettre à jour les variables pour la prochaine détection
+                # Update variables for next detection
                 prev_value = current_value
                 last_change = now
 
-            # Petite pause pour réduire l'utilisation CPU
+            # Short pause to reduce CPU usage
             time.sleep(0.01)
 
     except KeyboardInterrupt:

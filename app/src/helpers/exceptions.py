@@ -5,21 +5,21 @@ from typing import Optional, Dict, Any
 from dataclasses import dataclass
 
 class ErrorSeverity(Enum):
-    """Niveaux de sévérité des erreurs"""
+    """Error severity levels"""
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     FATAL = "fatal"
 
 class ErrorCategory(Enum):
-    """Catégories principales d'erreurs"""
+    """Main error categories"""
     HARDWARE = "hardware"
     CONFIGURATION = "configuration"
     TIMEOUT = "timeout"
 
 @dataclass
 class ErrorContext:
-    """Contexte enrichi pour les exceptions"""
+    """Enriched context for exceptions"""
     category: ErrorCategory
     component: str
     operation: str
@@ -27,7 +27,7 @@ class ErrorContext:
     error_code: Optional[int] = None
 
 class AppError(Exception):
-    """Exception de base unifiée pour l'application"""
+    """Unified base exception for the application"""
 
     def __init__(
         self,
@@ -91,9 +91,9 @@ class AppError(Exception):
         )
 
 class InvalidFileError(Exception):
-    """Exception levée quand un fichier est invalide"""
+    """Exception raised when a file is invalid"""
     pass
 
 class ProcessingError(Exception):
-    """Exception levée lors du traitement d'un fichier"""
+    """Exception raised during file processing"""
     pass

@@ -12,36 +12,36 @@ logger = ImprovedLogger(__name__)
 
 class RpiWs281xLedHat(LedHatInterface):
     """
-    Implémentation pour Raspberry Pi du contrôleur de ruban LED utilisant la bibliothèque rpi_ws281x.
-    Basée sur l'exemple de code dans app/demo/ledhat.py.
+    Implementation for Raspberry Pi LED strip controller using the rpi_ws281x library.
+    Based on the example code in app/demo/ledhat.py.
     """
 
     def __init__(self, num_pixels: int = 36, brightness: float = 0.2, pin: int = 12):
         """
-        Initialise le contrôleur de ruban LED pour Raspberry Pi avec rpi_ws281x.
+        Initialize the LED strip controller for Raspberry Pi with rpi_ws281x.
 
         Args:
-            num_pixels: Nombre de LEDs sur le ruban
-            brightness: Luminosité des LEDs (0.0 à 1.0)
-            pin: La broche GPIO à laquelle le ruban est connecté
+            num_pixels: Number of LEDs on the strip
+            brightness: LED brightness (0.0 to 1.0)
+            pin: The GPIO pin to which the strip is connected
         """
         self.num_pixels = num_pixels
 
-        # Conversion de la luminosité (0.0-1.0) en valeur entière (0-255)
+        # Convert brightness (0.0-1.0) to integer value (0-255)
         led_brightness = int(brightness * 255)
 
-        # Configuration pour la strip LED
-        LED_FREQ_HZ = 800000  # Fréquence du signal LED en Hz
-        LED_DMA = 10          # Canal DMA à utiliser pour générer le signal
-        LED_INVERT = False    # Inversion du signal (si transistor NPN)
-        LED_CHANNEL = 0       # '0' pour GPIO 12, 18
+        # Configuration for the LED strip
+        LED_FREQ_HZ = 800000  # LED signal frequency in Hz
+        LED_DMA = 10          # DMA channel to use for generating signal
+        LED_INVERT = False    # Invert the signal (when using NPN transistor)
+        LED_CHANNEL = 0       # '0' for GPIO 12, 18
 
-        # Création de l'objet strip avec la configuration
+        # Create the strip object with configuration
         self.pixels = PixelStrip(
             num_pixels, pin, LED_FREQ_HZ, LED_DMA, LED_INVERT, led_brightness, LED_CHANNEL
         )
 
-        # Initialisation de la bibliothèque
+        # Initialize the library
         self.pixels.begin()
 
         self._running = False
@@ -52,11 +52,11 @@ class RpiWs281xLedHat(LedHatInterface):
 
     def set_pixel(self, i: int, color: Tuple[int, int, int]) -> None:
         """
-        Définit la couleur d'un pixel spécifique.
+        Set the color of a specific pixel.
 
         Args:
-            i: Index du pixel
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
+            i: Pixel index
+            color: RGB tuple (r, g, b) with values from 0 to 255
         """
         if 0 <= i < self.num_pixels:
             r, g, b = color
@@ -64,10 +64,10 @@ class RpiWs281xLedHat(LedHatInterface):
 
     def set_all_pixels(self, color: Tuple[int, int, int]) -> None:
         """
-        Définit tous les pixels à la même couleur.
+        Set all pixels to the same color.
 
         Args:
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
+            color: RGB tuple (r, g, b) with values from 0 to 255
         """
         r, g, b = color
         for i in range(self.num_pixels):
@@ -75,17 +75,17 @@ class RpiWs281xLedHat(LedHatInterface):
         self.pixels.show()
 
     def clear(self) -> None:
-        """Éteint tous les pixels."""
+        """Turn off all pixels."""
         for i in range(self.num_pixels):
             self.pixels.setPixelColor(i, Color(0, 0, 0))
         self.pixels.show()
 
     def rainbow_cycle(self, wait: float = 0.01) -> None:
         """
-        Animation de cycle en arc-en-ciel.
+        Rainbow cycle animation.
 
         Args:
-            wait: Temps d'attente entre les mises à jour (en secondes)
+            wait: Wait time between updates (in seconds)
         """
         for j in range(255):
             if not self._running:
@@ -98,11 +98,11 @@ class RpiWs281xLedHat(LedHatInterface):
 
     def color_wipe(self, color: Tuple[int, int, int], wait: float = 0.05) -> None:
         """
-        Animation de remplissage progressif d'une couleur.
+        Progressive color filling animation.
 
         Args:
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
-            wait: Temps d'attente entre les mises à jour (en secondes)
+            color: RGB tuple (r, g, b) with values from 0 to 255
+            wait: Wait time between updates (in seconds)
         """
         r, g, b = color
         for i in range(self.num_pixels):
@@ -114,12 +114,12 @@ class RpiWs281xLedHat(LedHatInterface):
 
     def theater_chase(self, color: Tuple[int, int, int], wait: float = 0.05, iterations: int = 10) -> None:
         """
-        Animation de poursuite de théâtre.
+        Theater chase animation.
 
         Args:
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
-            wait: Temps d'attente entre les mises à jour (en secondes)
-            iterations: Nombre d'itérations de l'animation
+            color: RGB tuple (r, g, b) with values from 0 to 255
+            wait: Wait time between updates (in seconds)
+            iterations: Number of animation iterations
         """
         r, g, b = color
         color_value = Color(r, g, b)
@@ -141,17 +141,17 @@ class RpiWs281xLedHat(LedHatInterface):
 
     def pulse(self, color: Tuple[int, int, int], wait: float = 0.01, steps: int = 100) -> None:
         """
-        Animation de pulsation d'une couleur.
+        Color pulsation animation.
 
         Args:
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
-            wait: Temps d'attente entre les mises à jour (en secondes)
-            steps: Nombre d'étapes pour la pulsation
+            color: RGB tuple (r, g, b) with values from 0 to 255
+            wait: Wait time between updates (in seconds)
+            steps: Number of steps for the pulsation
         """
         r, g, b = color
 
         while self._running:
-            # Augmentation de l'intensité
+            # Increasing intensity
             for i in range(steps):
                 if not self._running:
                     break
@@ -165,7 +165,7 @@ class RpiWs281xLedHat(LedHatInterface):
                 self.pixels.show()
                 time.sleep(wait)
 
-            # Diminution de l'intensité
+            # Decreasing intensity
             for i in range(steps, 0, -1):
                 if not self._running:
                     break
@@ -181,17 +181,17 @@ class RpiWs281xLedHat(LedHatInterface):
 
     def breathing_effect(self, color: Tuple[int, int, int], wait: float = 0.01, steps: int = 100) -> None:
         """
-        Effet de respiration - la luminosité monte et descend en utilisant une courbe sinusoïdale.
+        Breathing effect - brightness rises and falls using a sinusoidal curve.
 
         Args:
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
-            wait: Temps d'attente entre les mises à jour (en secondes)
-            steps: Nombre d'étapes pour la respiration
+            color: RGB tuple (r, g, b) with values from 0 to 255
+            wait: Wait time between updates (in seconds)
+            steps: Number of steps for the breathing effect
         """
         r, g, b = color
 
         while self._running:
-            # Respiration complète
+            # Complete breathing cycle
             for k in range(steps):
                 if not self._running:
                     break
@@ -210,14 +210,14 @@ class RpiWs281xLedHat(LedHatInterface):
                        rotation_time: float = 3.0,
                        continuous: bool = False) -> None:
         """
-        Animation d'un segment lumineux qui tourne autour du cercle de LEDs.
+        Animation of a light segment rotating around the LED circle.
 
         Args:
-            color: Tuple RGB (r, g, b) pour la couleur du segment lumineux
-            background_color: Tuple RGB (r, g, b) pour la couleur de fond
-            segment_length: Nombre de LEDs allumées dans le segment
-            rotation_time: Temps en secondes pour une rotation complète
-            continuous: Si True, l'animation continue en boucle jusqu'à stop_animation()
+            color: RGB tuple (r, g, b) for the light segment color
+            background_color: RGB tuple (r, g, b) for the background color
+            segment_length: Number of lit LEDs in the segment
+            rotation_time: Time in seconds for a complete rotation
+            continuous: If True, the animation continues in a loop until stop_animation()
         """
         try:
             r, g, b = color
@@ -226,22 +226,22 @@ class RpiWs281xLedHat(LedHatInterface):
             bg_r, bg_g, bg_b = background_color
             bg_color_value = Color(bg_r, bg_g, bg_b)
 
-            # Calculer le délai entre chaque étape pour atteindre le temps de rotation souhaité
+            # Calculate the delay between each step to achieve the desired rotation time
             steps = self.num_pixels
             wait = rotation_time / steps
 
-            # Boucle principale d'animation
+            # Main animation loop
             iterations = 0
             while self._running or iterations == 0:
                 for start_pos in range(self.num_pixels):
                     if not self._running and iterations > 0:
                         break
 
-                    # Réinitialiser tous les pixels à la couleur de fond
+                    # Reset all pixels to background color
                     for i in range(self.num_pixels):
                         self.pixels.setPixelColor(i, bg_color_value)
 
-                    # Allumer le segment de LEDs
+                    # Light up the LED segment
                     for i in range(segment_length):
                         pixel_pos = (start_pos + i) % self.num_pixels
                         self.pixels.setPixelColor(pixel_pos, color_value)
@@ -253,35 +253,35 @@ class RpiWs281xLedHat(LedHatInterface):
                 if not continuous and iterations >= 1:
                     break
 
-            # Si l'animation n'est pas continue ou a été arrêtée, éteindre les LEDs
+            # If the animation is not continuous or has been stopped, turn off the LEDs
             if not self._running:
                 self.clear()
 
         except Exception as e:
             import traceback
-            logger.log(LogLevel.ERROR, f"Erreur dans rotating_circle: {e}")
-            logger.log(LogLevel.DEBUG, f"Détails: {traceback.format_exc()}")
+            logger.log(LogLevel.ERROR, f"Error in rotating_circle: {e}")
+            logger.log(LogLevel.DEBUG, f"Details: {traceback.format_exc()}")
 
     def circular_sweep(self, color: Tuple[int, int, int], wait: float = 0.005, duration: float = 5.0) -> None:
         """
-        Balayage circulaire avec traînée.
+        Circular sweep with trail effect.
 
         Args:
-            color: Tuple RGB (r, g, b) avec des valeurs de 0 à 255
-            wait: Temps d'attente entre les mises à jour (en secondes)
-            duration: Durée de l'animation en secondes
+            color: RGB tuple (r, g, b) with values from 0 to 255
+            wait: Wait time between updates (in seconds)
+            duration: Duration of the animation in seconds
         """
         r, g, b = color
         color_value = Color(r, g, b)
-        fade_factor = 0.9  # Facteur de diminution pour la traînée
+        fade_factor = 0.9  # Fade factor for the trail
 
         start_time = time.time()
-        # Initialisation des couleurs
+        # Initialize colors
         pixel_values = [0] * self.num_pixels
 
         steps = 0
         while self._running and (time.time() - start_time < duration):
-            # Appliquer le facteur de fondu à toutes les LEDs
+            # Apply fade factor to all LEDs
             for i in range(self.num_pixels):
                 pixel_color = pixel_values[i]
                 r = (pixel_color >> 16) & 0xFF
@@ -294,11 +294,11 @@ class RpiWs281xLedHat(LedHatInterface):
 
                 pixel_values[i] = Color(r, g, b)
 
-            # Allumer la LED de tête
+            # Light up the head LED
             head_pos = steps % self.num_pixels
             pixel_values[head_pos] = color_value
 
-            # Mise à jour des LEDs
+            # Update LEDs
             for i in range(self.num_pixels):
                 self.pixels.setPixelColor(i, pixel_values[i])
 
@@ -309,13 +309,13 @@ class RpiWs281xLedHat(LedHatInterface):
     def sparkle_effect(self, background: Tuple[int, int, int], sparkle_color: Tuple[int, int, int],
                       wait: float = 0.05, duration: float = 5.0) -> None:
         """
-        Effet d'étincelle aléatoire sur fond coloré.
+        Random sparkle effect on colored background.
 
         Args:
-            background: Tuple RGB (r, g, b) pour la couleur de fond
-            sparkle_color: Tuple RGB (r, g, b) pour la couleur des étincelles
-            wait: Temps d'attente entre les mises à jour (en secondes)
-            duration: Durée de l'animation en secondes
+            background: RGB tuple (r, g, b) for the background color
+            sparkle_color: RGB tuple (r, g, b) for the sparkle color
+            wait: Wait time between updates (in seconds)
+            duration: Duration of the animation in seconds
         """
         import random
 
@@ -325,42 +325,42 @@ class RpiWs281xLedHat(LedHatInterface):
         sp_r, sp_g, sp_b = sparkle_color
         sp_color = Color(sp_r, sp_g, sp_b)
 
-        # Définir la couleur d'arrière-plan
+        # Set the background color
         for i in range(self.num_pixels):
             self.pixels.setPixelColor(i, bg_color)
         self.pixels.show()
 
         start_time = time.time()
         while self._running and (time.time() - start_time < duration):
-            # Choisir aléatoirement quelques LEDs pour briller
+            # Randomly choose a few LEDs to sparkle
             sparkle_positions = set()
-            for k in range(5):  # 5 étincelles à la fois
+            for k in range(5):  # 5 sparkles at a time
                 sparkle_positions.add(random.randint(0, self.num_pixels - 1))
 
-            # Allumer les étincelles
+            # Light up the sparkles
             for pos in sparkle_positions:
                 self.pixels.setPixelColor(pos, sp_color)
             self.pixels.show()
             time.sleep(wait)
 
-            # Restaurer la couleur d'arrière-plan pour ces LEDs
+            # Restore the background color for these LEDs
             for pos in sparkle_positions:
                 self.pixels.setPixelColor(pos, bg_color)
 
     def start_animation(self, animation_name: str, **kwargs) -> None:
         """
-        Démarre une animation en continu dans un thread séparé.
+        Start a continuous animation in a separate thread.
 
         Args:
-            animation_name: Nom de l'animation à exécuter
-            **kwargs: Paramètres spécifiques à l'animation
+            animation_name: Name of the animation to run
+            **kwargs: Animation-specific parameters
         """
         self.stop_animation()
         self._current_animation = animation_name
         self._animation_params = kwargs
         self._running = True
 
-        # Démarrer l'animation dans un thread séparé
+        # Start the animation in a separate thread
         self._animation_thread = threading.Thread(
             target=self._run_animation,
             args=(animation_name, kwargs),
@@ -371,11 +371,11 @@ class RpiWs281xLedHat(LedHatInterface):
 
     def _run_animation(self, animation_name: str, kwargs: dict) -> None:
         """
-        Exécute l'animation spécifiée dans un thread séparé.
+        Run the specified animation in a separate thread.
 
         Args:
-            animation_name: Nom de l'animation à exécuter
-            kwargs: Paramètres spécifiques à l'animation
+            animation_name: Name of the animation to run
+            kwargs: Animation-specific parameters
         """
         try:
             if animation_name == "rainbow_cycle":
@@ -395,50 +395,50 @@ class RpiWs281xLedHat(LedHatInterface):
             elif animation_name == "sparkle_effect":
                 self.sparkle_effect(**kwargs)
             else:
-                logger.log(LogLevel.WARNING, f"Animation inconnue: {animation_name}")
+                logger.log(LogLevel.WARNING, f"Unknown animation: {animation_name}")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Erreur dans l'animation {animation_name}: {e}")
+            logger.log(LogLevel.ERROR, f"Error in animation {animation_name}: {e}")
         finally:
-            # Réinitialiser l'état si l'animation se termine
+            # Reset state if the animation ends
             if self._current_animation == animation_name:
                 self._running = False
                 self._current_animation = None
                 self._animation_params = {}
 
     def stop_animation(self) -> None:
-        """Arrête l'animation en cours."""
+        """Stop the current animation."""
         self._running = False
         if self._animation_thread and self._animation_thread.is_alive():
-            self._animation_thread.join(timeout=1.0)  # Attendre que le thread se termine
+            self._animation_thread.join(timeout=1.0)  # Wait for the thread to terminate
         self._current_animation = None
         self._animation_params = {}
         self._animation_thread = None
 
     def close(self) -> None:
-        """Nettoie et libère les ressources."""
+        """Clean up and release resources."""
         try:
             logger.log(LogLevel.INFO, "Cleaning up LED hat resources")
             self.stop_animation()
             self.clear()
-            # Forcer l'affichage des LEDs éteintes
+            # Force display of turned off LEDs
             self.pixels.show()
             logger.log(LogLevel.INFO, "LED hat resources cleaned up successfully")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during LED hat cleanup: {e}")
 
     def cleanup(self) -> None:
-        """Alias pour close() pour compatibilité avec le container."""
+        """Alias for close() for container compatibility."""
         self.close()
 
     def _wheel(self, pos: int) -> int:
         """
-        Fonction d'aide pour l'animation arc-en-ciel.
+        Helper function for rainbow animation.
 
         Args:
-            pos: Position dans la roue des couleurs (0-255)
+            pos: Position in the color wheel (0-255)
 
         Returns:
-            Valeur de couleur au format Color
+            Color value in Color format
         """
         if pos < 85:
             return Color(pos * 3, 255 - pos * 3, 0)
@@ -451,10 +451,10 @@ class RpiWs281xLedHat(LedHatInterface):
 
     @property
     def current_animation(self) -> Optional[str]:
-        """Retourne le nom de l'animation en cours, ou None si aucune animation n'est en cours."""
+        """Returns the name of the current animation, or None if no animation is running."""
         return self._current_animation
 
     @property
     def animation_params(self) -> Dict[str, Any]:
-        """Retourne les paramètres de l'animation en cours."""
+        """Returns the parameters of the current animation."""
         return self._animation_params

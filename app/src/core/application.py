@@ -26,7 +26,7 @@ class Application:
             # Le LED hat est déjà initialisé via le container
             led_hat = self._container.led_hat
             if not led_hat:
-                logger.log(LogLevel.WARNING, "LED hat non disponible")
+                logger.log(LogLevel.WARNING, "LED hat not available")
                 return
 
             # Démarrer l'animation de cercle rotatif
@@ -38,11 +38,11 @@ class Application:
                 rotation_time=4.0,
                 continuous=True
             )
-            logger.log(LogLevel.INFO, "Animation LED démarrée avec succès")
+            logger.log(LogLevel.INFO, "LED animation started successfully")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Erreur lors du démarrage de l'animation LED: {str(e)}")
+            logger.log(LogLevel.ERROR, f"Error starting LED animation: {str(e)}")
             import traceback
-            logger.log(LogLevel.DEBUG, f"Détails de l'erreur: {traceback.format_exc()}")
+            logger.log(LogLevel.DEBUG, f"Error details: {traceback.format_exc()}")
 
     def _setup_nfc(self):
         try:
