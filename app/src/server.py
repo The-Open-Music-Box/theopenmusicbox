@@ -2,9 +2,9 @@
 
 import signal
 import sys
-from pathlib import Path
 import eventlet
-eventlet.monkey_patch(os=False)
+import atexit
+from pathlib import Path
 
 from flask import Flask
 from flask_socketio import SocketIO
@@ -97,10 +97,26 @@ def create_server(config: Config):
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during reload: {e}")
 
+    # Function to be called at exit (registered with atexit)
+    def exit_handler():
+        logger.log(LogLevel.INFO, "Application exit handler called")
+        try:
+            if hasattr(app, 'container') and hasattr(app.container, '_led_hat') and app.container._led_hat:
+                # Ensure LEDs are turned off
+                app.container._led_hat.stop_animation()
+                app.container._led_hat.clear()
+                logger.log(LogLevel.INFO, "LEDs turned off at exit")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error turning off LEDs at exit: {e}")
+
     # Register signal handlers
     signal.signal(signal.SIGTERM, shutdown_handler)
     signal.signal(signal.SIGINT, shutdown_handler)
     signal.signal(signal.SIGUSR1, reload_handler)
+    signal.signal(signal.SIGHUP, shutdown_handler)  # Add SIGHUP handler
+
+    # Register exit handler
+    atexit.register(exit_handler)
 
     return app, socketio
 

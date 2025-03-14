@@ -16,8 +16,33 @@ class Application:
             self._nfc_mapping,
             container.config.upload_folder
         )
+        self._setup_led()
         self._setup_nfc()
         self._setup_audio()
+
+    def _setup_led(self):
+        # Utiliser le LED hat du container
+        try:
+            # Le LED hat est déjà initialisé via le container
+            led_hat = self._container.led_hat
+            if not led_hat:
+                logger.log(LogLevel.WARNING, "LED hat non disponible")
+                return
+
+            # Démarrer l'animation de cercle rotatif
+            led_hat.start_animation(
+                "rotating_circle",
+                color=(10, 10, 10),
+                background_color=(0, 0, 0),
+                segment_length=5,
+                rotation_time=4.0,
+                continuous=True
+            )
+            logger.log(LogLevel.INFO, "Animation LED démarrée avec succès")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Erreur lors du démarrage de l'animation LED: {str(e)}")
+            import traceback
+            logger.log(LogLevel.DEBUG, f"Détails de l'erreur: {traceback.format_exc()}")
 
     def _setup_nfc(self):
         try:
@@ -80,5 +105,10 @@ class Application:
                     self._container.nfc.cleanup()
                 if self._container.audio:
                     self._container.audio.cleanup()
+            # Arrêter l'animation LED et nettoyer
+            if hasattr(self, '_led_hat'):
+                self._led_hat.stop_animation()
+                self._led_hat.clear()
+                logger.log(LogLevel.INFO, "LED animation stopped")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during cleanup: {e}")

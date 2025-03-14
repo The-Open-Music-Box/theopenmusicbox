@@ -37,7 +37,9 @@ class WebRoutes:
                     "components": {
                         "websocket": bool(current_app.socketio),
                         "gpio": bool(container.gpio),
-                        "nfc": bool(container.nfc)
+                        "nfc": bool(container.nfc),
+                        "audio": bool(container.audio),
+                        "led_hat": bool(container.led_hat)
                     }
                 }
                 return jsonify(status)

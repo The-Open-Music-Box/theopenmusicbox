@@ -14,6 +14,8 @@ from src.module.nfc.nfc_factory import get_nfc_handler
 from src.helpers.exceptions import AppError
 from src.module.audio_player.audio_interface import AudioPlayerInterface
 from src.module.audio_player.audio_factory import get_audio_player
+from src.module.ledhat.ledhat_interface import LedHatInterface
+from src.module.ledhat.ledhat_factory import get_led_hat
 from src.services.notification_service import PlaybackSubject
 
 logger = ImprovedLogger(__name__)
@@ -38,6 +40,7 @@ class Container:
         self._gpio = None
         self._nfc = None
         self._audio = None
+        self._led_hat = None
         self.bus_lock = Semaphore()
 
         # Set up event forwarding if event_publisher is provided
@@ -98,6 +101,18 @@ class Container:
                 self._audio = None
         return self._audio
 
+    @property
+    def led_hat(self) -> Optional[LedHatInterface]:
+        if not self._led_hat:
+            try:
+                self._led_hat = get_led_hat(num_pixels=36, brightness=0.1)
+                logger.log(LogLevel.INFO, "LED hat initialized")
+            except Exception as e:
+                # Capture toutes les exceptions possibles pour rendre le composant vraiment optionnel
+                logger.log(LogLevel.WARNING, f"LED hat not available: {str(e)}")
+                self._led_hat = None
+        return self._led_hat
+
     def cleanup(self):
         logger.log(LogLevel.INFO, "Starting container cleanup")
         cleanup_timeout = 5  # seconds
@@ -126,6 +141,11 @@ class Container:
         if self._audio:
             cleanup_with_timeout("Audio", self._audio.cleanup)
             self._audio = None
+
+        # Clean up LED hat
+        if self._led_hat:
+            cleanup_with_timeout("LED hat", self._led_hat.cleanup)
+            self._led_hat = None
 
         # Release bus lock if held
         try:
