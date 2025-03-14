@@ -1,0 +1,14 @@
+# Dépendances pour macOS
+-r requirements_base.txt
+
+# Audio - Version spécifique pour macOS
+# Note: Utilisation de simpleaudio au lieu de pygame pour une meilleure compatibilité
+# Installer d'abord: brew install portaudio
+simpleaudio==1.0.4
+
+# Dépendances optionnelles pour le développement
+pytest==8.0.2
+pytest-cov==4.1.0
+
+# Mise à jour de pip recommandée:
+# pip install --upgrade pip

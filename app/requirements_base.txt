@@ -1,0 +1,21 @@
+# Dépendances communes pour TheMusicBox
+# Bibliothèques principales
+Flask==3.0.3
+Flask-SocketIO==5.4.1
+Flask-CORS==4.0.0
+Werkzeug==3.0.1
+
+# Gestion des WebSockets
+eventlet==0.37.0
+python-socketio==5.11.4
+websocket-client==1.7.0
+
+# Utilitaires
+python-dotenv==1.0.1
+colorama==0.4.6
+requests==2.31.0
+rich==13.7.0
+
+# Gestion des médias
+yt-dlp==2024.3.10
+mutagen==1.47.0

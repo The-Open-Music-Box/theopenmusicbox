@@ -1,0 +1,9 @@
+# Dépendances pour Raspberry Pi
+-r requirements_base.txt
+
+# Dépendances spécifiques au Raspberry Pi
+pygame==2.5.2
+RPi.GPIO==0.7.1
+spidev==3.6
+PyAudio==0.2.14
+pydub==0.25.1

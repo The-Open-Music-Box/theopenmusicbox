@@ -85,20 +85,26 @@ class Application:
             y = 1
             height, width = self.window.get_content_area(self.window.content_win)
 
-            if content is None:
-                self.window.content_win.attron(curses.color_pair(3))  # Vert pour succès
-                self.window.content_win.addstr(y, 1, "SUCCESS: Operation completed successfully")
-                self.window.content_win.attroff(curses.color_pair(3))
-                y += 2
-            elif isinstance(content, dict):
-                # Gestion des erreurs
+            # Display raw data first if it's a dictionary
+            if isinstance(content, dict):
+                # Display raw data section
+                self.window.content_win.attron(curses.color_pair(4))  # Cyan for raw data
+                self.window.content_win.addstr(y, 1, "=== Raw Data ===")
+                self.window.content_win.attroff(curses.color_pair(4))
+                y += 1
+                raw_data = str(content)
+                if len(raw_data) > width - 4:
+                    raw_data = raw_data[:width-7] + "..."
+                self.window.content_win.addstr(y, 2, raw_data)
+                y += 2  # Add extra space after raw data
+
+                # Then handle status messages
                 if 'error' in content:
                     self.window.content_win.attron(curses.color_pair(1))  # Rouge pour les erreurs
                     self.window.content_win.addstr(y, 1, "ERROR:")
                     self.window.content_win.addstr(y + 1, 2, str(content['error']))
                     self.window.content_win.attroff(curses.color_pair(1))
                     y += 3
-                # Gestion des succès
                 elif 'status' in content and content['status'] in ['success', 'info']:
                     color = curses.color_pair(3) if content['status'] == 'success' else curses.color_pair(4)
                     self.window.content_win.attron(color)
@@ -107,7 +113,7 @@ class Application:
                     self.window.content_win.attroff(color)
                     y += 3
 
-                # Affichage des données
+                # Finally display formatted data
                 for key, value in content.items():
                     if key not in ['status', 'error', 'message']:
                         # En-tête de section
@@ -142,6 +148,11 @@ class Application:
                             y += 1
                         y += 1  # Espace entre les sections
 
+            elif content is None:
+                self.window.content_win.attron(curses.color_pair(3))  # Vert pour succès
+                self.window.content_win.addstr(y, 1, "SUCCESS: Operation completed successfully")
+                self.window.content_win.attroff(curses.color_pair(3))
+                y += 2
             elif isinstance(content, list):
                 self.window.content_win.attron(curses.color_pair(4))  # Cyan pour les listes
                 self.window.content_win.addstr(y, 1, "=== Results ===")
@@ -156,7 +167,6 @@ class Application:
                         item_str = item_str[:width-7] + "..."
                     self.window.content_win.addstr(y, 2, item_str)
                     y += 1
-
             else:
                 # Gestion des chaînes de caractères
                 content_str = str(content)
