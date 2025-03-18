@@ -2,10 +2,11 @@ import { ref } from 'vue'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
 const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'application/pdf',
-  // Add other allowed types
+  'audio/mpeg',
+  'audio/wav',
+  'audio/ogg',
+  'audio/mp3',
+  'audio/flac'
 ]
 
 export function useUploadValidation() {
@@ -27,7 +28,6 @@ export function useUploadValidation() {
         continue
       }
 
-      // Additional security checks
       if (file.name.includes('..') || file.name.includes('/')) {
         validationErrors.value.push(`${file.name}: Invalid file name`)
         continue
@@ -58,18 +58,9 @@ export function useUploadValidation() {
 }
 
 async function validateFileContent(file: File): Promise<boolean> {
-  // Read first few bytes to verify file signature
   const buffer = await file.slice(0, 4).arrayBuffer()
   const header = new Uint8Array(buffer)
-  
-  // Example: Check PNG signature
-  if (file.type === 'image/png') {
-    return header[0] === 0x89 && 
-           header[1] === 0x50 && // P
-           header[2] === 0x4E && // N
-           header[3] === 0x47    // G
-  }
-  
-  // Add other format validations
+
+  // Add audio format validations as needed
   return true
 }

@@ -1,24 +1,24 @@
 // components/files/FileListContainer.vue
 <template>
   <div>
-    <!-- Ajout de la gestion du chargement et des erreurs -->
-    <div v-if="isLoading" class="text-gray-600">Chargement...</div>
+    <!-- Loading and error states -->
+    <div v-if="isLoading" class="text-gray-600">Loading...</div>
     <div v-if="error" class="text-red-600">{{ error }}</div>
-    
+
     <template v-if="!isLoading && !error">
       <FilesListHeader />
-      <FilesList 
+      <FilesList
         :playlists="playlists"
         :selectedTrack="selectedTrack"
         @deleteTrack="handleDeleteTrack"
         @select-track="handleSelectTrack"
       />
-      <DeleteDialog 
-        :open="showDeleteDialog" 
+      <DeleteDialog
+        :open="showDeleteDialog"
         :track="localSelectedTrack"
-        :playlist="selectedPlaylist" 
+        :playlist="selectedPlaylist"
         @close="closeDeleteDialog"
-        @confirm="handleDeleteConfirm" 
+        @confirm="handleDeleteConfirm"
       />
     </template>
   </div>

@@ -7,7 +7,7 @@
       {{ track?.filename || '' }}
     </p>
     <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
-      <span>Durée: {{ track?.duration || '00:00' }}</span>
+      <span>Durée: {{ track ? formatDuration(track.duration) : '00:00' }}</span>
       <span>Lectures: {{ track?.play_counter || 0 }}</span>
     </div>
   </div>
@@ -29,4 +29,3 @@ function formatDuration(duration: string): string {
   return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
 }
 </script>
-  

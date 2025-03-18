@@ -6,7 +6,7 @@ class RealSocketService {
   private socket: Socket
 
   constructor() {
-    this.socket = io('http://localhost:5001', {
+    this.socket = io('http://tmbdev.local:5005', {
       transports: ['websocket'],
       autoConnect: false,
       reconnection: true,

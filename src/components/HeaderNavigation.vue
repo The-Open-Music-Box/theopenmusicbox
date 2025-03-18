@@ -49,42 +49,17 @@
 <script setup>
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { Bars3Icon, XMarkIcon } from '@heroicons/vue/24/outline'
-import { ref, onMounted } from 'vue'
-import axios from 'axios'
+import { ref } from 'vue'
 
-import dataService from '../services/dataService'
-
-
+// Navigation items configuration
 const navigation = ref([
   { name: 'Home', href: '/', current: true },
   { name: 'About', href: '/about', current: false },
   { name: 'Contact', href: '/contact', current: false },
 ])
-
-const checkBackendConnection = async () => {
-  try {
-    // Utiliser le service existant au lieu d'un appel axios direct
-    const response = await dataService.checkHealth() // Ajouter cette méthode à vos services
-    console.log('Backend connection successful:', response)
-  } catch (error) {
-    console.error('Backend connection error:', error)
-  }
-}
-
-onMounted(() => {
-  checkBackendConnection()
-})
 </script>
 
 <style scoped>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-}
-
 nav {
   padding: 30px;
 

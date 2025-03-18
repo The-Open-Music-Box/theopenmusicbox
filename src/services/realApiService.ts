@@ -73,7 +73,7 @@ apiClient.interceptors.response.use(
   },
   async (error: AxiosError) => {
     metrics.errorCount++
-    
+
     // Tenter le retry si c'est une erreur réseau ou 5xx
     if (error.response?.status && error.response.status >= 500) {
       try {
@@ -82,7 +82,7 @@ apiClient.interceptors.response.use(
         return Promise.reject(retryError)
       }
     }
-    
+
     return Promise.reject(error)
   }
 )
@@ -97,11 +97,11 @@ class RealApiService {
       console.log('Fetching audio files from API...')
       const response = await apiClient.get('/api/nfc_mapping')
       console.log('Audio files response:', response.data)
-      
+
       // Les données sont déjà au bon format, pas besoin de transformation
       const playlists = response.data
       console.log('Playlists transformées:', playlists)
-      
+
       cache.set(cacheKey, playlists)
       return playlists
     } catch (err) {
@@ -120,8 +120,8 @@ class RealApiService {
     }
   }
 
-  async uploadFile(file: File | FormData, options?: { 
-    headers?: Record<string, string>; 
+  async uploadFile(file: File | FormData, options?: {
+    headers?: Record<string, string>;
     onUploadProgress?: (progress: AxiosProgressEvent) => void;
   }) {
     const formData = file instanceof File ? (() => {
@@ -129,7 +129,7 @@ class RealApiService {
       fd.append('file', file);
       return fd;
     })() : file;
-    
+
     try {
       const response = await apiClient.post('api/upload', formData, {
         headers: {
@@ -168,7 +168,7 @@ class RealApiService {
   async checkHealth(): Promise<SystemHealth> {
     try {
       console.log('Fetching health status...')
-      const response = await apiClient.get('/api/health')
+      const response = await apiClient.get('health')
       console.log('Health response:', response)
       return response.data
     } catch (err) {

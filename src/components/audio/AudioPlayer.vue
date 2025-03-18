@@ -1,10 +1,20 @@
+/**
+ * AudioPlayer Component
+ *
+ * A full-featured audio player with:
+ * - Play/Pause functionality
+ * - Track progress visualization
+ * - Next/Previous track navigation
+ * - Skip forward/backward controls
+ * - Track metadata display
+ */
 <template>
   <div class="flex items-center justify-center">
     <div class="w-2/3">
       <div class="bg-white border-slate-100 dark:bg-slate-800 dark:border-slate-500 border-b rounded-t-xl p-4 pb-6 sm:p-10 sm:pb-8 lg:p-6 xl:p-10 xl:pb-8 space-y-6 sm:space-y-8 lg:space-y-6 xl:space-y-8 items-center">
         <TrackInfo :track="currentTrack || undefined" />
-        <ProgressBar 
-          :currentTime="currentTime" 
+        <ProgressBar
+          :currentTime="currentTime"
           :duration="duration"
           @seek="handleSeek"
         />
@@ -22,7 +32,7 @@
     </div>
 
     <!-- Lecteur audio caché -->
-    <audio 
+    <audio
       ref="audioPlayer"
       :src="audioUrl"
       @ended="handleTrackEnd"
@@ -41,6 +51,7 @@ import PlaybackControls from './PlaybackControls.vue'
 import type { Track, PlayList } from '../files/types'
 import dataService from '@/services/dataService'
 
+// Component props with types and defaults
 interface Props {
   selectedTrack?: Track | null
   playlist?: PlayList | null
@@ -51,7 +62,7 @@ const props = withDefaults(defineProps<Props>(), {
   playlist: null
 })
 
-// State
+// State management
 const isPlaying = ref(false)
 const currentTime = ref(0)
 const duration = ref(0)
@@ -110,7 +121,6 @@ const handleSeek = (time: number) => {
 const handleTrackEnd = () => {
   isPlaying.value = false
   currentTime.value = 0
-  // Optionnel : passer automatiquement à la piste suivante
   next()
 }
 
@@ -129,7 +139,7 @@ const skip = () => {
 
 const findAdjacentTrack = (direction: 'next' | 'previous'): Track | null => {
   if (!props.playlist || !currentTrack.value) return null
-  
+
   const currentIndex = props.playlist.tracks.findIndex(t => t.number === currentTrack.value?.number)
   if (currentIndex === -1) return null
 

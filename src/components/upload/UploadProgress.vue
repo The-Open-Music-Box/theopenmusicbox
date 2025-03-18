@@ -1,9 +1,8 @@
-// components/upload/UploadProgress.vue
 <template>
   <div v-if="progress > 0" class="mt-6">
     <div class="overflow-hidden rounded-full bg-gray-200">
-      <div 
-        class="h-2 rounded-full bg-indigo-600" 
+      <div
+        class="h-2 rounded-full bg-indigo-600"
         :style="{ width: progress + '%' }"
       />
     </div>

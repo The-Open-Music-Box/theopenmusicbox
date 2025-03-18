@@ -3,14 +3,14 @@ const webpack = require('webpack');
 
 module.exports = defineConfig({
   transpileDependencies: [],
-  outputDir: 'static',
-  publicPath: '/', 
-  assetsDir: '', 
-  
+  outputDir: process.env.VUE_APP_OUTPUT_DIR,
+  publicPath: process.env.VUE_APP_PUBLIC_PATH,
+  assetsDir: process.env.VUE_APP_ASSETS_DIR,
+
   devServer: {
     proxy: {
       '^/api': {
-        target: 'http://tmbdev.local:5005',
+        target: process.env.VUE_APP_API_URL,
         changeOrigin: true,
         ws: false,
         logLevel: 'debug',  // Pour plus de détails dans les logs
@@ -23,7 +23,7 @@ module.exports = defineConfig({
     }
     },
   },
-  
+
   configureWebpack: {
     plugins: [
       new webpack.DefinePlugin({

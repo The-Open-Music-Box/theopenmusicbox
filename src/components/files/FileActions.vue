@@ -1,4 +1,3 @@
-// components/files/FileActions.vue
 <template>
   <div class="flex flex-none items-center gap-x-4">
     <button @click="handleAssociate"
@@ -26,16 +25,15 @@
 import { defineProps } from 'vue'
 import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
 import { EllipsisVerticalIcon } from '@heroicons/vue/20/solid'
-import type { AudioFile } from '../files/types'
-import { useFileDialog } from '../files/composables/useFileDialog'
+import type { LegacyAudioFile } from './types'
+import { useFileDialog } from './composables/useFileDialog'
 
 const props = defineProps<{
-  file: AudioFile
+  file: LegacyAudioFile
 }>()
 
 const { openDeleteDialog } = useFileDialog()
 
-// Utilisation directe de openDeleteDialog
 const handleDelete = () => {
   openDeleteDialog(props.file)
 }
