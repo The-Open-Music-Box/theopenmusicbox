@@ -15,7 +15,7 @@
       />
       <DeleteDialog 
         :open="showDeleteDialog" 
-        :track="selectedTrack"
+        :track="localSelectedTrack"
         :playlist="selectedPlaylist" 
         @close="closeDeleteDialog"
         @confirm="handleDeleteConfirm" 

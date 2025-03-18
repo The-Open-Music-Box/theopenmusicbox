@@ -26,7 +26,7 @@
                                     </DialogTitle>
                                     <div class="mt-2">
                                         <p class="text-sm text-gray-500">
-                                            Êtes-vous sûr de vouloir supprimer le morceau "{{ track?.title }}" de la playlist "{{ playlist?.title }}" ?
+                                            Êtes-vous sûr de vouloir supprimer le morceau "{{ track?.title || 'sans titre' }}" de la playlist "{{ playlist?.title || 'sans nom' }}" ?
                                             Cette action ne peut pas être annulée.
                                         </p>
                                     </div>
