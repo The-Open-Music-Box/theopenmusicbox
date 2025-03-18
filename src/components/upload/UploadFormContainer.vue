@@ -13,14 +13,30 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * UploadFormContainer Component
+ *
+ * Container component that orchestrates file uploading process.
+ * Handles file validation, upload process, and progress tracking.
+ */
 import { useUploadValidation } from '../upload/composables/useUploadValidation'
 import { useFileUpload } from '../upload/composables/useFileUpload'
 import UploadFormUI from './UploadFormUI.vue'
 import UploadProgress from './UploadProgress.vue'
+import { i18n } from '@/i18n'
 
+const { t: $t } = i18n
+
+// Use composables for validation and file uploading functionality
 const { validateFiles } = useUploadValidation()
 const { uploadFiles, uploadProgress, isUploading, upload } = useFileUpload()
 
+/**
+ * Handle file selection from the form
+ *
+ * Validates files and adds valid files to upload queue
+ * @param {FileList} files - Files selected by user
+ */
 const handleFileSelection = async (files: FileList) => {
     const validatedFiles = await validateFiles(Array.from(files))
     if (validatedFiles.length > 0) {
@@ -28,6 +44,11 @@ const handleFileSelection = async (files: FileList) => {
     }
 }
 
+/**
+ * Handle form submission
+ *
+ * Initiates the upload process if files are available
+ */
 const handleSubmit = async () => {
     if (uploadFiles.value.length) {
         await upload()

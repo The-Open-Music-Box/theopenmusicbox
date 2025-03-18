@@ -1,9 +1,22 @@
-// components/files/FilesListHeader.vue
 <template>
   <div class="flex justify-between items-center mb-4">
-    <h2 class="text-xl font-semibold text-white">Liste des fichiers audio</h2>
-    <div class="text-sm text-gray-400">
-      <!-- Vous pouvez ajouter des actions ou des informations supplémentaires ici -->
+    <h2 :class="[getColor('text', 'text.white'), 'text-xl font-semibold']">
+      {{ $t('file.listTitle') }}
+    </h2>
+    <div :class="[getColor('text', 'text.light'), 'text-sm']">
+      <!-- Additional controls or information can be added here -->
     </div>
   </div>
 </template>
+
+<script setup lang="ts">
+/**
+ * FilesListHeader Component
+ *
+ * Header for the file list section displaying title and optional controls.
+ */
+import { i18n } from '@/i18n'
+import { colors } from '@theme/colors'
+
+const { t: $t } = i18n
+</script>

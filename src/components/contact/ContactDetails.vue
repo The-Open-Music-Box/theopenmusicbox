@@ -1,20 +1,19 @@
-// components/contact/ContactDetails.vue
 <template>
-  <dl class="mt-10 space-y-4 text-base leading-7 text-gray-600">
+  <dl :class="[colors.text.secondary, 'mt-10 space-y-4 text-base leading-7']">
     <div v-for="detail in details" :key="detail.type" class="flex gap-x-4">
       <dt class="flex-none">
         <span class="sr-only">{{ detail.type }}</span>
-        <component 
-          :is="detail.icon" 
-          class="h-7 w-6 text-gray-400" 
-          aria-hidden="true" 
+        <component
+          :is="detail.icon"
+          :class="[colors.text.disabled, 'h-7 w-6']"
+          aria-hidden="true"
         />
       </dt>
       <dd>
         <template v-if="detail.href">
-          <a 
-            :href="detail.href" 
-            class="hover:text-gray-900"
+          <a
+            :href="detail.href"
+            :class="['hover:' + colors.text.primary]"
           >{{ detail.content }}</a>
         </template>
         <template v-else>
@@ -26,17 +25,31 @@
 </template>
 
 <script setup lang="ts">
-import { BuildingOffice2Icon, PhoneIcon, EnvelopeIcon } from '@heroicons/vue/24/outline'
-import { defineProps } from 'vue'
+/**
+ * ContactDetails Component
+ *
+ * Displays a list of contact details with appropriate icons.
+ * Supports clickable links for email, phone, etc.
+ */
+
+import { i18n } from '@/i18n'
+import { colors } from '@theme/colors'
+
+const { t: $t } = i18n
 
 interface ContactDetail {
-  type: string
-  icon: string
-  content: string
-  href?: string
+  /** Type of contact detail (address, phone, email) */
+  type: string;
+  /** Icon component name to render */
+  icon: string;
+  /** Content text to display */
+  content: string;
+  /** Optional href for clickable items */
+  href?: string;
 }
 
 defineProps<{
-  details: ContactDetail[]
+  /** Array of contact details to display */
+  details: ContactDetail[];
 }>()
 </script>

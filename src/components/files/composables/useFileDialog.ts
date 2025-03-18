@@ -1,29 +1,58 @@
 // components/files/composables/useFilesDialog.ts
 import { ref } from 'vue'
-import type { Track, PlayList } from '../types'
+import type { LegacyAudioFile } from '../types'
 
+/**
+ * FileDialog Composable
+ *
+ * Manages state and functionality for file-related dialogs.
+ * Handles opening and closing dialogs for actions like deletion.
+ */
 export function useFileDialog() {
+  // State for delete dialog
   const showDeleteDialog = ref(false)
-  const selectedTrack = ref<Track | null>(null)
-  const selectedPlaylist = ref<PlayList | null>(null)
+  const fileToDelete = ref<LegacyAudioFile | null>(null)
 
-  const openDeleteDialog = (track: Track, playlist: PlayList) => {
-    selectedTrack.value = track
-    selectedPlaylist.value = playlist
+  /**
+   * Opens the delete confirmation dialog
+   * @param {LegacyAudioFile} file - The file to be deleted
+   */
+  const openDeleteDialog = (file: LegacyAudioFile) => {
+    fileToDelete.value = file
     showDeleteDialog.value = true
   }
 
+  /**
+   * Closes the delete confirmation dialog
+   */
   const closeDeleteDialog = () => {
+    fileToDelete.value = null
     showDeleteDialog.value = false
-    selectedTrack.value = null
-    selectedPlaylist.value = null
+  }
+
+  /**
+   * Confirms file deletion
+   * @returns {Promise<void>}
+   */
+  const confirmDelete = async (): Promise<void> => {
+    if (!fileToDelete.value) return
+
+    try {
+      // Implement deletion logic here
+      // await dataService.deleteFile(fileToDelete.value.id)
+      console.log('File deleted:', fileToDelete.value.name)
+    } catch (error) {
+      console.error('Error deleting file:', error)
+    } finally {
+      closeDeleteDialog()
+    }
   }
 
   return {
     showDeleteDialog,
-    selectedTrack,
-    selectedPlaylist,
+    fileToDelete,
     openDeleteDialog,
-    closeDeleteDialog
+    closeDeleteDialog,
+    confirmDelete
   }
 }

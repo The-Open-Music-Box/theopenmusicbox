@@ -3,18 +3,36 @@
     <button
       type="submit"
       :disabled="loading"
-      class="rounded-md bg-indigo-600 px-3.5 py-2.5 text-center text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+      :class="[
+        colors.primary.main,
+        'rounded-md px-3.5 py-2.5 text-center text-sm font-semibold text-white shadow-sm',
+        'hover:' + colors.primary.hover,
+        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
+        'focus-visible:outline-' + colors.primary.main,
+        'disabled:opacity-50 disabled:cursor-not-allowed'
+      ]"
     >
-      <span v-if="loading">Sending...</span>
-      <span v-else>Send message</span>
+      <span v-if="loading">{{ $t('contact.sending') }}</span>
+      <span v-else>{{ $t('contact.sendMessage') }}</span>
     </button>
   </div>
 </template>
 
 <script setup lang="ts">
-import { defineProps } from 'vue'
+/**
+ * SubmitButton Component
+ *
+ * A styled submit button for forms with loading state indication.
+ * Shows different text depending on loading state.
+ */
+
+import { i18n } from '@/i18n'
+import { colors } from '@theme/colors'
+
+const { t: $t } = i18n
 
 defineProps<{
+  /** Whether the form is currently submitting */
   loading: boolean
 }>()
 </script>

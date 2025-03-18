@@ -10,6 +10,7 @@
           :aria-valuenow="currentTime"
           :aria-valuemin="0"
           :aria-valuemax="duration"
+          @click="handleClick"
         ></div>
       </div>
       <div
@@ -29,17 +30,50 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, computed } from 'vue'
+/**
+ * ProgressBar Component
+ *
+ * Visual representation of audio playback progress.
+ * Shows current time, total duration, and a draggable progress indicator.
+ */
+import { computed } from 'vue'
+
 const props = defineProps<{
-  currentTime: number
-  duration: number
+  /** Current playback time in seconds */
+  currentTime: number;
+  /** Total duration of the track in seconds */
+  duration: number;
 }>()
 
+const emit = defineEmits<{
+  /** Emitted when user seeks to a new position */
+  (e: 'seek', time: number): void;
+}>()
+
+/** Calculate progress percentage based on current time and duration */
 const progressPercentage = computed(() => (props.currentTime / props.duration) * 100)
 
+/**
+ * Format time in seconds to MM:SS display format
+ * @param {number} time - Time in seconds
+ * @returns {string} Formatted time string
+ */
 const formatTime = (time: number) => {
   const minutes = Math.floor(time / 60)
   const seconds = Math.floor(time % 60).toString().padStart(2, '0')
   return `${minutes}:${seconds}`
+}
+
+/**
+ * Handle click on the progress bar
+ * @param {MouseEvent} event - The click event
+ */
+const handleClick = (event: MouseEvent) => {
+  const target = event.currentTarget as HTMLElement;
+  const rect = target.getBoundingClientRect();
+  const offsetX = event.clientX - rect.left;
+  const percentage = offsetX / rect.width;
+  const seekTime = props.duration * percentage;
+  emit('seek', seekTime);
 }
 </script>

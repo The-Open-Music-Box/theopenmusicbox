@@ -1,8 +1,7 @@
-// components/contact/FormField.vue
 <template>
   <div :class="[field.colSpan === 2 ? 'sm:col-span-2' : '']">
-    <label :for="field.id" class="block text-sm font-semibold leading-6 text-gray-900">
-      {{ field.label }}
+    <label :for="field.id" :class="[getColor('text', 'text.primary'), 'block text-sm font-semibold leading-6']">
+      {{ $t(`contact.${field.id}`) }}
     </label>
     <div class="mt-2.5">
       <textarea
@@ -29,27 +28,51 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue'
+/**
+ * FormField Component
+ *
+ * A reusable form field component that supports both input and textarea types.
+ * Handles user input events and applies consistent styling.
+ */
+
+import { i18n } from '@/i18n'
+import { colors } from '@theme/colors'
+
+const { t: $t } = i18n
 
 interface Field {
-  id: string
-  label: string
-  type: string
-  autocomplete?: string
-  rows?: number
-  colSpan: number
+  /** Unique identifier for the field */
+  id: string;
+  /** Label text for the field */
+  label: string;
+  /** Input type (text, email, textarea, etc.) */
+  type: string;
+  /** HTML autocomplete attribute */
+  autocomplete?: string;
+  /** Number of rows for textarea */
+  rows?: number;
+  /** Column span in grid layout */
+  colSpan: number;
 }
 
 const props = defineProps<{
-  field: Field
-  value: string
+  /** Field configuration */
+  field: Field;
+  /** Current field value */
+  value: string;
 }>()
 
 const emit = defineEmits<{
-  (e: 'input', value: string): void
-  (e: 'update', fieldId: string, value: string): void
+  /** Emitted when input value changes */
+  (e: 'input', value: string): void;
+  /** Emitted with field ID and new value */
+  (e: 'update', fieldId: string, value: string): void;
 }>()
 
+/**
+ * Handle input event from form control
+ * @param {Event} event - Input event object
+ */
 const handleInput = (event: Event) => {
   const target = event.target as HTMLInputElement | HTMLTextAreaElement
   emit('input', target.value)

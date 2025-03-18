@@ -12,16 +12,31 @@
 </template>
 
 <script setup lang="ts">
-import { ref, defineEmits, defineProps } from 'vue'
+/**
+ * UploadFormUI Component
+ *
+ * The user interface for the file upload form.
+ * Handles file selection and validation display.
+ */
+import { ref } from 'vue'
 import FileDropZone from './FileDropZone.vue'
 import FileValidationMessages from './FileValidationMessages.vue'
+import { i18n } from '@/i18n'
+
+const { t: $t } = i18n
 
 const props = defineProps<{
+  /** Whether a file upload is currently in progress */
   isUploading: boolean
 }>()
 
+/** Store validation errors from file selection */
 const validationErrors = ref<string[]>([])
 
+/**
+ * Handle files selected from the drop zone
+ * @param {Event} event - The file input change event
+ */
 const handleFilesSelected = (event: Event) => {
   const input = event.target as HTMLInputElement
   if (input.files?.length) {
@@ -30,7 +45,9 @@ const handleFilesSelected = (event: Event) => {
 }
 
 const emit = defineEmits<{
-  (e: 'files-selected', files: FileList): void
-  (e: 'submit'): void
+  /** Emitted when files are selected from the drop zone */
+  (e: 'files-selected', files: FileList): void;
+  /** Emitted when the form is submitted */
+  (e: 'submit'): void;
 }>()
 </script>

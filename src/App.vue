@@ -4,32 +4,55 @@
     <router-view />
   </div>
   <div id="app">
-    <div v-if="socketError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-      <strong class="font-bold">Socket Connection Error!</strong>
-      <span class="block sm:inline"> Unable to connect to the server. Using mock data instead.</span>
+    <div
+      v-if="socketError"
+      :class="[colors.error.background, colors.error.border, colors.error.text, 'px-4 py-3 rounded relative']"
+      role="alert"
+    >
+      <strong class="font-bold">{{ $t('common.socketError') }}</strong>
+      <span class="block sm:inline"> {{ $t('common.fallbackToMock') }}</span>
     </div>
-    <button @click="sendMessage">Send Message</button>
+    <button
+      @click="sendMessage"
+      :class="[colors.primary.main, 'mt-4 px-4 py-2 text-white rounded hover:' + colors.background.primary.main]"
+    >
+      {{ $t('common.sendMessage') }}
+    </button>
   </div>
 </template>
 
 <script setup>
+/**
+ * App Component - Application Root
+ *
+ * The main entry point for the application.
+ * Sets up global structure and socket connection state.
+ */
 import HeaderNavigation from './components/HeaderNavigation.vue'
 import { onMounted, onUnmounted, ref, getCurrentInstance } from 'vue'
+import { i18n } from '@/i18n'
+import { colors } from '@/theme/colors'
 
+const { t: $t } = i18n
 const { proxy } = getCurrentInstance()
 const socketError = ref(false)
 
+/**
+ * Send a test message through the socket connection
+ */
 const sendMessage = () => {
   try {
     proxy.$socketService.emit('message', 'Hello, server!')
-    console.log('Sent message to server')
+    console.log('Message sent to server')
   } catch (error) {
     console.error('Error sending message:', error)
     socketError.value = true
   }
 }
 
-// Setup socket listeners
+/**
+ * Set up socket event listeners
+ */
 const setupSocketListeners = () => {
   proxy.$socketService.on('response', (data) => {
     console.log('Received response from server:', data)
@@ -41,8 +64,8 @@ const setupSocketListeners = () => {
   })
 }
 
+// Component lifecycle hooks
 onMounted(() => {
-  console.log('Component mounted')
   setupSocketListeners()
 })
 
@@ -53,7 +76,6 @@ onUnmounted(() => {
 })
 </script>
 
-
 <style lang="scss">
 #app {
   font-family: Avenir, Helvetica, Arial, sans-serif;
@@ -61,18 +83,5 @@ onUnmounted(() => {
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
   color: #2c3e50;
-}
-
-nav {
-  padding: 30px;
-
-  a {
-    font-weight: bold;
-    color: #2c3e50;
-
-    &.router-link-exact-active {
-      color: #42b983;
-    }
-  }
 }
 </style>

@@ -1,13 +1,33 @@
 import { ref } from 'vue'
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import type { AxiosProgressEvent } from 'axios'
 import dataService from '../../../services/dataService'
 
+/**
+ * FileUpload Composable
+ *
+ * Manages the state and logic for uploading files to the server.
+ * Handles upload progress tracking and error management.
+ *
+ * @returns {Object} Upload state and functions
+ */
 export function useFileUpload() {
+  // State
   const uploadFiles = ref<File[]>([])
   const uploadProgress = ref(0)
   const isUploading = ref(false)
   const uploadErrors = ref<string[]>([])
 
+  /**
+   * Uploads the selected files to the server
+   *
+   * Process:
+   * 1. Gets a session ID from the server
+   * 2. Uploads each file with metadata
+   * 3. Updates progress as files are uploaded
+   *
+   * @returns {Promise<void>}
+   */
   const upload = async () => {
     if (!uploadFiles.value.length) return
 
@@ -28,25 +48,28 @@ export function useFileUpload() {
           formData.append('checksum', await generateChecksum(file))
 
           await dataService.uploadFile(formData)
-          
+
           const percentCompleted = Math.round(
-            ((uploadFiles.value.indexOf(file) + 1) * 100) / 
+            ((uploadFiles.value.indexOf(file) + 1) * 100) /
             uploadFiles.value.length
           )
           uploadProgress.value = percentCompleted
-        } catch (error: any) {
-          uploadErrors.value.push(`Failed to upload ${file.name}: ${error.message || 'Unknown error'}`)
+        } catch (error: unknown) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          uploadErrors.value.push(`Failed to upload ${file.name}: ${errorMessage}`)
         }
       }
 
       uploadFiles.value = []
-    } catch (error: any) { // Type 'error' as 'any' to access message property
-      uploadErrors.value.push(`Upload failed: ${error.message || 'Unknown error'}`)
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      uploadErrors.value.push(`Upload failed: ${errorMessage}`)
       throw error
     } finally {
       isUploading.value = false
     }
   }
+
   return {
     uploadFiles,
     uploadProgress,
@@ -56,12 +79,11 @@ export function useFileUpload() {
   }
 }
 
-// Compatible UUID generation function
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function generateUUID(): string {
-  // Fallback using crypto.getRandomValues()
   const buffer = new Uint16Array(8);
   crypto.getRandomValues(buffer);
-  
+
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c, i) {
     const r = (buffer[i % 8] & 0x0F) + 0x01;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -69,6 +91,12 @@ function generateUUID(): string {
   });
 }
 
+/**
+ * Generates a SHA-256 checksum for a file
+ *
+ * @param {File} file - The file to generate a checksum for
+ * @returns {Promise<string>} Hex string representation of the checksum
+ */
 async function generateChecksum(file: File): Promise<string> {
   const buffer = await file.arrayBuffer()
   const hashBuffer = await crypto.subtle.digest('SHA-256', buffer)

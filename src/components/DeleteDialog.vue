@@ -31,12 +31,14 @@
                 </div>
                 <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                   <DialogTitle as="h3" class="text-base font-semibold leading-6 text-gray-900">
-                    Supprimer le morceau
+                    {{ $t('track.delete.title') }}
                   </DialogTitle>
                   <div class="mt-2">
                     <p class="text-sm text-gray-500">
-                      Êtes-vous sûr de vouloir supprimer le morceau "{{ track?.title || 'sans titre' }}" de la playlist "{{ playlist?.title || 'sans nom' }}" ?
-                      Cette action ne peut pas être annulée.
+                      {{ $t('track.delete.confirmation', {
+                        title: track?.title || $t('track.delete.untitled'),
+                        playlist: playlist?.title || $t('track.delete.unnamed')
+                      }) }}
                     </p>
                   </div>
                 </div>
@@ -47,7 +49,7 @@
                   class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
                   @click="confirmDeletion"
                 >
-                  Supprimer
+                  {{ $t('common.delete') }}
                 </button>
                 <button
                   type="button"
@@ -55,7 +57,7 @@
                   @click="$emit('close')"
                   ref="cancelButtonRef"
                 >
-                  Annuler
+                  {{ $t('common.cancel') }}
                 </button>
               </div>
             </DialogPanel>
@@ -67,24 +69,41 @@
 </template>
 
 <script setup lang="ts">
-import { defineProps, defineEmits } from 'vue'
+/**
+ * DeleteDialog Component
+ *
+ * A modal dialog that confirms deletion of a track from a playlist.
+ * Provides user with a clear confirmation step before proceeding with deletion.
+ */
+
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import type { PlayList, Track } from './files/types'
+import { i18n } from '@/i18n'
+
+const { t: $t } = i18n
 
 interface Props {
-  open: boolean
-  track: Track | null
-  playlist: PlayList | null
+  /** Whether the dialog is open or closed */
+  open: boolean;
+  /** The track to be deleted */
+  track: Track | null;
+  /** The playlist containing the track */
+  playlist: PlayList | null;
 }
 
 defineProps<Props>()
 
 const emit = defineEmits<{
-  (e: 'close'): void
-  (e: 'confirm'): void
+  /** Emitted when the dialog is closed without confirming */
+  (e: 'close'): void;
+  /** Emitted when deletion is confirmed */
+  (e: 'confirm'): void;
 }>()
 
+/**
+ * Handles the confirmation of track deletion
+ */
 const confirmDeletion = () => {
   emit('confirm')
 }

@@ -1,5 +1,6 @@
 const { defineConfig } = require('@vue/cli-service');
 const webpack = require('webpack');
+const path = require('path');
 
 module.exports = defineConfig({
   transpileDependencies: [],
@@ -16,11 +17,11 @@ module.exports = defineConfig({
         logLevel: 'debug',  // Pour plus de détails dans les logs
         onError: (err) => {
           console.log('Proxy Error:', err);
-      },
-      onProxyReq: (proxyReq, req) => {
-        console.log('Proxying:', req.method, req.url, '→', proxyReq.path);
+        },
+        onProxyReq: (proxyReq, req) => {
+          console.log('Proxying:', req.method, req.url, '→', proxyReq.path);
+        }
       }
-    }
     },
   },
 
@@ -30,5 +31,16 @@ module.exports = defineConfig({
         __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: JSON.stringify(true),
       }),
     ],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, 'src/'),
+        '@components': path.resolve(__dirname, 'src/components/'),
+        '@services': path.resolve(__dirname, 'src/services/'),
+        '@i18n': path.resolve(__dirname, 'src/i18n/'),
+        '@assets': path.resolve(__dirname, 'src/assets/'),
+        '@views': path.resolve(__dirname, 'src/views/'),
+        '@theme': path.resolve(__dirname, 'src/theme/'),
+      }
+    }
   },
 });

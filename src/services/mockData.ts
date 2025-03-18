@@ -1,10 +1,18 @@
 // src/services/mockData.ts
-import { PlayList, Track, Hook, LegacyPlayList, LegacyAudioFile, FILE_STATUS, playlistToLegacy } from '../components/files/types'
+import {
+  PlayList,
+  Track,
+  Hook,
+  LegacyAudioFile,
+  FILE_STATUS,
+  LegacyPlayList,
+  playlistToLegacy
+} from '../components/files/types'
 
 interface Stats {
   battery: number;
-  songCount: number;
-  freeSpace: number;
+  track_count: number;
+  free_space_percent: number;
 }
 
 interface ComponentHealth {
@@ -12,7 +20,8 @@ interface ComponentHealth {
   timestamp: number
 }
 
-interface SystemHealth {
+// Interface used in the health check function
+interface SystemHealthResponse {
   components: {
     [key: string]: ComponentHealth
   }
@@ -20,6 +29,7 @@ interface SystemHealth {
   timestamp: number
 }
 
+// Progress interface for upload tracking
 interface UploadProgress {
   progress: number;
 }
@@ -29,9 +39,8 @@ const mockBackendData: (PlayList | Hook)[] = [
   {
     id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
     type: "playlist",
-    idtagnfc: "04A2BEF8780000",
-    path: "zelda sleep",
     title: "Zelda & Sleep",
+    description: "Zelda theme sleep music",
     tracks: [
       {
         number: 1,
@@ -49,7 +58,7 @@ const mockBackendData: (PlayList | Hook)[] = [
       }
     ],
     created_at: "2024-02-12T14:30:00Z",
-    last_played: "2024-02-12T15:00:00Z"
+    last_played: Date.parse("2024-02-12T15:00:00Z") / 1000 // Convert to timestamp
   },
   {
     id: "7ba7b810-9dad-11d1-80b4-00c04fd430c8",
@@ -60,14 +69,54 @@ const mockBackendData: (PlayList | Hook)[] = [
   }
 ];
 
-const mockStats: Stats = {
+// Export stats for use by other services
+export const mockSystemStats: Stats = {
   battery: 71,
-  songCount: mockBackendData.reduce((count, item) => 
+  track_count: mockBackendData.reduce((count, item) =>
     item.type === 'playlist' ? count + (item as PlayList).tracks.length : count, 0),
-  freeSpace: 24
+  free_space_percent: 24
 };
 
-// Service de mock
+export const mockSystemHealth: SystemHealthResponse = {
+  components: {
+    audio: {
+      status: "ready",
+      timestamp: Math.floor(Date.now() / 1000)
+    },
+    config: {
+      status: "ready",
+      timestamp: Math.floor(Date.now() / 1000)
+    },
+    gpio: {
+      status: "ready",
+      timestamp: Math.floor(Date.now() / 1000)
+    },
+    ir_detector: {
+      status: "disabled",
+      timestamp: Math.floor(Date.now() / 1000)
+    },
+    led: {
+      status: "disabled",
+      timestamp: Math.floor(Date.now() / 1000)
+    },
+    light_sensor: {
+      status: "disabled",
+      timestamp: Math.floor(Date.now() / 1000)
+    },
+    motor: {
+      status: "disabled",
+      timestamp: Math.floor(Date.now() / 1000)
+    },
+    nfc: {
+      status: "disabled",
+      timestamp: Math.floor(Date.now() / 1000)
+    }
+  },
+  status: "healthy",
+  timestamp: Math.floor(Date.now() / 1000)
+};
+
+// Mock data service
 class MockDataService {
   private simulateDelay(min = 200, max = 800): Promise<void> {
     const delay = Math.random() * (max - min) + min;
@@ -97,24 +146,24 @@ class MockDataService {
     return allTracks;
   }
 
-  async uploadFile(file: File | FormData, options?: { 
-    headers?: Record<string, string>; 
+  async uploadFile(file: File | FormData, options?: {
+    headers?: Record<string, string>;
     onUploadProgress?: (progress: UploadProgress) => void;
   }, playlistId = "1"): Promise<LegacyAudioFile> {
     await this.simulateDelay(1000, 2000);
-    
+
     if (options?.onUploadProgress) {
       for (let i = 0; i <= 100; i += 20) {
         await this.simulateDelay(100, 200);
         options.onUploadProgress({ progress: i });
       }
     }
-  
+
     const actualFile = file instanceof File ? file : (file.get('file') as File);
-    
-    const playlist = mockBackendData.find(item => 
+
+    const playlist = mockBackendData.find(item =>
       item.type === 'playlist' && item.id === playlistId) as PlayList | undefined;
-    
+
     if (!playlist) {
       throw new Error('Playlist not found');
     }
@@ -128,15 +177,21 @@ class MockDataService {
     };
 
     playlist.tracks.push(newTrack);
-    
+
     return {
-      id: newTrack.number,
+      id: String(newTrack.number), // Convert number to string explicitly
       name: newTrack.filename,
       status: FILE_STATUS.IN_PROGRESS,
-      duration: parseInt(newTrack.duration),
-      createdAt: new Date().toISOString(),
-      playlistId: parseInt(playlistId),
-      isAlbum: false
+      size: 1024 * 1024, // Add missing property
+      type: "audio/mpeg", // Add missing property
+      path: `/uploads/${newTrack.filename}`,
+      uploaded: new Date().toISOString(),
+      metadata: {
+        duration: parseInt(newTrack.duration),
+        createdAt: new Date().toISOString(),
+        playlistId: parseInt(playlistId),
+        isAlbum: false
+      }
     };
   }
 
@@ -163,7 +218,7 @@ class MockDataService {
     await this.simulateDelay();
     return {
       battery: 71,
-      songCount: mockBackendData.reduce((count, item) => 
+      songCount: mockBackendData.reduce((count, item) =>
         item.type === 'playlist' ? count + (item as PlayList).tracks.length : count, 0),
       freeSpace: 24
     };
@@ -172,7 +227,7 @@ class MockDataService {
   async checkHealth() {
     await this.simulateDelay();
     const currentTimestamp = Math.floor(Date.now() / 1000);
-    
+
     return {
       components: {
         audio: {
@@ -233,7 +288,7 @@ class MockDataService {
     await this.simulateDelay();
     const buffer = new Uint16Array(8);
     crypto.getRandomValues(buffer);
-    
+
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c, i) {
       const r = (buffer[i % 8] & 0x0F) + 0x01;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);

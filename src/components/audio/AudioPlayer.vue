@@ -31,7 +31,7 @@
       </div>
     </div>
 
-    <!-- Lecteur audio caché -->
+    <!-- Hidden audio element -->
     <audio
       ref="audioPlayer"
       :src="audioUrl"
@@ -44,17 +44,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, withDefaults, defineProps } from 'vue'
+/**
+ * AudioPlayer Component
+ *
+ * A full-featured audio player with:
+ * - Play/Pause functionality
+ * - Track progress visualization
+ * - Next/Previous track navigation
+ * - Skip forward/backward controls
+ * - Track metadata display
+ */
+import { ref, watch, onUnmounted } from 'vue'
 import TrackInfo from './TrackInfo.vue'
 import ProgressBar from './ProgressBar.vue'
 import PlaybackControls from './PlaybackControls.vue'
 import type { Track, PlayList } from '../files/types'
 import dataService from '@/services/dataService'
+// We'll use $t in the template later, so keep it imported
+import { i18n } from '@/i18n'
+
+const { t: $t } = i18n
 
 // Component props with types and defaults
 interface Props {
-  selectedTrack?: Track | null
-  playlist?: PlayList | null
+  /** The currently selected track */
+  selectedTrack?: Track | null;
+  /** The playlist containing the track */
+  playlist?: PlayList | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -70,7 +86,7 @@ const currentTrack = ref<Track | null>(null)
 const audioPlayer = ref<HTMLAudioElement | null>(null)
 const audioUrl = ref('')
 
-// Watchers
+// Watch for changes to the selected track
 watch(() => props.selectedTrack, async (newTrack) => {
   if (newTrack) {
     currentTrack.value = newTrack
@@ -83,7 +99,9 @@ watch(() => props.selectedTrack, async (newTrack) => {
   }
 }, { immediate: true })
 
-// Methods
+/**
+ * Toggle play/pause state of the audio
+ */
 const togglePlayPause = async () => {
   if (!audioPlayer.value || !currentTrack.value) return
 
@@ -95,22 +113,32 @@ const togglePlayPause = async () => {
     }
     isPlaying.value = !isPlaying.value
   } catch (error) {
-    console.error('Erreur lors de la lecture:', error)
+    console.error('Error during playback:', error)
   }
 }
 
+/**
+ * Handle time update event from audio element
+ */
 const handleTimeUpdate = () => {
   if (audioPlayer.value) {
     currentTime.value = audioPlayer.value.currentTime
   }
 }
 
+/**
+ * Handle metadata loaded event from audio element
+ */
 const handleMetadataLoaded = () => {
   if (audioPlayer.value) {
     duration.value = audioPlayer.value.duration
   }
 }
 
+/**
+ * Seek to a specific time in the audio
+ * @param {number} time - Target time in seconds
+ */
 const handleSeek = (time: number) => {
   if (audioPlayer.value) {
     audioPlayer.value.currentTime = time
@@ -118,25 +146,41 @@ const handleSeek = (time: number) => {
   }
 }
 
+/**
+ * Handle track end event
+ */
 const handleTrackEnd = () => {
   isPlaying.value = false
   currentTime.value = 0
   next()
 }
 
+/**
+ * Handle audio error event
+ */
 const handleAudioError = (error: Event) => {
-  console.error('Erreur de lecture audio:', error)
+  console.error('Audio playback error:', error)
   isPlaying.value = false
 }
 
+/**
+ * Rewind 10 seconds
+ */
 const rewind = () => {
   handleSeek(Math.max(0, currentTime.value - 10))
 }
 
+/**
+ * Skip forward 10 seconds
+ */
 const skip = () => {
   handleSeek(Math.min(duration.value, currentTime.value + 10))
 }
 
+/**
+ * Find the next or previous track in the playlist
+ * @param {string} direction - Direction to find (next or previous)
+ */
 const findAdjacentTrack = (direction: 'next' | 'previous'): Track | null => {
   if (!props.playlist || !currentTrack.value) return null
 
@@ -147,6 +191,9 @@ const findAdjacentTrack = (direction: 'next' | 'previous'): Track | null => {
   return props.playlist.tracks[targetIndex] || null
 }
 
+/**
+ * Go to previous track
+ */
 const previous = () => {
   const prevTrack = findAdjacentTrack('previous')
   if (prevTrack) {
@@ -155,6 +202,9 @@ const previous = () => {
   }
 }
 
+/**
+ * Go to next track
+ */
 const next = () => {
   const nextTrack = findAdjacentTrack('next')
   if (nextTrack) {
@@ -163,7 +213,7 @@ const next = () => {
   }
 }
 
-// Cleanup
+// Cleanup on component unmount
 onUnmounted(() => {
   if (audioPlayer.value) {
     audioPlayer.value.pause()

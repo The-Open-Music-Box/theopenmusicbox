@@ -1,97 +1,116 @@
-// components/files/types.ts
+/**
+ * Types for the audio file management system
+ */
 
-// Define the possible status values as a union type
+/**
+ * File status options that define the current state of a file
+ */
+export type FileStatus = 'pending' | 'processing' | 'ready' | 'error';
+
+/**
+ * Enum-like object for backward compatibility
+ */
 export const FILE_STATUS = {
-  ASSOCIATED: 'associer',
-  IN_PROGRESS: 'In progress',
-  ARCHIVED: 'Archived',
-} as const
+  PENDING: 'pending' as FileStatus,
+  IN_PROGRESS: 'processing' as FileStatus,
+  READY: 'ready' as FileStatus,
+  ERROR: 'error' as FileStatus,
+  ASSOCIATED: 'ready' as FileStatus, // Adding missing constant
+};
 
-// Create a type from the object values
-export type FileStatus = typeof FILE_STATUS[keyof typeof FILE_STATUS]
-
-// Define the possible content types
-export type ContentType = 'playlist' | 'hook'
-
-// Base interface for both playlist and hook types
-export interface BaseContent {
-  id: string
-  type: ContentType
-  idtagnfc: string
-  path: string
-  created_at: string
-}
-
-// Track interface matching backend structure
-export interface Track {
-  number: number
-  title: string
-  filename: string
-  duration: string
-  play_counter: number
-}
-
-// Playlist interface matching backend structure
-export interface PlayList extends BaseContent {
-  type: 'playlist'
-  title: string
-  tracks: Track[]
-  last_played: string
-}
-
-// Hook interface matching backend structure
-export interface Hook extends BaseContent {
-  type: 'hook'
-}
-
-// Legacy interfaces for backward compatibility
-export interface LegacyAudioFile {
-  id: number
-  name: string
-  status: FileStatus
-  duration: number
-  createdAt: string
-  playlistId?: number
-  isAlbum?: boolean
-  albumFiles?: LegacyAudioFile[]
-}
-
-export interface LegacyPlayList {
-  id: number
-  name: string
-  files: LegacyAudioFile[]
-}
-
-// Type-safe status styling configuration
+/**
+ * CSS classes for different file statuses
+ */
 export const STATUS_CLASSES: Record<FileStatus, string> = {
-  [FILE_STATUS.ASSOCIATED]: 'text-green-700 bg-green-50 ring-green-600/20',
-  [FILE_STATUS.IN_PROGRESS]: 'text-gray-600 bg-gray-50 ring-gray-500/10',
-  [FILE_STATUS.ARCHIVED]: 'text-yellow-800 bg-yellow-50 ring-yellow-600/20'
+  pending: 'bg-yellow-100 text-yellow-800',
+  processing: 'bg-blue-100 text-blue-800',
+  ready: 'bg-green-100 text-green-800',
+  error: 'bg-red-100 text-red-800',
+};
+
+/**
+ * Basic content interface that all content types extend
+ */
+export interface BaseContent {
+  id: string;
+  type: string;
 }
 
-// Helper function to validate status
-export function isValidFileStatus(status: string): status is FileStatus {
-  return Object.values(FILE_STATUS).includes(status as FileStatus)
+/**
+ * Represents a track in a playlist
+ */
+export interface Track {
+  number: number;
+  title: string;
+  filename: string;
+  duration: string;
+  play_counter: number;
 }
 
-// Helper function to convert Track to LegacyAudioFile
-export function trackToLegacyAudioFile(track: Track, playlistId?: number): LegacyAudioFile {
-  return {
-    id: track.number,
-    name: track.filename,
-    status: FILE_STATUS.IN_PROGRESS,
-    duration: parseInt(track.duration) || 0,
-    createdAt: new Date().toISOString(),
-    playlistId,
-    isAlbum: false
-  }
+/**
+ * Represents a playlist containing multiple tracks
+ */
+export interface PlayList extends BaseContent {
+  type: 'playlist';
+  title: string;
+  description?: string;
+  last_played: number; // Unix timestamp in milliseconds
+  tracks: Track[];
+  created_at?: string;
 }
 
-// Helper function to convert PlayList to LegacyPlayList
+/**
+ * Legacy playlist format for backward compatibility
+ */
+export interface LegacyPlayList {
+  id: string;
+  title: string;
+  description?: string;
+  tracks: Track[];
+  lastPlayed?: Date;
+}
+
+/**
+ * Basic audio file properties
+ */
+export interface AudioFile {
+  id: string;
+  name: string;
+  status: FileStatus;
+  size: number;
+  type: string;
+}
+
+/**
+ * Legacy audio file format for backward compatibility
+ */
+export interface LegacyAudioFile extends AudioFile {
+  path: string;
+  uploaded: string;
+  metadata?: Record<string, unknown>; // Using unknown instead of any
+}
+
+/**
+ * Hook interface for event handling
+ */
+export interface Hook extends BaseContent {
+  type: 'hook';
+  idtagnfc: string;
+  path: string;
+  created_at: string;
+}
+
+/**
+ * Convert a modern playlist to legacy format
+ * @param playlist - Modern playlist format
+ * @returns Legacy playlist format
+ */
 export function playlistToLegacy(playlist: PlayList): LegacyPlayList {
   return {
-    id: parseInt(playlist.id) || Math.floor(Math.random() * 1000),
-    name: playlist.title,
-    files: playlist.tracks.map(track => trackToLegacyAudioFile(track, parseInt(playlist.id)))
-  }
+    id: playlist.id,
+    title: playlist.title,
+    description: playlist.description,
+    tracks: playlist.tracks,
+    lastPlayed: playlist.last_played ? new Date(playlist.last_played * 1000) : undefined
+  };
 }

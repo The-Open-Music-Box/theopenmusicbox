@@ -19,6 +19,24 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@components/*": [
+        "src/components/*"
+      ],
+      "@services/*": [
+        "src/services/*"
+      ],
+      "@i18n/*": [
+        "src/i18n/*"
+      ],
+      "@assets/*": [
+        "src/assets/*"
+      ],
+      "@views/*": [
+        "src/views/*"
+      ],
+      "@theme/*": [
+        "src/theme/*"
       ]
     },
     "lib": [

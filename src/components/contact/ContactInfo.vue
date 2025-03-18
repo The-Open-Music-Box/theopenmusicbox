@@ -2,10 +2,10 @@
 <template>
   <div class="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">
     <BackgroundDecoration />
-    <h2 class="text-3xl font-bold tracking-tight text-gray-900">
-      Get in touch
+    <h2 :class="[colors.text.primary, 'text-3xl font-bold tracking-tight']">
+      {{ $t('contact.getInTouch') }}
     </h2>
-    <p class="mt-6 text-lg leading-8 text-gray-600">
+    <p :class="[colors.text.secondary, 'mt-6 text-lg leading-8']">
       {{ description }}
     </p>
     <ContactDetails :details="contactDetails" />
@@ -13,11 +13,27 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * ContactInfo Component
+ *
+ * Displays contact information and description.
+ * Includes background decorations and detailed contact options.
+ */
 import BackgroundDecoration from './BackgroundDecoration.vue'
 import ContactDetails from './ContactDetails.vue'
+import { i18n } from '@/i18n'
+import { colors } from '@theme/colors';
 
+const { t: $t } = i18n
+
+/**
+ * Descriptive text for contact section
+ */
 const description = 'Proin volutpat consequat porttitor cras nullam gravida at. Orci molestie a eu arcu. Sed ut tincidunt integer elementum id sem. Arcu sed malesuada et magna.'
 
+/**
+ * Contact details with icons and content
+ */
 const contactDetails = [
   {
     type: 'address',

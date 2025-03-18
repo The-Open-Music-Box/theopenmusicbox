@@ -10,12 +10,20 @@
             </div>
             <div class="hidden md:block">
               <div class="ml-10 flex items-baseline space-x-8">
-                <router-link v-for="item in navigation" :key="item.name" :to="item.href" :class="[
-                  item.current
-                    ? 'bg-gray-900 text-white'
-                    : 'text-gray-300 hover:bg-gray-700 hover:text-white',
-                  'rounded-md px-3 py-2 text-sm font-medium',
-                ]" :aria-current="item.current ? 'page' : undefined">{{ item.name }}</router-link>
+                <router-link
+                  v-for="item in navigation"
+                  :key="item.name"
+                  :to="item.href"
+                  :class="[
+                    item.current
+                      ? 'bg-gray-900 text-white'
+                      : 'text-gray-300 hover:bg-gray-700 hover:text-white',
+                    'rounded-md px-3 py-2 text-sm font-medium',
+                  ]"
+                  :aria-current="item.current ? 'page' : undefined"
+                >
+                  {{ $t(`navigation.${item.key}`) }}
+                </router-link>
               </div>
             </div>
           </div>
@@ -35,41 +43,59 @@
 
     <DisclosurePanel class="border-b border-gray-700 md:hidden">
       <div class="space-y-1 px-2 py-3 sm:px-3">
-        <router-link v-for="item in navigation" :key="item.name" :to="item.href" :class="[
-          item.current
-            ? 'bg-gray-900 text-white'
-            : 'text-gray-300 hover:bg-gray-700 hover:text-white',
-          'block rounded-md px-3 py-2 text-base font-medium',
-        ]" :aria-current="item.current ? 'page' : undefined">{{ item.name }}</router-link>
+        <router-link
+          v-for="item in navigation"
+          :key="item.name"
+          :to="item.href"
+          :class="[
+            item.current
+              ? 'bg-gray-900 text-white'
+              : 'text-gray-300 hover:bg-gray-700 hover:text-white',
+            'block rounded-md px-3 py-2 text-base font-medium',
+          ]"
+          :aria-current="item.current ? 'page' : undefined"
+        >
+          {{ $t(`navigation.${item.key}`) }}
+        </router-link>
       </div>
     </DisclosurePanel>
   </Disclosure>
 </template>
 
 <script setup>
+/**
+ * HeaderNavigation Component
+ *
+ * Main navigation header for the application.
+ * Provides responsive navigation menu with mobile support.
+ */
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { Bars3Icon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { ref } from 'vue'
+import { i18n } from '@/i18n'
+
+const { t: $t } = i18n
 
 // Navigation items configuration
 const navigation = ref([
-  { name: 'Home', href: '/', current: true },
-  { name: 'About', href: '/about', current: false },
-  { name: 'Contact', href: '/contact', current: false },
+  { name: 'Home', key: 'home', href: '/', current: true },
+  { name: 'About', key: 'about', href: '/about', current: false },
+  { name: 'Contact', key: 'contact', href: '/contact', current: false },
+  { name: 'Upload', key: 'upload', href: '/upload', current: false },
 ])
 </script>
 
 <style scoped>
 nav {
   padding: 30px;
+}
 
-  a {
-    font-weight: bold;
-    color: #2c3e50;
+nav a {
+  font-weight: bold;
+  color: #2c3e50;
+}
 
-    &.router-link-exact-active {
-      color: #42b983;
-    }
-  }
+nav a.router-link-exact-active {
+  color: #42b983;
 }
 </style>

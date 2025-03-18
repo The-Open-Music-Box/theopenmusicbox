@@ -1,6 +1,7 @@
-import type { PlayList, Track } from './types'
+import type { PlayList, Track } from './types';
 
-export const mockTracks: Track[] = [
+// Sample tracks for playlists
+const mockTracks: Track[] = [
   {
     number: 1,
     title: "Ocarina of Time",
@@ -22,25 +23,23 @@ export const mockTracks: Track[] = [
     duration: "195",
     play_counter: 0
   }
-]
+];
 
 export const mockPlaylists: PlayList[] = [
   {
-    id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    id: "550e8400-e29b-41d4-a716-446655440000",
     type: "playlist",
-    idtagnfc: "04A2BEF8780000",
-    path: "zelda sleep",
-    title: "Zelda & Sleep",
+    title: "Morning Playlist",
+    description: "Music to wake up to",
     tracks: mockTracks,
-    created_at: "2024-02-12T14:30:00Z",
-    last_played: "2024-02-12T15:00:00Z"
+    created_at: new Date("2024-02-12T14:30:00Z").toISOString(), // Convert to string
+    last_played: Date.parse("2024-02-12T15:00:00Z") / 1000 // Convert to Unix timestamp
   },
   {
     id: "7ba7b810-9dad-11d1-80b4-00c04fd430c9",
     type: "playlist",
-    idtagnfc: "04A2BEF8780001",
-    path: "relaxation",
-    title: "Relaxation & Méditation",
+    title: "Afternoon Chill",
+    description: "Relaxing tunes",
     tracks: [
       {
         number: 1,
@@ -57,7 +56,7 @@ export const mockPlaylists: PlayList[] = [
         play_counter: 1
       }
     ],
-    created_at: "2024-02-12T16:30:00Z",
-    last_played: "2024-02-12T17:00:00Z"
+    created_at: new Date("2024-02-12T16:30:00Z").toISOString(), // Convert to string
+    last_played: Date.parse("2024-02-12T17:00:00Z") / 1000 // Convert to Unix timestamp
   }
-] 
+];

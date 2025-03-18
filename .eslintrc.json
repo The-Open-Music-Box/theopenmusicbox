@@ -1,0 +1,10 @@
+{
+  // ...existing config...
+  "globals": {
+    "defineProps": "readonly",
+    "defineEmits": "readonly",
+    "defineExpose": "readonly",
+    "withDefaults": "readonly"
+  }
+  // ...existing config...
+}
