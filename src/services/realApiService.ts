@@ -1,23 +1,20 @@
 // src/services/realApiService.ts
 
-import axios, { AxiosError } from 'axios'
+import axios, { AxiosError, InternalAxiosRequestConfig, AxiosResponse, AxiosProgressEvent } from 'axios'
 
 // Configuration de base d'axios pour notre API
 const apiClient = axios.create({
   baseURL: process.env.VUE_APP_API_URL,
+  timeout: 60000,
   headers: {
     Accept: 'application/json',
     'Content-Type': 'application/json'
-  },
-  timeout: 5000 // 5 seconds timeout for health check
+  }
 })
 
-// interface HealthCheckResponse {
-//   status: 'ok' | 'error'
-//   message: string
-//   timestamp?: string
-//   version?: string
-// }
+// Implémenter un système de cache pour les données fréquemment accédées
+const cache = new Map()
+
 interface ComponentHealth {
   status: string
   timestamp: number
@@ -31,14 +28,82 @@ interface SystemHealth {
   timestamp: number
 }
 
+interface UploadProgress {
+  progress: number;
+}
+
+// Ajouter des métriques de performance
+const metrics = {
+  requestCount: 0,
+  errorCount: 0,
+  averageResponseTime: 0
+}
+
+// Étendre le type de configuration Axios pour inclure nos métadonnées
+declare module 'axios' {
+  export interface InternalAxiosRequestConfig {
+    metadata?: {
+      start: number
+    }
+  }
+}
+
+// Implémenter la logique de retry manuellement
+const retryRequest = async (error: AxiosError, retries = 3, delay = 1000): Promise<AxiosResponse> => {
+  const config = error.config
+  if (!config || !retries) {
+    return Promise.reject(error)
+  }
+
+  await new Promise(resolve => setTimeout(resolve, delay))
+  return apiClient(config)
+}
+
+apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+  config.metadata = { start: Date.now() }
+  return config
+})
+
+apiClient.interceptors.response.use(
+  (response: AxiosResponse) => {
+    const duration = Date.now() - (response.config.metadata?.start || 0)
+    metrics.requestCount++
+    metrics.averageResponseTime = (metrics.averageResponseTime * (metrics.requestCount - 1) + duration) / metrics.requestCount
+    return response
+  },
+  async (error: AxiosError) => {
+    metrics.errorCount++
+    
+    // Tenter le retry si c'est une erreur réseau ou 5xx
+    if (error.response?.status && error.response.status >= 500) {
+      try {
+        return await retryRequest(error)
+      } catch (retryError) {
+        return Promise.reject(retryError)
+      }
+    }
+    
+    return Promise.reject(error)
+  }
+)
 
 class RealApiService {
   async getAudioFiles() {
+    const cacheKey = 'audio_files'
+    if (cache.has(cacheKey)) {
+      return cache.get(cacheKey)
+    }
     try {
       console.log('Fetching audio files from API...')
-      const response = await apiClient.get('/api/audio/files')
-      console.log('Audio files response:', response)
-      return response.data.files || []
+      const response = await apiClient.get('/api/nfc_mapping')
+      console.log('Audio files response:', response.data)
+      
+      // Les données sont déjà au bon format, pas besoin de transformation
+      const playlists = response.data
+      console.log('Playlists transformées:', playlists)
+      
+      cache.set(cacheKey, playlists)
+      return playlists
     } catch (err) {
       const error = err as AxiosError
       console.error('Error fetching audio files:', {
@@ -46,13 +111,18 @@ class RealApiService {
         status: error.response?.status,
         headers: error.response?.headers
       })
+      if (error.response?.status === 401) {
+        // Gérer l'authentification
+      } else if (error.response?.status === 503) {
+        // Gérer la maintenance
+      }
       throw error
     }
   }
 
   async uploadFile(file: File | FormData, options?: { 
     headers?: Record<string, string>; 
-    onUploadProgress?: (progress: any) => void;
+    onUploadProgress?: (progress: AxiosProgressEvent) => void;
   }) {
     const formData = file instanceof File ? (() => {
       const fd = new FormData();
@@ -95,48 +165,20 @@ class RealApiService {
     }
   }
 
-  // async checkHealth(): Promise<HealthCheckResponse> {
-  //   try {
-  //     const response = await apiClient.get('api/health')
-  //     return {
-  //       status: response.data.status || 'ok',
-  //       message: response.data.message || 'Service is healthy',
-  //       timestamp: new Date().toISOString(),
-  //       version: response.data.version
-  //     }
-  //   } catch (error) {
-  //     console.error('Health check error:', error)
-  //     const errorResponse: HealthCheckResponse = {
-  //       status: 'error',
-  //       message: 'Service is unavailable',
-  //       timestamp: new Date().toISOString()
-  //     }
-  //     throw errorResponse
-  //   }
-  // }
   async checkHealth(): Promise<SystemHealth> {
     try {
-      const response = await apiClient.get('/api/system/health')
-      console.log('Health check response:', response)
-      return {
-        components: response.data.components,
-        status: response.data.status,
-        timestamp: response.data.timestamp
-      }
+      console.log('Fetching health status...')
+      const response = await apiClient.get('/api/health')
+      console.log('Health response:', response)
+      return response.data
     } catch (err) {
-      // Type l'erreur comme AxiosError
       const error = err as AxiosError
-      console.log('Full error details:', {
+      console.error('Error fetching health status:', {
         response: error.response?.data,
         status: error.response?.status,
         headers: error.response?.headers
       })
-  
-      throw {
-        components: {},
-        status: 'error',
-        timestamp: Date.now() / 1000
-      }
+      throw error
     }
   }
 

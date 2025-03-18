@@ -1,24 +1,28 @@
 // components/files/composables/useFilesDialog.ts
 import { ref } from 'vue'
-import type { AudioFile } from '../types'
+import type { Track, PlayList } from '../types'
 
 export function useFileDialog() {
   const showDeleteDialog = ref(false)
-  const selectedFile = ref<AudioFile | null>(null)
+  const selectedTrack = ref<Track | null>(null)
+  const selectedPlaylist = ref<PlayList | null>(null)
 
-  const openDeleteDialog = (file: AudioFile) => {
-    selectedFile.value = file
+  const openDeleteDialog = (track: Track, playlist: PlayList) => {
+    selectedTrack.value = track
+    selectedPlaylist.value = playlist
     showDeleteDialog.value = true
   }
 
   const closeDeleteDialog = () => {
     showDeleteDialog.value = false
-    selectedFile.value = null
+    selectedTrack.value = null
+    selectedPlaylist.value = null
   }
 
   return {
     showDeleteDialog,
-    selectedFile,
+    selectedTrack,
+    selectedPlaylist,
     openDeleteDialog,
     closeDeleteDialog
   }

@@ -1,150 +1,176 @@
 // src/services/mockData.ts
-import { AudioFile, FileStatus, FILE_STATUS, PlayList } from '../components/files/types'
+import { PlayList, Track, Hook, LegacyPlayList, LegacyAudioFile, FILE_STATUS, playlistToLegacy } from '../components/files/types'
 
-  
-  interface Stats {
-    battery: number;
-    songCount: number;
-    freeSpace: number;
-  }
-  interface ComponentHealth {
-    status: string
-    timestamp: number
-  }
-  
-  interface SystemHealth {
-    components: {
-      [key: string]: ComponentHealth
-    }
-    status: string
-    timestamp: number
-  }
-  
-  // Données mockées
-  const mockPlaylists: PlayList[] = [
-    {
-      id: 1,
-      name: 'Summer Playlist',
-      files: [
-        {
-          id: 1,
-          name: "Summer Vibes.mp3",
-          status: FILE_STATUS.ASSOCIATED,
-          duration: 180,
-          createdAt: "2024-01-15",
-          playlistId: 1
-        },
-        {
-          id: 2,
-          name: "Guitar Solo.mp3",
-          status: FILE_STATUS.IN_PROGRESS,
-          duration: 240,
-          createdAt: "2024-01-16",
-          playlistId: 1
-        }
-      ]
-    },
-    {
-      id: 2,
-      name: 'Classical Music',
-      files: [
-        {
-          id: 3,
-          name: "Piano Concert.mp3",
-          status: FILE_STATUS.ARCHIVED,
-          duration: 360,
-          createdAt: "2024-01-17",
-          playlistId: 2
-        }
-      ]
-    }
-  ]
-  
-  
-  const mockStats: Stats = {
-    battery: 71,
-    songCount: 12,
-    freeSpace: 24
-  };
-  
-  // Service de mock
+interface Stats {
+  battery: number;
+  songCount: number;
+  freeSpace: number;
+}
 
-  class MockDataService {
-    private simulateDelay(min = 200, max = 800): Promise<void> {
-      const delay = Math.random() * (max - min) + min;
-      return new Promise(resolve => setTimeout(resolve, delay));
-    }
-  
-    async getPlaylists(): Promise<PlayList[]> {
-      await this.simulateDelay();
-      return [...mockPlaylists];
-    }
-  
+interface ComponentHealth {
+  status: string
+  timestamp: number
+}
 
-  
-    async uploadFile(file: File | FormData, options?: { 
-      headers?: Record<string, string>; 
-      onUploadProgress?: (progress: any) => void;
-    }, playlistId = 1): Promise<AudioFile> {
-      await this.simulateDelay(1000, 2000);
-      
-      // Handle progress simulation
-      if (options?.onUploadProgress) {
-        for (let i = 0; i <= 100; i += 20) {
-          await this.simulateDelay(100, 200);
-          options.onUploadProgress({ progress: i });
-        }
+interface SystemHealth {
+  components: {
+    [key: string]: ComponentHealth
+  }
+  status: string
+  timestamp: number
+}
+
+interface UploadProgress {
+  progress: number;
+}
+
+// Backend-style mock data
+const mockBackendData: (PlayList | Hook)[] = [
+  {
+    id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    type: "playlist",
+    idtagnfc: "04A2BEF8780000",
+    path: "zelda sleep",
+    title: "Zelda & Sleep",
+    tracks: [
+      {
+        number: 1,
+        title: "Ocarina of Time",
+        filename: "Zelda & Sleep - 001 Ocarina of Time [MTrZXHaXPrU].mp3",
+        duration: "180",
+        play_counter: 0
+      },
+      {
+        number: 2,
+        title: "Zelda's Lullaby",
+        filename: "Zelda & Sleep - 002 Zelda's Lullaby [MTrZXHaXPrU].mp3",
+        duration: "240",
+        play_counter: 0
       }
+    ],
+    created_at: "2024-02-12T14:30:00Z",
+    last_played: "2024-02-12T15:00:00Z"
+  },
+  {
+    id: "7ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    type: "hook",
+    idtagnfc: "04912ba5df6180",
+    path: "http://homeassistant.local:8123/api/webhook/--un1U88dYVP9nhgvcGt2J1nD",
+    created_at: "2024-02-12T14:30:00Z"
+  }
+];
+
+const mockStats: Stats = {
+  battery: 71,
+  songCount: mockBackendData.reduce((count, item) => 
+    item.type === 'playlist' ? count + (item as PlayList).tracks.length : count, 0),
+  freeSpace: 24
+};
+
+// Service de mock
+class MockDataService {
+  private simulateDelay(min = 200, max = 800): Promise<void> {
+    const delay = Math.random() * (max - min) + min;
+    return new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  async getPlaylists(): Promise<LegacyPlayList[]> {
+    await this.simulateDelay();
+    return mockBackendData
+      .filter((item): item is PlayList => item.type === 'playlist')
+      .map(playlist => playlistToLegacy(playlist));
+  }
+
+  async getAudioFiles() {
+    await this.simulateDelay();
+    const allTracks = mockBackendData
+      .filter((item): item is PlayList => item.type === 'playlist')
+      .flatMap(playlist => playlist.tracks.map(track => ({
+        id: track.number,
+        name: track.filename,
+        status: FILE_STATUS.ASSOCIATED,
+        duration: parseInt(track.duration),
+        createdAt: new Date().toISOString(),
+        playlistId: parseInt(playlist.id),
+        isAlbum: false
+      })));
+    return allTracks;
+  }
+
+  async uploadFile(file: File | FormData, options?: { 
+    headers?: Record<string, string>; 
+    onUploadProgress?: (progress: UploadProgress) => void;
+  }, playlistId = "1"): Promise<LegacyAudioFile> {
+    await this.simulateDelay(1000, 2000);
     
-      const actualFile = file instanceof File ? file : (file.get('file') as File);
-      
-      // Create new audio file
-      const newFile: AudioFile = {
-        id: Math.max(...mockPlaylists.flatMap(p => p.files).map(f => f.id)) + 1,
-        name: actualFile.name,
-        status: FILE_STATUS.IN_PROGRESS,
-        duration: Math.floor(Math.random() * 300) + 60,
-        createdAt: new Date().toISOString().split('T')[0],
-        playlistId
-      };
-    
-      // Trouver la playlist et ajouter le fichier
-      const playlist = mockPlaylists.find(p => p.id === playlistId);
-      if (playlist) {
-        playlist.files.push(newFile);
-      } else {
-        throw new Error('Playlist not found');
+    if (options?.onUploadProgress) {
+      for (let i = 0; i <= 100; i += 20) {
+        await this.simulateDelay(100, 200);
+        options.onUploadProgress({ progress: i });
       }
-    
-      return newFile;
     }
   
-    async deleteFile(id: number): Promise<void> {
-      await this.simulateDelay();
-      for (const playlist of mockPlaylists) {
-        const index = playlist.files.findIndex(file => file.id === id);
+    const actualFile = file instanceof File ? file : (file.get('file') as File);
+    
+    const playlist = mockBackendData.find(item => 
+      item.type === 'playlist' && item.id === playlistId) as PlayList | undefined;
+    
+    if (!playlist) {
+      throw new Error('Playlist not found');
+    }
+
+    const newTrack: Track = {
+      number: playlist.tracks.length + 1,
+      title: actualFile.name.split('.')[0],
+      filename: actualFile.name,
+      duration: Math.floor(Math.random() * 300 + 60).toString(),
+      play_counter: 0
+    };
+
+    playlist.tracks.push(newTrack);
+    
+    return {
+      id: newTrack.number,
+      name: newTrack.filename,
+      status: FILE_STATUS.IN_PROGRESS,
+      duration: parseInt(newTrack.duration),
+      createdAt: new Date().toISOString(),
+      playlistId: parseInt(playlistId),
+      isAlbum: false
+    };
+  }
+
+  async deleteFile(id: number): Promise<void> {
+    await this.simulateDelay();
+    for (const item of mockBackendData) {
+      if (item.type === 'playlist') {
+        const playlist = item as PlayList;
+        const index = playlist.tracks.findIndex(track => track.number === id);
         if (index !== -1) {
-          playlist.files.splice(index, 1);
+          playlist.tracks.splice(index, 1);
           return;
         }
       }
-      throw new Error('File not found');
     }
+    throw new Error('File not found');
+  }
 
-    async getStats(): Promise<{
-      battery: number;
-      songCount: number;
-      freeSpace: number;
-    }> {
-      await this.simulateDelay();
-      return {
-        battery: 71,
-        songCount: mockPlaylists.reduce((count, playlist) => count + playlist.files.length, 0),
-        freeSpace: 24
-      };
-    }
-    async checkHealth() {
-      await this.simulateDelay();
+  async getStats(): Promise<{
+    battery: number;
+    songCount: number;
+    freeSpace: number;
+  }> {
+    await this.simulateDelay();
+    return {
+      battery: 71,
+      songCount: mockBackendData.reduce((count, item) => 
+        item.type === 'playlist' ? count + (item as PlayList).tracks.length : count, 0),
+      freeSpace: 24
+    };
+  }
+
+  async checkHealth() {
+    await this.simulateDelay();
     const currentTimestamp = Math.floor(Date.now() / 1000);
     
     return {
@@ -187,33 +213,33 @@ import { AudioFile, FileStatus, FILE_STATUS, PlayList } from '../components/file
     };
   }
 
-    async downloadFile(fileId: number, onProgress?: (progress: number) => void) {
-      await this.simulateDelay();
-      // Simulate download progress
-      if (onProgress) {
-        for (let i = 0; i <= 100; i += 20) {
-          await this.simulateDelay(100, 200);
-          onProgress(i);
-        }
+  async downloadFile(fileId: number, onProgress?: (progress: number) => void) {
+    await this.simulateDelay();
+    // Simulate download progress
+    if (onProgress) {
+      for (let i = 0; i <= 100; i += 20) {
+        await this.simulateDelay(100, 200);
+        onProgress(i);
       }
-      return new Blob(['mock file content'], { type: 'audio/mpeg' });
     }
-
-    downloadFileUrl(fileId: number): string {
-      return `mock://download/${fileId}`;
-    }
-
-    async getUploadSessionId(): Promise<string> {
-      await this.simulateDelay();
-      const buffer = new Uint16Array(8);
-      crypto.getRandomValues(buffer);
-      
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c, i) {
-        const r = (buffer[i % 8] & 0x0F) + 0x01;
-        const v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
-    }
+    return new Blob(['mock file content'], { type: 'audio/mpeg' });
   }
-  
-  export default new MockDataService();
+
+  downloadFileUrl(fileId: number): string {
+    return `mock://download/${fileId}`;
+  }
+
+  async getUploadSessionId(): Promise<string> {
+    await this.simulateDelay();
+    const buffer = new Uint16Array(8);
+    crypto.getRandomValues(buffer);
+    
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c, i) {
+      const r = (buffer[i % 8] & 0x0F) + 0x01;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+}
+
+export default new MockDataService();

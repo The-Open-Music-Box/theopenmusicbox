@@ -1,42 +1,48 @@
 // components/files/composables/useFilesStore.ts
 import { ref } from 'vue'
-import type { AudioFile, FileStatus } from '../types'
+import type { PlayList, BaseContent } from '../types'
 import dataService from '../../../services/dataService'
 
 export function useFilesStore() {
-  const files = ref<AudioFile[]>([])
+  const playlists = ref<PlayList[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)
 
-  const loadFiles = async () => {
+  const loadPlaylists = async () => {
     isLoading.value = true
     error.value = null
     try {
-      files.value = await dataService.getPlaylists()
+      const data = await dataService.getPlaylists()
+      console.log('Données reçues dans le store:', data)
+      playlists.value = data.filter((item: BaseContent): item is PlayList => item.type === 'playlist')
+      console.log('Playlists après filtrage:', playlists.value)
     } catch (err) {
-      error.value = "Erreur lors du chargement des fichiers"
-      console.error('Error loading files:', err)
+      error.value = "Erreur lors du chargement des playlists"
+      console.error('Error loading playlists:', err)
     } finally {
       isLoading.value = false
     }
   }
 
-  const deleteFile = async (id: number) => {
+  const deleteTrack = async (playlistId: string, trackNumber: number) => {
     try {
-      await dataService.deleteFile(id)
-      files.value = files.value.filter(f => f.id !== id)
+      await dataService.deleteFile(trackNumber)
+      const playlist = playlists.value.find(p => p.id === playlistId)
+      if (playlist) {
+        playlist.tracks = playlist.tracks.filter(t => t.number !== trackNumber)
+      }
     } catch (err) {
-      error.value = "Erreur lors de la suppression du fichier"
-      console.error('Error deleting file:', err)
-      throw err // Permettre au composant de gérer l'erreur
+      error.value = "Erreur lors de la suppression du morceau"
+      console.error('Error deleting track:', err)
+      throw err
     }
   }
 
   return {
-    files,
+    playlists,
     isLoading,
     error,
-    loadFiles,
-    deleteFile
+    loadPlaylists,
+    deleteTrack
   }
 }

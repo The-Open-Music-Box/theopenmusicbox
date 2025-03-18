@@ -18,7 +18,7 @@ const dataService = {
 
   getPlaylists() {
     return USE_MOCK 
-      ? mockDataService.getPlaylists()
+      ? mockDataService.getAudioFiles()
       : realApiService.getAudioFiles()
   },
 

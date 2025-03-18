@@ -1,83 +1,63 @@
-import { AudioFile, FILE_STATUS } from './types'
+import type { PlayList, Track } from './types'
 
-export const mockFiles: AudioFile[] = [
+export const mockTracks: Track[] = [
   {
-    id: 1,
-    name: "Chanson solo 1.mp3",
-    status: FILE_STATUS.IN_PROGRESS,
-    duration: 180,
-    createdAt: "2024-03-20",
-    isAlbum: false
+    number: 1,
+    title: "Ocarina of Time",
+    filename: "Zelda & Sleep - 001 Ocarina of Time [MTrZXHaXPrU].mp3",
+    duration: "180",
+    play_counter: 0
   },
   {
-    id: 2,
-    name: "Album Rock 2024",
-    status: FILE_STATUS.IN_PROGRESS,
-    duration: 0,
-    createdAt: "2024-03-19",
-    isAlbum: true,
-    albumFiles: [
+    number: 2,
+    title: "Zelda's Lullaby",
+    filename: "Zelda & Sleep - 002 Zelda's Lullaby [MTrZXHaXPrU].mp3",
+    duration: "240",
+    play_counter: 0
+  },
+  {
+    number: 3,
+    title: "Song of Storms",
+    filename: "Zelda & Sleep - 003 Song of Storms [MTrZXHaXPrU].mp3",
+    duration: "195",
+    play_counter: 0
+  }
+]
+
+export const mockPlaylists: PlayList[] = [
+  {
+    id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
+    type: "playlist",
+    idtagnfc: "04A2BEF8780000",
+    path: "zelda sleep",
+    title: "Zelda & Sleep",
+    tracks: mockTracks,
+    created_at: "2024-02-12T14:30:00Z",
+    last_played: "2024-02-12T15:00:00Z"
+  },
+  {
+    id: "7ba7b810-9dad-11d1-80b4-00c04fd430c9",
+    type: "playlist",
+    idtagnfc: "04A2BEF8780001",
+    path: "relaxation",
+    title: "Relaxation & Méditation",
+    tracks: [
       {
-        id: 21,
-        name: "01 - Introduction.mp3",
-        status: FILE_STATUS.IN_PROGRESS,
-        duration: 120,
-        createdAt: "2024-03-19"
+        number: 1,
+        title: "Ocean Waves",
+        filename: "Relaxation - 001 Ocean Waves.mp3",
+        duration: "300",
+        play_counter: 2
       },
       {
-        id: 22,
-        name: "02 - Premier morceau.mp3",
-        status: FILE_STATUS.IN_PROGRESS,
-        duration: 240,
-        createdAt: "2024-03-19"
-      },
-      {
-        id: 23,
-        name: "03 - Deuxième morceau.mp3",
-        status: FILE_STATUS.IN_PROGRESS,
-        duration: 180,
-        createdAt: "2024-03-19"
+        number: 2,
+        title: "Forest Ambiance",
+        filename: "Relaxation - 002 Forest Ambiance.mp3",
+        duration: "360",
+        play_counter: 1
       }
-    ]
-  },
-  {
-    id: 3,
-    name: "Chanson solo 2.mp3",
-    status: FILE_STATUS.ASSOCIATED,
-    duration: 240,
-    createdAt: "2024-03-18",
-    isAlbum: false
-  },
-  {
-    id: 4,
-    name: "Album Jazz Collection",
-    status: FILE_STATUS.IN_PROGRESS,
-    duration: 0,
-    createdAt: "2024-03-17",
-    isAlbum: true,
-    albumFiles: [
-      {
-        id: 41,
-        name: "01 - Jazz Standard.mp3",
-        status: FILE_STATUS.IN_PROGRESS,
-        duration: 360,
-        createdAt: "2024-03-17"
-      },
-      {
-        id: 42,
-        name: "02 - Improvisation.mp3",
-        status: FILE_STATUS.IN_PROGRESS,
-        duration: 480,
-        createdAt: "2024-03-17"
-      }
-    ]
-  },
-  {
-    id: 5,
-    name: "Chanson solo 3.mp3",
-    status: FILE_STATUS.ARCHIVED,
-    duration: 200,
-    createdAt: "2024-03-16",
-    isAlbum: false
+    ],
+    created_at: "2024-02-12T16:30:00Z",
+    last_played: "2024-02-12T17:00:00Z"
   }
 ] 

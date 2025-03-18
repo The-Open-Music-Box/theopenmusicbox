@@ -10,14 +10,14 @@ module.exports = defineConfig({
   devServer: {
     proxy: {
       '^/api': {
-        target: 'http://10.0.0.153:5003',
+        target: 'http://tmbdev.local:5005',
         changeOrigin: true,
         ws: false,
         logLevel: 'debug',  // Pour plus de détails dans les logs
-        onError: (err, req, res) => {
+        onError: (err) => {
           console.log('Proxy Error:', err);
       },
-      onProxyReq: (proxyReq, req, res) => {
+      onProxyReq: (proxyReq, req) => {
         console.log('Proxying:', req.method, req.url, '→', proxyReq.path);
       }
     }
