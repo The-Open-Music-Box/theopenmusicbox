@@ -1,7 +1,7 @@
-# Dépendances pour Raspberry Pi
+# Dependencies for Raspberry Pi
 -r requirements_base.txt
 
-# Dépendances spécifiques au Raspberry Pi
+# Raspberry Pi specific dependencies
 pygame==2.5.2
 RPi.GPIO==0.7.1
 spidev==3.6

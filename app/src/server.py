@@ -17,13 +17,14 @@ from .routes.api_routes import init_routes
 from .helpers.system_dependency_checker import SystemDependencyChecker
 from .helpers.exceptions import AppError
 from .core.container import SocketIOPublisher
+from .routes.spotify_routes import init_spotify_routes
 
 logger = ImprovedLogger(__name__)
 
 def create_server(config: Config):
-    # Vérifier les dépendances système au démarrage
+    # Check system dependencies at startup
     dependency_errors = SystemDependencyChecker.check_dependencies()
-    if dependency_errors:
+    if (dependency_errors):
         for error in dependency_errors:
             logger.log(LogLevel.ERROR, f"System dependency error: {error.message}")
         raise AppError.configuration_error(
@@ -63,7 +64,13 @@ def create_server(config: Config):
     application = Application(container)
     app.application = application
 
+    # Initialize routes
     init_routes(app, socketio)
+
+    # Initialize Spotify routes if enabled
+    if config.spotify_enabled:
+        init_spotify_routes(app, socketio)
+        logger.log(LogLevel.INFO, "Spotify routes initialized")
 
     def shutdown_handler(signum, frame):
         logger.log(LogLevel.INFO, f"Shutdown signal received: {signal.Signals(signum).name}")
