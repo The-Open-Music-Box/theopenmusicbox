@@ -3,6 +3,7 @@
  */
 
 export default {
+  welcome: 'Welcome',
   common: {
     loading: 'Loading...',
     error: 'Error',

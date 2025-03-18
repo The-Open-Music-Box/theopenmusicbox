@@ -1,13 +1,3 @@
-/**
- * AudioPlayer Component
- *
- * A full-featured audio player with:
- * - Play/Pause functionality
- * - Track progress visualization
- * - Next/Previous track navigation
- * - Skip forward/backward controls
- * - Track metadata display
- */
 <template>
   <div class="flex items-center justify-center">
     <div class="w-2/3">

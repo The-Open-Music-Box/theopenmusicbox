@@ -1,4 +1,3 @@
-// components/contact/ContactInfo.vue
 <template>
   <div class="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">
     <BackgroundDecoration />
@@ -22,7 +21,7 @@
 import BackgroundDecoration from './BackgroundDecoration.vue'
 import ContactDetails from './ContactDetails.vue'
 import { i18n } from '@/i18n'
-import { colors } from '@theme/colors';
+import { colors } from '@theme/colors'
 
 const { t: $t } = i18n
 

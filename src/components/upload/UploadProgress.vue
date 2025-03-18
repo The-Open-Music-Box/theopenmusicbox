@@ -4,7 +4,7 @@
       <div
         class="h-2 rounded-full bg-indigo-600"
         :style="{ width: progress + '%' }"
-      />
+      ></div>
     </div>
     <div class="mt-6 hidden grid-cols-4 text-sm font-medium text-gray-600 sm:grid">
       <div class="text-indigo-600">{{ $t('upload.copyingFiles') }}</div>

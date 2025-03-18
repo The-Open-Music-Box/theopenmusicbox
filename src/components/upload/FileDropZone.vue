@@ -1,4 +1,3 @@
-// components/upload/FileDropZone.vue
 <template>
   <div class="mt-2 flex justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10">
     <div class="text-center">

@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue';
-import enUS from '.locales/en-US.js';
+import enUS from './locales/en-US.js'; // Changed from .locales to ./locales
 import frFR from './locales/fr-FR.js';
 
 // Available locales

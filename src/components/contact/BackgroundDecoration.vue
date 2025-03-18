@@ -34,5 +34,5 @@
  * Provides a subtle grid pattern background decoration for sections.
  * Uses SVG patterns for a consistent visual texture.
  */
- import { colors } from '@theme/colors';
+ import { colors } from '@theme/colors'
 </script>
