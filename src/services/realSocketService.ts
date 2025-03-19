@@ -1,12 +1,25 @@
-// src/services/socketService.original.ts
-
 import { io, Socket } from 'socket.io-client'
 
+/**
+ * Real Socket Service
+ * Provides a production-ready socket.io implementation for real-time communication with the server.
+ * Handles connection management, event emission, and subscription to server events.
+ */
 class RealSocketService {
   private socket: Socket
 
+  /**
+   * Creates a new RealSocketService instance
+   * Initializes the socket connection with the configured server URL and connection options
+   */
   constructor() {
-    this.socket = io('http://tmbdev.local:5005', {
+    const serverUrl = process.env.VUE_APP_API_URL;
+    const serverPort = process.env.VUE_APP_SRVE_PORT;
+
+    const socketUrl = `${serverUrl}:${serverPort}`;
+    console.log('Connecting to socket server at:', socketUrl);
+
+    this.socket = io(socketUrl, {
       transports: ['websocket'],
       autoConnect: false,
       reconnection: true,
@@ -14,10 +27,14 @@ class RealSocketService {
       reconnectionAttempts: 5
     })
 
-    // Configuration des gestionnaires d'événements de base
     this.setupBaseHandlers()
   }
 
+  /**
+   * Sets up base event handlers for monitoring socket connection state
+   * Registers listeners for connect, disconnect, error, and reconnection events
+   * @private
+   */
   private setupBaseHandlers() {
     this.socket.on('connect', () => {
       console.log('Socket connected successfully', this.socket.id)
@@ -40,12 +57,20 @@ class RealSocketService {
     })
   }
 
+  /**
+   * Initiates the socket connection if not already connected
+   */
   setupSocketConnection() {
     if (!this.socket.connected) {
       this.socket.connect()
     }
   }
 
+  /**
+   * Sends an event to the server
+   * @param event - Name of the event to emit
+   * @param data - Data payload to send with the event
+   */
   emit(event: string, data: any) {
     if (!this.socket.connected) {
       console.warn('Attempting to emit while socket is not connected:', event)
@@ -54,32 +79,52 @@ class RealSocketService {
     this.socket.emit(event, data)
   }
 
+  /**
+   * Registers an event listener for socket events
+   * @param event - Name of the event to listen for
+   * @param callback - Function to call when the event occurs
+   */
   on(event: string, callback: (data: any) => void) {
     this.socket.on(event, callback)
   }
 
+  /**
+   * Removes an event listener for the specified event
+   * @param event - Name of the event to stop listening for
+   */
   off(event: string) {
     this.socket.off(event)
   }
 
+  /**
+   * Disconnects from the socket server if connected
+   */
   disconnect() {
     if (this.socket.connected) {
       this.socket.disconnect()
     }
   }
 
-  // Méthode utilitaire pour vérifier l'état de la connexion
+  /**
+   * Checks if the socket is currently connected
+   * @returns True if connected, false otherwise
+   */
   isConnected(): boolean {
     return this.socket.connected
   }
 
-  // Méthode pour obtenir l'ID du socket
-  // Méthode pour obtenir l'ID du socket
-getSocketId(): string | null {
+  /**
+   * Gets the current socket ID if connected
+   * @returns Socket ID string or null if not connected
+   */
+  getSocketId(): string | null {
     return this.socket.id || null;
-}
+  }
 
-  // Méthode pour forcer une reconnexion
+  /**
+   * Forces a reconnection by disconnecting and then connecting again
+   * Useful for resetting the connection state
+   */
   reconnect() {
     this.socket.disconnect().connect()
   }

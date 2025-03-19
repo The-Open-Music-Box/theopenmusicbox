@@ -1,10 +1,23 @@
-// src/services/realApiService.ts
+/**
+ * Real API Service
+ * Provides production-ready HTTP client for communication with the backend API.
+ * Features include request/response interceptors, caching, error handling, and retry logic.
+ */
 
 import axios, { AxiosError, InternalAxiosRequestConfig, AxiosResponse, AxiosProgressEvent } from 'axios'
 
-// Configuration de base d'axios pour notre API
+const apiBaseUrl = process.env.VUE_APP_API_URL;
+const apiPort = process.env.VUE_APP_SRVE_PORT;
+
+const fullApiUrl = `${apiBaseUrl}:${apiPort}`;
+console.log('Full API URL with port:', fullApiUrl);
+
+/**
+ * Configured axios instance for making API requests
+ * Includes base URL, timeout settings, and default headers
+ */
 const apiClient = axios.create({
-  baseURL: process.env.VUE_APP_API_URL,
+  baseURL: fullApiUrl,
   timeout: 60000,
   headers: {
     Accept: 'application/json',
@@ -12,7 +25,9 @@ const apiClient = axios.create({
   }
 })
 
-// Implémenter un système de cache pour les données fréquemment accédées
+/**
+ * In-memory cache for API responses to avoid redundant network requests
+ */
 const cache = new Map()
 
 interface ComponentHealth {
@@ -28,14 +43,15 @@ interface SystemHealth {
   timestamp: number
 }
 
-// Ajouter des métriques de performance
+/**
+ * Metrics collection for API performance monitoring
+ */
 const metrics = {
   requestCount: 0,
   errorCount: 0,
   averageResponseTime: 0
 }
 
-// Étendre le type de configuration Axios pour inclure nos métadonnées
 declare module 'axios' {
   export interface InternalAxiosRequestConfig {
     metadata?: {
@@ -44,7 +60,14 @@ declare module 'axios' {
   }
 }
 
-// Implémenter la logique de retry manuellement
+/**
+ * Implements retry logic for failed requests
+ * @param error - The axios error from the failed request
+ * @param retries - Number of retry attempts remaining (default: 3)
+ * @param delay - Milliseconds to wait between retries (default: 1000)
+ * @returns Promise resolving to the axios response if retry succeeds
+ * @private
+ */
 const retryRequest = async (error: AxiosError, retries = 3, delay = 1000): Promise<AxiosResponse> => {
   const config = error.config
   if (!config || !retries) {
@@ -55,11 +78,13 @@ const retryRequest = async (error: AxiosError, retries = 3, delay = 1000): Promi
   return apiClient(config)
 }
 
+// Request interceptor - adds timestamp metadata to track request duration
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   config.metadata = { start: Date.now() }
   return config
 })
 
+// Response interceptor - handles metrics and implements retry logic for server errors
 apiClient.interceptors.response.use(
   (response: AxiosResponse) => {
     const duration = Date.now() - (response.config.metadata?.start || 0)
@@ -70,7 +95,6 @@ apiClient.interceptors.response.use(
   async (error: AxiosError) => {
     metrics.errorCount++
 
-    // Tenter le retry si c'est une erreur réseau ou 5xx
     if (error.response?.status && error.response.status >= 500) {
       try {
         return await retryRequest(error)
@@ -83,7 +107,16 @@ apiClient.interceptors.response.use(
   }
 )
 
+/**
+ * Production API service implementation
+ * Provides methods for interacting with the backend API endpoints
+ */
 class RealApiService {
+  /**
+   * Fetches the list of audio files from the server
+   * Implements caching to avoid redundant requests
+   * @returns Promise resolving to the list of audio files
+   */
   async getAudioFiles() {
     const cacheKey = 'audio_files'
     if (cache.has(cacheKey)) {
@@ -94,7 +127,6 @@ class RealApiService {
       const response = await apiClient.get('/api/nfc_mapping')
       console.log('Audio files response:', response.data)
 
-      // Les données sont déjà au bon format, pas besoin de transformation
       const playlists = response.data
       console.log('Playlists transformées:', playlists)
 
@@ -116,6 +148,12 @@ class RealApiService {
     }
   }
 
+  /**
+   * Uploads a file to the server
+   * @param file - File or FormData object to upload
+   * @param options - Optional configuration including custom headers and progress callback
+   * @returns Promise resolving to the server response
+   */
   async uploadFile(file: File | FormData, options?: {
     headers?: Record<string, string>;
     onUploadProgress?: (progress: AxiosProgressEvent) => void;
@@ -141,6 +179,11 @@ class RealApiService {
     }
   }
 
+  /**
+   * Deletes a file from the server
+   * @param id - ID of the file to delete
+   * @returns Promise resolving to the server response
+   */
   async deleteFile(id: number) {
     try {
       const response = await apiClient.post('/api/remove_file', { id })
@@ -151,6 +194,10 @@ class RealApiService {
     }
   }
 
+  /**
+   * Fetches system statistics from the server
+   * @returns Promise resolving to the system statistics
+   */
   async getStats() {
     try {
       const response = await apiClient.get('api/stats')
@@ -161,6 +208,10 @@ class RealApiService {
     }
   }
 
+  /**
+   * Checks the health status of the system and its components
+   * @returns Promise resolving to the system health status
+   */
   async checkHealth(): Promise<SystemHealth> {
     try {
       console.log('Fetching health status...')
@@ -178,6 +229,12 @@ class RealApiService {
     }
   }
 
+  /**
+   * Downloads a file from the server
+   * @param fileId - ID of the file to download
+   * @param onProgress - Optional callback for tracking download progress
+   * @returns Promise resolving to the file blob
+   */
   async downloadFile(fileId: number, onProgress?: (progress: number) => void) {
     try {
       const response = await apiClient.get(`/api/audio/download/${fileId}`, {
@@ -196,10 +253,20 @@ class RealApiService {
     }
   }
 
+  /**
+   * Generates a download URL for a file
+   * @param fileId - ID of the file
+   * @returns URL string for downloading the file
+   */
   downloadFileUrl(fileId: number): string {
     return `${apiClient.defaults.baseURL}/api/audio/download/${fileId}`
   }
 
+  /**
+   * Requests a new upload session ID from the server
+   * Used for tracking multi-part or chunked uploads
+   * @returns Promise resolving to the session ID string
+   */
   async getUploadSessionId(): Promise<string> {
     try {
       const response = await apiClient.post('/api/upload/session')

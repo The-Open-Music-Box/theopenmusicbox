@@ -1,4 +1,9 @@
-// src/services/mockData.ts
+/**
+ * Mock Data Service
+ * Provides simulated API responses for development and testing.
+ * Contains mock data structures and methods that mimic API behavior without requiring a backend.
+ */
+
 import {
   PlayList,
   Track,
@@ -20,7 +25,6 @@ interface ComponentHealth {
   timestamp: number
 }
 
-// Interface used in the health check function
 interface SystemHealthResponse {
   components: {
     [key: string]: ComponentHealth
@@ -29,12 +33,13 @@ interface SystemHealthResponse {
   timestamp: number
 }
 
-// Progress interface for upload tracking
 interface UploadProgress {
   progress: number;
 }
 
-// Backend-style mock data
+/**
+ * Mock backend data representing playlists and hooks
+ */
 const mockBackendData: (PlayList | Hook)[] = [
   {
     id: "6ba7b810-9dad-11d1-80b4-00c04fd430c8",
@@ -58,7 +63,7 @@ const mockBackendData: (PlayList | Hook)[] = [
       }
     ],
     created_at: "2024-02-12T14:30:00Z",
-    last_played: Date.parse("2024-02-12T15:00:00Z") / 1000 // Convert to timestamp
+    last_played: Date.parse("2024-02-12T15:00:00Z") / 1000
   },
   {
     id: "7ba7b810-9dad-11d1-80b4-00c04fd430c8",
@@ -69,7 +74,9 @@ const mockBackendData: (PlayList | Hook)[] = [
   }
 ];
 
-// Export stats for use by other services
+/**
+ * Mock system statistics
+ */
 export const mockSystemStats: Stats = {
   battery: 71,
   track_count: mockBackendData.reduce((count, item) =>
@@ -77,6 +84,9 @@ export const mockSystemStats: Stats = {
   free_space_percent: 24
 };
 
+/**
+ * Mock system health status
+ */
 export const mockSystemHealth: SystemHealthResponse = {
   components: {
     audio: {
@@ -116,13 +126,27 @@ export const mockSystemHealth: SystemHealthResponse = {
   timestamp: Math.floor(Date.now() / 1000)
 };
 
-// Mock data service
+/**
+ * Service for providing mock data responses
+ * Simulates backend API behavior for development and testing
+ */
 class MockDataService {
+  /**
+   * Simulates network delay with random duration
+   * @param min - Minimum delay in milliseconds (default: 200)
+   * @param max - Maximum delay in milliseconds (default: 800)
+   * @returns Promise that resolves after the delay period
+   * @private
+   */
   private simulateDelay(min = 200, max = 800): Promise<void> {
     const delay = Math.random() * (max - min) + min;
     return new Promise(resolve => setTimeout(resolve, delay));
   }
 
+  /**
+   * Fetches mock playlist data
+   * @returns Promise resolving to array of playlists in legacy format
+   */
   async getPlaylists(): Promise<LegacyPlayList[]> {
     await this.simulateDelay();
     return mockBackendData
@@ -130,6 +154,10 @@ class MockDataService {
       .map(playlist => playlistToLegacy(playlist));
   }
 
+  /**
+   * Fetches mock audio files data
+   * @returns Promise resolving to array of audio files
+   */
   async getAudioFiles() {
     await this.simulateDelay();
     const allTracks = mockBackendData
@@ -146,6 +174,13 @@ class MockDataService {
     return allTracks;
   }
 
+  /**
+   * Simulates file upload process with progress updates
+   * @param file - File or FormData object to upload
+   * @param options - Optional configuration including progress callback
+   * @param playlistId - Target playlist ID for the upload
+   * @returns Promise resolving to the uploaded file data
+   */
   async uploadFile(file: File | FormData, options?: {
     headers?: Record<string, string>;
     onUploadProgress?: (progress: UploadProgress) => void;
@@ -179,11 +214,11 @@ class MockDataService {
     playlist.tracks.push(newTrack);
 
     return {
-      id: String(newTrack.number), // Convert number to string explicitly
+      id: String(newTrack.number),
       name: newTrack.filename,
       status: FILE_STATUS.IN_PROGRESS,
-      size: 1024 * 1024, // Add missing property
-      type: "audio/mpeg", // Add missing property
+      size: 1024 * 1024,
+      type: "audio/mpeg",
       path: `/uploads/${newTrack.filename}`,
       uploaded: new Date().toISOString(),
       metadata: {
@@ -195,6 +230,11 @@ class MockDataService {
     };
   }
 
+  /**
+   * Simulates deleting a file by ID
+   * @param id - ID of the file to delete
+   * @returns Promise that resolves when the delete operation completes
+   */
   async deleteFile(id: number): Promise<void> {
     await this.simulateDelay();
     for (const item of mockBackendData) {
@@ -210,6 +250,10 @@ class MockDataService {
     throw new Error('File not found');
   }
 
+  /**
+   * Fetches mock system statistics
+   * @returns Promise resolving to system statistics
+   */
   async getStats(): Promise<{
     battery: number;
     songCount: number;
@@ -224,6 +268,10 @@ class MockDataService {
     };
   }
 
+  /**
+   * Checks mock system health status
+   * @returns Promise resolving to system health data
+   */
   async checkHealth() {
     await this.simulateDelay();
     const currentTimestamp = Math.floor(Date.now() / 1000);
@@ -268,9 +316,14 @@ class MockDataService {
     };
   }
 
+  /**
+   * Simulates downloading a file with progress updates
+   * @param fileId - ID of the file to download
+   * @param onProgress - Optional callback for tracking download progress
+   * @returns Promise resolving to a mock file blob
+   */
   async downloadFile(fileId: number, onProgress?: (progress: number) => void) {
     await this.simulateDelay();
-    // Simulate download progress
     if (onProgress) {
       for (let i = 0; i <= 100; i += 20) {
         await this.simulateDelay(100, 200);
@@ -280,10 +333,20 @@ class MockDataService {
     return new Blob(['mock file content'], { type: 'audio/mpeg' });
   }
 
+  /**
+   * Generates a mock download URL for a file
+   * @param fileId - ID of the file
+   * @returns Mock URL string for downloading the file
+   */
   downloadFileUrl(fileId: number): string {
     return `mock://download/${fileId}`;
   }
 
+  /**
+   * Generates a mock upload session ID
+   * Creates a UUID v4 style identifier for tracking uploads
+   * @returns Promise resolving to session ID string
+   */
   async getUploadSessionId(): Promise<string> {
     await this.simulateDelay();
     const buffer = new Uint16Array(8);

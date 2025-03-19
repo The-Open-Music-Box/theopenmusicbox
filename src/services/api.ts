@@ -1,10 +1,19 @@
-// src/services/api.ts
+/**
+ * API Service
+ * Provides methods to interact with the backend API
+ * Handles HTTP requests, error handling, and file uploads
+ */
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from 'axios'
 import config from '../config'
 
-// Création du client axios avec la configuration de base
+const apiUrl = process.env.VUE_APP_API_URL;
+const apiPort = process.env.VUE_APP_SRVE_PORT;
+
+/**
+ * Axios instance configured with base URL, timeout and credentials settings
+ */
 const apiClient = axios.create({
-  baseURL: process.env.VUE_APP_API_URL,
+  baseURL: `${apiUrl}:${apiPort}`,
   timeout: config.api.timeout,
   withCredentials: config.api.withCredentials,
   headers: {
@@ -13,11 +22,12 @@ const apiClient = axios.create({
   },
 })
 
-// Configuration de l'intercepteur pour la gestion globale des erreurs
+/**
+ * Response interceptor to handle and log API errors
+ */
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Gestion détaillée des erreurs selon leur type
     if (error.response) {
       console.error('Server Error:', {
         status: error.response.status,
@@ -33,37 +43,46 @@ apiClient.interceptors.response.use(
     } else {
       console.error('Configuration Error:', error.message)
     }
-    
-    // Propagation de l'erreur pour la gestion locale
     return Promise.reject(error)
   }
 )
 
-// Interface pour définir les types acceptés pour l'upload
+/**
+ * Interface for files that can be uploaded to the API
+ */
 interface UploadableFile {
   file: File | Blob;
   filename?: string;
 }
 
-// Service API avec les méthodes existantes
 export default {
-  // Méthode GET générique
+  /**
+   * Performs a GET request to the specified API endpoint
+   *
+   * @param endpoint - The API endpoint to request
+   * @returns The response data from the API
+   * @throws Error if the request fails
+   */
   async get(endpoint: string) {
     try {
       const response = await apiClient.get(endpoint)
       return response.data
     } catch (error) {
-      // On peut simplifier ce log car l'intercepteur gère déjà le détail
       console.error('GET request error for endpoint:', endpoint)
       throw error
     }
   },
 
-  // Méthode d'upload de fichiers
+  /**
+   * Uploads a file to the server
+   *
+   * @param uploadable - The file to upload (File or Blob)
+   * @returns The response data from the API
+   * @throws Error if the upload fails
+   */
   async uploadFiles(uploadable: File | Blob) {
     const formData = new FormData()
-    
-    // Si c'est un File, on peut accéder au nom
+
     const filename = uploadable instanceof File ? uploadable.name : 'unnamed-file'
     formData.append('file', uploadable, filename)
 
@@ -72,7 +91,6 @@ export default {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-        // Ajout optionnel du suivi de progression
         onUploadProgress: (progressEvent) => {
           if (progressEvent.total) {
             const progress = Math.round((progressEvent.loaded * 100) / progressEvent.total)
@@ -87,7 +105,15 @@ export default {
     }
   },
 
-  // Vous pouvez ajouter d'autres méthodes selon vos besoins
+  /**
+   * Performs a POST request to the specified API endpoint
+   *
+   * @param endpoint - The API endpoint to send data to
+   * @param data - The data to send in the request body
+   * @param config - Optional Axios request configuration
+   * @returns The response data from the API
+   * @throws Error if the request fails
+   */
   async post(endpoint: string, data: any, config?: AxiosRequestConfig) {
     try {
       const response = await apiClient.post(endpoint, data, config)
