@@ -1,9 +1,9 @@
 <template>
   <div class="flex justify-between items-center mb-4">
-    <h2 :class="[getColor('text', 'text.white'), 'text-xl font-semibold']">
+    <h2 :class="[colors.text.white, 'text-xl font-semibold']">
       {{ $t('file.listTitle') }}
     </h2>
-    <div :class="[getColor('text', 'text.light'), 'text-sm']">
+    <div :class="[colors.text.light, 'text-sm']">
       <!-- Additional controls or information can be added here -->
     </div>
   </div>

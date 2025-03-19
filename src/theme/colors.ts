@@ -22,6 +22,7 @@ export const colors = {
     main: 'red-600',
     hover: 'red-500',
     light: 'red-100',
+    dark: 'red-700',
     background: 'red-100',
     border: 'red-400',
     text: 'red-700',

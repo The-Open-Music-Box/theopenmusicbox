@@ -19,6 +19,7 @@ export declare const colors: {
     main: string;
     hover: string;
     light: string;
+    dark: string;
     background: string;
     border: string;
     text: string;

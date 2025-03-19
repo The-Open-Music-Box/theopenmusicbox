@@ -21,14 +21,6 @@
 import { ref } from 'vue'
 import FileDropZone from './FileDropZone.vue'
 import FileValidationMessages from './FileValidationMessages.vue'
-import { i18n } from '@/i18n'
-
-const { t: $t } = i18n
-
-const props = defineProps<{
-  /** Whether a file upload is currently in progress */
-  isUploading: boolean
-}>()
 
 /** Store validation errors from file selection */
 const validationErrors = ref<string[]>([])

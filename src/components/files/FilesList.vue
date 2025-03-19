@@ -1,7 +1,7 @@
 <template>
   <div class="mt-8 space-y-6">
     <!-- Error message -->
-    <div v-if="error" :class="[getColor('text', 'error.main'), 'text-center py-2']">
+    <div v-if="error" :class="[colors.error.main, 'text-center py-2']">
       {{ error }}
     </div>
 
@@ -13,7 +13,7 @@
         class="px-4 py-3 cursor-pointer hover:bg-gray-700 transition-colors flex justify-between items-center"
       >
         <div>
-          <h3 :class="[getColor('text', 'text.white'), 'text-lg font-medium']">{{ playlist.title }}</h3>
+          <h3 :class="[colors.text.white, 'text-lg font-medium']">{{ playlist.title }}</h3>
           <p class="text-sm text-gray-400">
             {{ playlist.tracks.length }} {{ $t('file.tracks') }} • {{ $t('file.lastPlayed') }}: {{ new Date(playlist.last_played).toLocaleDateString() }}
           </p>
@@ -46,19 +46,19 @@
                class="px-4 py-3 flex items-center justify-between hover:bg-gray-700 cursor-pointer group">
             <div class="flex items-center space-x-3">
               <div class="w-8 flex items-center justify-center">
-                <span v-if="selectedTrack?.number !== track.number" :class="[getColor('text', 'secondary.main')]">{{ track.number }}</span>
-                <svg v-else :class="[getColor('text', 'secondary.main'), 'h-5 w-5']" viewBox="0 0 20 20" fill="currentColor">
+                <span v-if="selectedTrack?.number !== track.number" :class="[colors.secondary.main]">{{ track.number }}</span>
+                <svg v-else :class="[colors.text.secondary, 'h-5 w-5']" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" />
                 </svg>
               </div>
               <div>
-                <p :class="[getColor('text', 'text.white'), 'font-medium']">{{ track.title }}</p>
+                <p :class="[colors.text.white, 'font-medium']">{{ track.title }}</p>
                 <p class="text-sm text-gray-400">{{ track.filename }}</p>
               </div>
             </div>
 
             <div class="flex items-center space-x-4">
-              <span :class="[getColor('text', 'secondary.main')]">{{ formatDuration(track.duration) }}</span>
+              <span :class="[colors.secondary.main]">{{ formatDuration(track.duration) }}</span>
               <button @click.stop="$emit('deleteTrack', { playlistId: playlist.id, trackNumber: track.number })"
                       class="text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
                 <span class="sr-only">{{ $t('common.delete') }}</span>

@@ -50,10 +50,6 @@ import ProgressBar from './ProgressBar.vue'
 import PlaybackControls from './PlaybackControls.vue'
 import type { Track, PlayList } from '../files/types'
 import dataService from '@/services/dataService'
-// We'll use $t in the template later, so keep it imported
-import { i18n } from '@/i18n'
-
-const { t: $t } = i18n
 
 // Component props with types and defaults
 interface Props {

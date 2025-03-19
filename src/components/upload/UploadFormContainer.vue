@@ -23,9 +23,6 @@ import { useUploadValidation } from '../upload/composables/useUploadValidation'
 import { useFileUpload } from '../upload/composables/useFileUpload'
 import UploadFormUI from './UploadFormUI.vue'
 import UploadProgress from './UploadProgress.vue'
-import { i18n } from '@/i18n'
-
-const { t: $t } = i18n
 
 // Use composables for validation and file uploading functionality
 const { validateFiles } = useUploadValidation()

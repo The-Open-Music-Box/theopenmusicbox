@@ -16,10 +16,7 @@
  * Shows error messages in a consistent format with appropriate styling.
  */
 
-import { i18n } from '@/i18n'
 import { colors } from '@/theme/colors'
-
-const { t: $t } = i18n
 
 defineProps<{
   /** Array of error message strings to display */

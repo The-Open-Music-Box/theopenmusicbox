@@ -1,6 +1,6 @@
 <template>
   <div :class="[field.colSpan === 2 ? 'sm:col-span-2' : '']">
-    <label :for="field.id" :class="[getColor('text', 'text.primary'), 'block text-sm font-semibold leading-6']">
+    <label :for="field.id" :class="[colors.text.primary, 'block text-sm font-semibold leading-6']">
       {{ $t(`contact.${field.id}`) }}
     </label>
     <div class="mt-2.5">

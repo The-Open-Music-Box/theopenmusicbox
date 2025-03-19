@@ -31,8 +31,8 @@
           :class="[
             'px-2 py-1 text-xs font-medium rounded-full',
             systemHealth?.status === 'healthy'
-              ? getColor('bg', 'success.light') + ' ' + getColor('text', 'success.dark')
-              : getColor('bg', 'error.light') + ' ' + getColor('text', 'error.dark')
+              ? colors.success.light + ' ' + colors.success.dark
+              : colors.error.light + ' ' + colors.error.dark
           ]"
         >
           {{ systemHealth?.status || 'unknown' }}
@@ -83,7 +83,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import dataService from '../services/dataService'
 import { i18n } from '@/i18n'
-// Only import getColor if we actually use it in the template
 import { colors } from '@theme/colors'
 
 const { t: $t } = i18n

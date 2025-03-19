@@ -28,10 +28,6 @@ interface SystemHealth {
   timestamp: number
 }
 
-interface UploadProgress {
-  progress: number;
-}
-
 // Ajouter des métriques de performance
 const metrics = {
   requestCount: 0,
