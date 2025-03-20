@@ -17,7 +17,6 @@ from .routes.api_routes import init_routes
 from .helpers.system_dependency_checker import SystemDependencyChecker
 from .helpers.exceptions import AppError
 from .core.container import SocketIOPublisher
-from .routes.spotify_routes import init_spotify_routes
 
 logger = ImprovedLogger(__name__)
 
@@ -40,11 +39,12 @@ def create_server(config: Config):
                 static_folder=str(static_folder),
                 static_url_path='')
 
-    CORS(app, origins=config.cors_allowed_origins)
+    # Configure CORS with the same origins configuration for both Flask and SocketIO
+    CORS(app, origins=config.cors_allowed_origins, supports_credentials=True)
 
     socketio = SocketIO(
         app,
-        cors_allowed_origins="*",
+        cors_allowed_origins=config.cors_allowed_origins,
         async_mode='eventlet',
         logger=config.debug,
         engineio_logger=config.debug,
@@ -66,11 +66,6 @@ def create_server(config: Config):
 
     # Initialize routes
     init_routes(app, socketio)
-
-    # Initialize Spotify routes if enabled
-    if config.spotify_enabled:
-        init_spotify_routes(app, socketio)
-        logger.log(LogLevel.INFO, "Spotify routes initialized")
 
     def shutdown_handler(signum, frame):
         logger.log(LogLevel.INFO, f"Shutdown signal received: {signal.Signals(signum).name}")
