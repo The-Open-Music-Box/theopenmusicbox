@@ -105,7 +105,7 @@ class Container:
     def led_hat(self) -> Optional[LedHatInterface]:
         if not self._led_hat:
             try:
-                self._led_hat = get_led_hat(num_pixels=36, brightness=0.1)
+                self._led_hat = get_led_hat(12)
                 logger.log(LogLevel.INFO, "LED hat initialized")
             except Exception as e:
                 # Capture toutes les exceptions possibles pour rendre le composant vraiment optionnel

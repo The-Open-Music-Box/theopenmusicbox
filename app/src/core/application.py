@@ -23,21 +23,13 @@ class Application:
     def _setup_led(self):
         # Utiliser le LED hat du container
         try:
-            # Le LED hat est déjà initialisé via le container
             led_hat = self._container.led_hat
             if not led_hat:
                 logger.log(LogLevel.WARNING, "LED hat not available")
                 return
 
-            # Démarrer l'animation de cercle rotatif
-            led_hat.start_animation(
-                "rotating_circle",
-                color=(10, 10, 10),
-                background_color=(0, 0, 0),
-                segment_length=5,
-                rotation_time=4.0,
-                continuous=True
-            )
+            led_hat.start_animation("rotating_circle", color=(10, 50, 10))
+
             logger.log(LogLevel.INFO, "LED animation started successfully")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error starting LED animation: {str(e)}")

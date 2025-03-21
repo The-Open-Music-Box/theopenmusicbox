@@ -6,7 +6,7 @@ from .ledhat_interface import LedHatInterface
 
 logger = ImprovedLogger(__name__)
 
-def get_led_hat(num_pixels: int = 36, brightness: float = 0.2) -> LedHatInterface:
+def get_led_hat(gpio_pin) -> LedHatInterface:
     """
     Returns the appropriate LED controller implementation based on the platform.
     If the real implementation fails, no fallback is performed and an exception is raised.
@@ -28,11 +28,11 @@ def get_led_hat(num_pixels: int = 36, brightness: float = 0.2) -> LedHatInterfac
     if sys.platform == 'darwin' or sys.platform == 'win32':
         # Use mock implementation for macOS and Windows
         from .ledhat_mock import MockLedHat
-        logger.log(LogLevel.INFO, f"Creating mock LED hat with {num_pixels} pixels")
-        return MockLedHat(num_pixels=num_pixels, brightness=brightness)
+        logger.log(LogLevel.INFO, f"Creating mock LED hat")
+        return MockLedHat(num_pixels=36, brightness=0.1)
     else:
         # Use real implementation for Raspberry Pi (Linux)
         # No automatic fallback, if it fails, the component will be in error
         from .ledhat_rpi_ws281x import RpiWs281xLedHat
-        logger.log(LogLevel.INFO, f"Creating Raspberry Pi LED hat with {num_pixels} pixels")
-        return RpiWs281xLedHat(num_pixels=num_pixels, brightness=brightness)
+        logger.log(LogLevel.INFO, f"Creating Raspberry Pi LED hat")
+        return RpiWs281xLedHat(num_pixels=36, brightness=0.1, pin=gpio_pin)
