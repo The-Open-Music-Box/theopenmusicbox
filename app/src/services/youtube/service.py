@@ -29,14 +29,21 @@ class YouTubeService:
             )
 
             result = downloader.download(url)
+
+            base_folder = Path(self.config.upload_folder).name
+            relative_path = Path(base_folder) / result['folder']
+
             playlist_data = {
                 'title': result['title'],
                 'youtube_id': result['id'],
-                'path': result['folder'],
+                'folder': str(relative_path),
                 'tracks': result.get('chapters', [])
             }
 
             playlist_id = self.nfc_service.add_playlist(playlist_data)
+
+            notifier.notify(status='complete', playlist_id=playlist_id)
+
             return {
                 'status': 'success',
                 'playlist_id': playlist_id,

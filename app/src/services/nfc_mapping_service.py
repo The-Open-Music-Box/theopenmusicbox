@@ -3,7 +3,7 @@
 from datetime import datetime
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 from uuid import uuid4
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
@@ -21,23 +21,32 @@ class NFCMappingService:
 
     def add_playlist(self, playlist_data: Dict) -> str:
         mapping = self.read_mapping()
-        tracks = [
-            {
+
+        # Construire les entrées de pistes avec les informations complètes
+        tracks = []
+        for idx, chapter in enumerate(playlist_data.get('tracks', []), 1):
+            track = {
                 "number": idx,
                 "title": chapter.get('title', f'Track {idx}'),
-                "start_time": str(chapter.get('start_time', 0)),
-                "end_time": str(chapter.get('end_time', 0)),
+                "filename": chapter.get('filename', f"Track {idx}.mp3"),
+                "duration": "",
                 "play_counter": 0
             }
-            for idx, chapter in enumerate(playlist_data.get('tracks', []), 1)
-        ]
+
+            # Ajouter des informations de timing si disponibles
+            if 'start_time' in chapter or 'end_time' in chapter:
+                track["start_time"] = str(chapter.get('start_time', 0))
+                track["end_time"] = str(chapter.get('end_time', 0))
+
+            tracks.append(track)
 
         new_playlist = {
             "id": str(uuid4()),
             "type": "playlist",
+            "idtagnfc": "",
             "title": playlist_data['title'],
             "youtube_id": playlist_data['youtube_id'],
-            "path": playlist_data['path'],
+            "path": playlist_data['folder'],
             "tracks": tracks,
             "created_at": datetime.utcnow().isoformat() + 'Z'
         }
