@@ -11,11 +11,11 @@ class NFCService:
         self.socketio = socketio
         self.waiting_for_tag = False
         self.current_playlist_id: Optional[str] = None
-        self._nfc_mapping: Dict[str, Any] = {}
+        self._playlists: Dict[str, Any] = {}
 
     def load_mapping(self, mapping: Dict[str, Any]) -> None:
         """Charge le mapping NFC existant"""
-        self._nfc_mapping = mapping
+        self._playlists = mapping
 
     def start_listening(self, playlist_id: str) -> None:
         """Démarre l'écoute pour l'association d'un tag NFC"""
@@ -45,7 +45,7 @@ class NFCService:
             return False
 
         # Vérifie si le tag est déjà associé
-        for item in self._nfc_mapping:
+        for item in self._playlists:
             if item.get('nfc_tag') == tag_id:
                 self.socketio.emit('nfc_status', {
                     'type': 'nfc_status',
@@ -59,7 +59,7 @@ class NFCService:
         # Si le tag est libre, on l'associe
         if self.current_playlist_id:
             # Trouve la playlist dans le mapping
-            playlist = next((p for p in self._nfc_mapping if p['id'] == self.current_playlist_id), None)
+            playlist = next((p for p in self._playlists if p['id'] == self.current_playlist_id), None)
             if playlist:
                 playlist['nfc_tag'] = tag_id
                 self.socketio.emit('nfc_status', {

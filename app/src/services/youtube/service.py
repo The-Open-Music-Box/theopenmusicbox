@@ -5,7 +5,7 @@ from typing import Dict
 from pathlib import Path
 
 from src.services.notification_service import DownloadNotifier
-from src.services.nfc_mapping_service import NFCMappingService
+from src.services.playlist_service import PlaylistService
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .downloader import YouTubeDownloader
 
@@ -16,7 +16,7 @@ class YouTubeService:
     def __init__(self, socketio=None, config=None):
         self.socketio = socketio
         self.config = config
-        self.nfc_service = NFCMappingService(config.nfc_mapping_file)
+        self.playlist_service = PlaylistService(config.playlists_file)
 
     def process_download(self, url: str) -> Dict:
         download_id = str(uuid4())
@@ -40,7 +40,7 @@ class YouTubeService:
                 'tracks': result.get('chapters', [])
             }
 
-            playlist_id = self.nfc_service.add_playlist(playlist_data)
+            playlist_id = self.playlist_service.add_playlist(playlist_data)
 
             notifier.notify(status='complete', playlist_id=playlist_id)
 

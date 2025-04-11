@@ -32,6 +32,7 @@ sync_changes() {
         --exclude '.git' \
         --exclude 'node_modules' \
         --exclude '.DS_Store' \
+        --exclude 'logs/' \
         "$LOCAL_DIR/" \
         "$REMOTE_USER@$REMOTE_HOST:$REMOTE_DIR/" 2>&1 | while read line; do
             echo -e "${BLUE}[RSYNC]${NC} $line"

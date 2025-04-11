@@ -99,7 +99,7 @@ Available commands:
 
 #### Get NFC Mapping
 ```http
-GET /api/nfc_mapping
+GET /api/playlists
 ```
 **Response:**
 ```json

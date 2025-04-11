@@ -15,7 +15,7 @@ class Config:
         'SOCKETIO_HOST': str,
         'SOCKETIO_PORT': int,
         'UPLOAD_FOLDER': str,
-        'NFC_MAPPING': str,
+        'PLAYLISTS': str,
         'CORS_ALLOWED_ORIGINS': str,
         'USE_RELOADER': bool,
         'LOG_LEVEL': str,
@@ -79,10 +79,10 @@ class Config:
             Path(os.environ['LOG_FILE']).parent.mkdir(parents=True, exist_ok=True)
             Path(os.environ['LOG_FILE']).touch(exist_ok=True)
 
-            nfc_path = Path(os.environ['NFC_MAPPING'])
-            nfc_path.parent.mkdir(parents=True, exist_ok=True)
-            if not nfc_path.exists():
-                nfc_path.write_text('[]', encoding='utf-8')
+            playlist_path = Path(os.environ['PLAYLISTS'])
+            playlist_path.parent.mkdir(parents=True, exist_ok=True)
+            if not playlist_path.exists():
+                playlist_path.write_text('[]', encoding='utf-8')
 
         except Exception as exc:
             raise AppError.configuration_error(
@@ -112,8 +112,8 @@ class Config:
         return str(Path(__file__).parent.parent / os.environ['UPLOAD_FOLDER'])
 
     @property
-    def nfc_mapping_file(self) -> str:
-        return str(Path(__file__).parent.parent / os.environ['NFC_MAPPING'])
+    def playlists_file(self) -> str:
+        return str(Path(__file__).parent.parent / os.environ['PLAYLISTS'])
 
     @property
     def cors_allowed_origins(self) -> str:

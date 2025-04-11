@@ -90,7 +90,7 @@ class APIClient:
     def get_playlists(self) -> Dict[str, Any]:
         """Get all available playlists."""
         logger.info("Fetching playlists")
-        response = self._make_request('GET', '/api/nfc_mapping')
+        response = self._make_request('GET', '/api/playlists')
 
         # Si nous avons une erreur, la retourner
         if 'error' in response:

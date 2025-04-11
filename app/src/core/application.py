@@ -1,8 +1,8 @@
 # app/src/core/application.py
 
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.services.nfc_mapping_service import NFCMappingService
-from .nfc_playlist_controller import NFCPlaylistController
+from src.services.playlist_service import PlaylistService
+from .playlist_controller import PlaylistController
 from .container import Container
 
 logger = ImprovedLogger(__name__)
@@ -10,10 +10,10 @@ logger = ImprovedLogger(__name__)
 class Application:
     def __init__(self, container: Container):
         self._container = container
-        self._nfc_mapping = NFCMappingService(container.config.nfc_mapping_file)
-        self._playlist_controller = NFCPlaylistController(
+        self._playlists = PlaylistService(container.config.playlists_file)
+        self._playlist_controller = PlaylistController(
             container.audio,
-            self._nfc_mapping,
+            self._playlists,
             container.config.upload_folder
         )
         self._setup_led()

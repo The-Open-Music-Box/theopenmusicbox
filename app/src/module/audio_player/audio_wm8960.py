@@ -338,3 +338,7 @@ class AudioPlayerWM8960(AudioPlayerInterface):
             else:
                 logger.log(LogLevel.INFO, "Playlist ended")
                 self.stop()
+
+    # def is_finished(self) -> bool:
+    #     """Return True if playlist has finished playing"""
+    #     return self._playlist_finished if hasattr(self, '_playlist_finished') else False

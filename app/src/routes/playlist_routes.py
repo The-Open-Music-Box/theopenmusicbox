@@ -9,7 +9,7 @@ import uuid
 import datetime
 
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.services import NFCMappingService, UploadService
+from src.services import PlaylistService, UploadService
 from src.helpers.exceptions import InvalidFileError, ProcessingError
 from src.model.playlist import Playlist
 
@@ -33,8 +33,8 @@ class PlaylistRoutes:
                 if not audio:
                     return jsonify({"error": "Audio system not available"}), 503
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                nfc_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = nfc_service.read_playlist_file()
 
                 playlist_data = next((p for p in mapping if p['id'] == playlist_id), None)
                 if not playlist_data:
@@ -72,8 +72,8 @@ class PlaylistRoutes:
                 if not audio:
                     return jsonify({"error": "Audio system not available"}), 503
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                nfc_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = nfc_service.read_playlist_file()
 
                 playlist_data = next((p for p in mapping if p['id'] == playlist_id), None)
                 if not playlist_data:
@@ -140,8 +140,8 @@ class PlaylistRoutes:
                 if 'files' not in request.files:
                     return jsonify({"error": "No files provided"}), 400
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                nfc_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = nfc_service.read_playlist_file()
 
                 playlist = next((p for p in mapping if p['id'] == playlist_id), None)
                 if not playlist:
@@ -215,8 +215,8 @@ class PlaylistRoutes:
         def delete_playlist(playlist_id):
             """Delete a playlist and its files"""
             try:
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                nfc_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = nfc_service.read_playlist_file()
 
                 playlist = next((p for p in mapping if p['id'] == playlist_id), None)
                 if not playlist:
@@ -252,8 +252,8 @@ class PlaylistRoutes:
                 if not track_numbers or not isinstance(track_numbers, list):
                     return jsonify({"error": "Invalid track numbers"}), 400
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                nfc_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = nfc_service.read_playlist_file()
 
                 playlist = next((p for p in mapping if p['id'] == playlist_id), None)
                 if not playlist:
@@ -295,8 +295,8 @@ class PlaylistRoutes:
                 if not new_order or not isinstance(new_order, list):
                     return jsonify({"error": "Invalid track order"}), 400
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                nfc_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = nfc_service.read_playlist_file()
 
                 playlist = next((p for p in mapping if p['id'] == playlist_id), None)
                 if not playlist:
@@ -335,8 +335,8 @@ class PlaylistRoutes:
                 if not data.get('title'):
                     return jsonify({"error": "Playlist title is required"}), 400
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                nfc_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = nfc_service.read_playlist_file()
 
                 # Générer un ID unique pour la playlist
                 playlist_id = str(uuid.uuid4())

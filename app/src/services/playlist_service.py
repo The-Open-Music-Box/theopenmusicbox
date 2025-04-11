@@ -1,4 +1,4 @@
-# app/src/services/nfc_mapping_service.py
+# app/src/services/playlist_service.py
 
 from datetime import datetime
 import json
@@ -9,20 +9,19 @@ from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 
-class NFCMappingService:
+class PlaylistService:
     def __init__(self, mapping_file_path):
         self.mapping_file_path = Path(mapping_file_path)
 
-    def read_mapping(self) -> list:
+    def read_playlist_file(self) -> list:
         return json.loads(self.mapping_file_path.read_text())
 
-    def save_mapping(self, mapping: list):
+    def save_playlist_file(self, mapping: list):
         self.mapping_file_path.write_text(json.dumps(mapping, indent=2))
 
     def add_playlist(self, playlist_data: Dict) -> str:
-        mapping = self.read_mapping()
+        mapping = self.read_playlist_file()
 
-        # Construire les entrées de pistes avec les informations complètes
         tracks = []
         for idx, chapter in enumerate(playlist_data.get('tracks', []), 1):
             track = {
@@ -52,5 +51,5 @@ class NFCMappingService:
         }
 
         mapping.append(new_playlist)
-        self.save_mapping(mapping)
+        self.save_playlist_file(mapping)
         return new_playlist['id']

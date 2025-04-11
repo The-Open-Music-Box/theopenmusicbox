@@ -102,3 +102,8 @@ class AudioPlayerInterface(ABC):
     def get_volume(self) -> int:
         """Get the current volume"""
         pass
+
+    # @abstractmethod
+    # def is_finished(self) -> bool:
+    #     """Return True if playlist has finished playing"""
+    #     pass

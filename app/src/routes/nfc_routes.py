@@ -3,7 +3,7 @@
 from flask import Blueprint, current_app, request, jsonify
 from src.services.nfc_service import NFCService
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.services import NFCMappingService
+from src.services import PlaylistService
 from http import HTTPStatus
 
 logger = ImprovedLogger(__name__)
@@ -20,31 +20,31 @@ class NFCRoutes:
         self.app.register_blueprint(self.api, url_prefix='/api')
 
     def _register_routes(self):
-        @self.api.route('/nfc_mapping')
-        def get_nfc_mapping():
+        @self.api.route('/playlists')
+        def get_playlists():
             try:
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                playlist_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = playlist_service.read_playlist_file()
                 return jsonify(mapping)
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error reading NFC mapping: {str(e)}")
                 return jsonify({"error": "Failed to read NFC mapping"}), 500
 
-        @self.api.route('/nfc_mapping', methods=['POST'])
-        def update_nfc_mapping():
+        @self.api.route('/playlists', methods=['POST'])
+        def update_playlists():
             try:
                 data = request.json
                 if not data or not isinstance(data, list):
                     return jsonify({"error": "Invalid data format"}), 400
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                nfc_service.save_mapping(data)
+                playlist_service = PlaylistService(current_app.container.config.playlists_file)
+                playlist_service.save_playlist_file(data)
                 return jsonify({"status": "success"})
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error updating NFC mapping: {str(e)}")
                 return jsonify({"error": "Failed to update NFC mapping"}), 500
 
-        @self.api.route('/nfc_mapping/associate', methods=['POST'])
+        @self.api.route('/playlists/associate', methods=['POST'])
         def associate_nfc_tag():
             """Associate a NFC tag with a playlist"""
             try:
@@ -55,8 +55,8 @@ class NFCRoutes:
                 if not data.get('playlist_id') or not data.get('nfc_tag'):
                     return jsonify({"error": "playlist_id and nfc_tag are required"}), 400
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                playlist_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = playlist_service.read_playlist_file()
 
                 # Check if the tag is already associated
                 existing_playlist = next(
@@ -75,7 +75,7 @@ class NFCRoutes:
 
                 # Associate the tag
                 playlist['nfc_tag'] = data['nfc_tag']
-                nfc_service.save_mapping(mapping)
+                playlist_service.save_playlist_file(mapping)
 
                 return jsonify({
                     "status": "success",
@@ -86,7 +86,7 @@ class NFCRoutes:
                 logger.log(LogLevel.ERROR, f"NFC tag association error: {str(e)}")
                 return jsonify({"error": str(e)}), 500
 
-        @self.api.route('/nfc_mapping/dissociate', methods=['POST'])
+        @self.api.route('/playlists/dissociate', methods=['POST'])
         def dissociate_nfc_tag():
             """Remove NFC tag association from a playlist"""
             try:
@@ -97,8 +97,8 @@ class NFCRoutes:
                 if not data.get('playlist_id'):
                     return jsonify({"error": "playlist_id is required"}), 400
 
-                nfc_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_service.read_mapping()
+                playlist_service = PlaylistService(current_app.container.config.playlists_file)
+                mapping = playlist_service.read_playlist_file()
 
                 # Find the playlist
                 playlist = next((p for p in mapping if p['id'] == data['playlist_id']), None)
@@ -110,7 +110,7 @@ class NFCRoutes:
 
                 # Remove the association
                 playlist['nfc_tag'] = None
-                nfc_service.save_mapping(mapping)
+                playlist_service.save_playlist_file(mapping)
 
                 return jsonify({
                     "status": "success",
@@ -133,9 +133,9 @@ class NFCRoutes:
                     }), HTTPStatus.CONFLICT
 
                 # Check that the playlist exists
-                nfc_mapping_service = NFCMappingService(current_app.container.config.nfc_mapping_file)
-                mapping = nfc_mapping_service.read_mapping()
-                playlist = next((p for p in mapping if p['id'] == playlist_id), None)
+                playlists_service = PlaylistService(current_app.container.config.playlists_file)
+                playlists = playlists_service.read_playlist_file()
+                playlist = next((p for p in playlists if p['id'] == playlist_id), None)
 
                 if not playlist:
                     return jsonify({
@@ -143,7 +143,7 @@ class NFCRoutes:
                         'message': 'Playlist not found'
                     }), HTTPStatus.NOT_FOUND
 
-                self.nfc_service.load_mapping(mapping)  # Load current mapping
+                self.nfc_service.load_mapping(playlists)
                 self.nfc_service.start_listening(playlist_id)
                 return jsonify({
                     'status': 'success',

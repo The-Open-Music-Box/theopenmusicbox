@@ -70,11 +70,11 @@ def create_server(config: Config):
     def shutdown_handler(signum, frame):
         logger.log(LogLevel.INFO, f"Shutdown signal received: {signal.Signals(signum).name}")
         try:
+
             # Close all active socket connections
             if hasattr(app, 'socketio'):
                 app.socketio.server.disconnect()
                 logger.log(LogLevel.INFO, "All socket connections closed")
-
             # Cleanup container resources
             if hasattr(app, 'container'):
                 app.container.cleanup()
