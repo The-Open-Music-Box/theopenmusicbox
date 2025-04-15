@@ -4,9 +4,10 @@ from flask import Blueprint, current_app, request, jsonify
 from werkzeug.utils import secure_filename
 import os
 from pathlib import Path
-from typing import List
+from typing import List, Tuple, Optional, Dict, Any
 import uuid
 import datetime
+import re
 
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from src.services import PlaylistService, UploadService
@@ -24,6 +25,62 @@ class PlaylistRoutes:
         self._init_routes()
         self.app.register_blueprint(self.api, url_prefix='/api')
 
+    def _get_playlist_or_404(self, playlist_id: str) -> Tuple[Optional[Dict[str, Any]], List, PlaylistService]:
+        """
+        Get a playlist by ID or return None.
+
+        Args:
+            playlist_id: ID of the playlist to retrieve
+
+        Returns:
+            Tuple containing: (playlist, mapping, playlist_service) or (None, mapping, playlist_service)
+        """
+        playlist_service = PlaylistService(current_app.container.config.db_file)
+        mapping = playlist_service.read_playlist_file()
+
+        playlist = next((p for p in mapping if p['id'] == playlist_id), None)
+        return playlist, mapping, playlist_service
+
+    def _create_playlist_model(self, playlist_data: Dict[str, Any], track_filter=None) -> Playlist:
+        """
+        Create a Playlist model object from playlist data.
+
+        Args:
+            playlist_data: Dictionary containing playlist information
+            track_filter: Optional function to filter tracks
+
+        Returns:
+            A Playlist model object
+        """
+        base_path = Path(current_app.container.config.upload_folder) / playlist_data['path']
+
+        if track_filter:
+            filtered_tracks = [t for t in playlist_data['tracks'] if track_filter(t)]
+        else:
+            filtered_tracks = playlist_data['tracks']
+
+        track_paths = [
+            str(base_path / track['filename'])
+            for track in filtered_tracks
+            if Path(base_path / track['filename']).exists()
+        ]
+
+        return Playlist.from_files(playlist_data['title'], track_paths)
+
+    def _validate_track_numbers(self, playlist: Dict[str, Any], track_numbers: List[int]) -> bool:
+        """
+        Validate that track numbers exist in the playlist.
+
+        Args:
+            playlist: Playlist dictionary
+            track_numbers: List of track numbers to validate
+
+        Returns:
+            True if all track numbers are valid
+        """
+        current_tracks = {track['number'] for track in playlist['tracks']}
+        return set(track_numbers).issubset(current_tracks)
+
     def _init_routes(self):
         @self.api.route('/playlist/<playlist_id>/play', methods=['POST'])
         def start_playlist(playlist_id):
@@ -33,31 +90,22 @@ class PlaylistRoutes:
                 if not audio:
                     return jsonify({"error": "Audio system not available"}), 503
 
-                nfc_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = nfc_service.read_playlist_file()
-
-                playlist_data = next((p for p in mapping if p['id'] == playlist_id), None)
-                if not playlist_data:
+                playlist, _, _ = self._get_playlist_or_404(playlist_id)
+                if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
 
-                # Construire la liste des chemins de fichiers
-                base_path = Path(current_app.container.config.upload_folder) / playlist_data['path']
-                track_paths = [
-                    str(base_path / track['filename'])
-                    for track in playlist_data['tracks']
-                    if Path(base_path / track['filename']).exists()
-                ]
+                # Create playlist model
+                playlist_model = self._create_playlist_model(playlist)
 
-                if not track_paths:
+                if not playlist_model.tracks:
                     return jsonify({"error": "No valid tracks found in playlist"}), 404
 
-                # Create a Playlist object
-                playlist = Playlist.from_files(playlist_data['title'], track_paths)
-                audio.set_playlist(playlist)
+                # Start playback
+                audio.set_playlist(playlist_model)
 
                 return jsonify({
                     "status": "success",
-                    "message": f"Started playing playlist: {playlist_data['title']}"
+                    "message": f"Started playing playlist: {playlist['title']}"
                 })
 
             except Exception as e:
@@ -72,31 +120,26 @@ class PlaylistRoutes:
                 if not audio:
                     return jsonify({"error": "Audio system not available"}), 503
 
-                nfc_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = nfc_service.read_playlist_file()
-
-                playlist_data = next((p for p in mapping if p['id'] == playlist_id), None)
-                if not playlist_data:
+                playlist, _, _ = self._get_playlist_or_404(playlist_id)
+                if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
 
-                track = next((t for t in playlist_data['tracks'] if t['number'] == track_number), None)
+                # Filter tracks to start from the specified track
+                track = next((t for t in playlist['tracks'] if t['number'] == track_number), None)
                 if not track:
                     return jsonify({"error": "Track not found"}), 404
 
-                # Construire la liste des chemins à partir du morceau sélectionné
-                base_path = Path(current_app.container.config.upload_folder) / playlist_data['path']
-                track_paths = [
-                    str(base_path / t['filename'])
-                    for t in sorted(playlist_data['tracks'], key=lambda x: x['number'])
-                    if t['number'] >= track_number and Path(base_path / t['filename']).exists()
-                ]
+                # Create playlist model starting from the specified track
+                playlist_model = self._create_playlist_model(
+                    playlist,
+                    track_filter=lambda t: t['number'] >= track_number
+                )
 
-                if not track_paths:
+                if not playlist_model.tracks:
                     return jsonify({"error": "No valid tracks found"}), 404
 
-                # Create a Playlist object starting from the selected track
-                playlist = Playlist.from_files(playlist_data['title'], track_paths)
-                audio.set_playlist(playlist)
+                # Start playback
+                audio.set_playlist(playlist_model)
 
                 return jsonify({
                     "status": "success",
@@ -140,10 +183,7 @@ class PlaylistRoutes:
                 if 'files' not in request.files:
                     return jsonify({"error": "No files provided"}), 400
 
-                nfc_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = nfc_service.read_playlist_file()
-
-                playlist = next((p for p in mapping if p['id'] == playlist_id), None)
+                playlist, mapping, playlist_service = self._get_playlist_or_404(playlist_id)
                 if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
 
@@ -161,7 +201,7 @@ class PlaylistRoutes:
 
                         filename, metadata = upload_service.process_upload(file, playlist['path'])
 
-                        # Ajouter le morceau à la playlist avec les métadonnées
+                        # Add track to playlist
                         track = {
                             "number": len(playlist['tracks']) + 1,
                             "title": metadata['title'],
@@ -177,7 +217,7 @@ class PlaylistRoutes:
                             "metadata": metadata
                         })
 
-                        # Émettre la progression
+                        # Emit progress via websocket
                         current_app.socketio.emit('upload_progress', {
                             'playlist_id': playlist_id,
                             'current': index,
@@ -193,7 +233,7 @@ class PlaylistRoutes:
                         continue
 
                 if uploaded_files:
-                    nfc_service.save_mapping(mapping)
+                    playlist_service.save_playlist_file(mapping)
 
                 response = {
                     "status": "success" if uploaded_files else "error",
@@ -215,10 +255,7 @@ class PlaylistRoutes:
         def delete_playlist(playlist_id):
             """Delete a playlist and its files"""
             try:
-                nfc_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = nfc_service.read_playlist_file()
-
-                playlist = next((p for p in mapping if p['id'] == playlist_id), None)
+                playlist, mapping, playlist_service = self._get_playlist_or_404(playlist_id)
                 if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
 
@@ -233,7 +270,7 @@ class PlaylistRoutes:
 
                 # Remove from mapping
                 mapping.remove(playlist)
-                nfc_service.save_mapping(mapping)
+                playlist_service.save_playlist_file(mapping)
 
                 return jsonify({"status": "success"})
 
@@ -252,12 +289,13 @@ class PlaylistRoutes:
                 if not track_numbers or not isinstance(track_numbers, list):
                     return jsonify({"error": "Invalid track numbers"}), 400
 
-                nfc_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = nfc_service.read_playlist_file()
-
-                playlist = next((p for p in mapping if p['id'] == playlist_id), None)
+                playlist, mapping, playlist_service = self._get_playlist_or_404(playlist_id)
                 if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
+
+                # Validate track numbers
+                if not self._validate_track_numbers(playlist, track_numbers):
+                    return jsonify({"error": "One or more track numbers do not exist"}), 400
 
                 # Delete files and remove tracks
                 playlist_path = Path(current_app.container.config.upload_folder) / playlist['path']
@@ -274,10 +312,10 @@ class PlaylistRoutes:
                     playlist['tracks'].remove(track)
 
                 # Reindex remaining tracks
-                for idx, track in enumerate(playlist['tracks'], 1):
+                for idx, track in enumerate(sorted(playlist['tracks'], key=lambda x: x['number']), 1):
                     track['number'] = idx
 
-                nfc_service.save_mapping(mapping)
+                playlist_service.save_playlist_file(mapping)
                 return jsonify({"status": "success"})
 
             except Exception as e:
@@ -295,10 +333,7 @@ class PlaylistRoutes:
                 if not new_order or not isinstance(new_order, list):
                     return jsonify({"error": "Invalid track order"}), 400
 
-                nfc_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = nfc_service.read_playlist_file()
-
-                playlist = next((p for p in mapping if p['id'] == playlist_id), None)
+                playlist, mapping, playlist_service = self._get_playlist_or_404(playlist_id)
                 if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
 
@@ -317,7 +352,7 @@ class PlaylistRoutes:
                 for idx, track in enumerate(playlist['tracks'], 1):
                     track['number'] = idx
 
-                nfc_service.save_mapping(mapping)
+                playlist_service.save_playlist_file(mapping)
                 return jsonify({"status": "success"})
 
             except Exception as e:
@@ -332,31 +367,43 @@ class PlaylistRoutes:
                     return jsonify({"error": "Content-Type must be application/json"}), 400
 
                 data = request.json
+                if not data:
+                    return jsonify({"error": "Request body is empty"}), 400
+
+                # Validate required fields
                 if not data.get('title'):
                     return jsonify({"error": "Playlist title is required"}), 400
 
-                nfc_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = nfc_service.read_playlist_file()
+                # Validate title length
+                if len(data['title']) > 100:
+                    return jsonify({"error": "Playlist title is too long (max 100 characters)"}), 400
 
-                # Générer un ID unique pour la playlist
+                # Validate title format (optional)
+                if not re.match(r'^[\w\s\-_.,()]+$', data['title']):
+                    return jsonify({"error": "Playlist title contains invalid characters"}), 400
+
+                playlist_service = PlaylistService(current_app.container.config.db_file)
+
+                # Generate unique ID
                 playlist_id = str(uuid.uuid4())
 
-                # Créer la nouvelle playlist
+                # Create new playlist
                 new_playlist = {
                     "id": playlist_id,
                     "type": "playlist",
                     "title": data['title'],
                     "path": f"playlist_{playlist_id}",
                     "tracks": [],
-                    "nfc_tag": None,  # Tag NFC initialement non associé
+                    "nfc_tag": None,  # No NFC tag initially associated
                     "created_at": datetime.datetime.now().isoformat()
                 }
 
-                # Ajouter la playlist au mapping
+                # Add to mapping
+                mapping = playlist_service.read_playlist_file()
                 mapping.append(new_playlist)
-                nfc_service.save_mapping(mapping)
+                playlist_service.save_playlist_file(mapping)
 
-                # Créer le dossier pour la playlist
+                # Create directory for the playlist
                 playlist_path = Path(current_app.container.config.upload_folder) / new_playlist['path']
                 playlist_path.mkdir(parents=True, exist_ok=True)
 

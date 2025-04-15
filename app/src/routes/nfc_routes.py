@@ -23,12 +23,13 @@ class NFCRoutes:
         @self.api.route('/playlists')
         def get_playlists():
             try:
-                playlist_service = PlaylistService(current_app.container.config.playlists_file)
+                # Utiliser db_file au lieu de playlists_file
+                playlist_service = PlaylistService(current_app.container.config.db_file)
                 mapping = playlist_service.read_playlist_file()
                 return jsonify(mapping)
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error reading NFC mapping: {str(e)}")
-                return jsonify({"error": "Failed to read NFC mapping"}), 500
+                logger.log(LogLevel.ERROR, f"Error reading playlists: {str(e)}")
+                return jsonify({"error": "Failed to read playlists"}), 500
 
         @self.api.route('/playlists', methods=['POST'])
         def update_playlists():
@@ -37,12 +38,13 @@ class NFCRoutes:
                 if not data or not isinstance(data, list):
                     return jsonify({"error": "Invalid data format"}), 400
 
-                playlist_service = PlaylistService(current_app.container.config.playlists_file)
+                # Utiliser db_file au lieu de playlists_file
+                playlist_service = PlaylistService(current_app.container.config.db_file)
                 playlist_service.save_playlist_file(data)
                 return jsonify({"status": "success"})
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error updating NFC mapping: {str(e)}")
-                return jsonify({"error": "Failed to update NFC mapping"}), 500
+                logger.log(LogLevel.ERROR, f"Error updating playlists: {str(e)}")
+                return jsonify({"error": "Failed to update playlists"}), 500
 
         @self.api.route('/playlists/associate', methods=['POST'])
         def associate_nfc_tag():
@@ -55,32 +57,29 @@ class NFCRoutes:
                 if not data.get('playlist_id') or not data.get('nfc_tag'):
                     return jsonify({"error": "playlist_id and nfc_tag are required"}), 400
 
-                playlist_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = playlist_service.read_playlist_file()
+                # Utiliser db_file au lieu de playlists_file
+                playlist_service = PlaylistService(current_app.container.config.db_file)
 
-                # Check if the tag is already associated
-                existing_playlist = next(
-                    (p for p in mapping if p.get('nfc_tag') == data['nfc_tag']),
-                    None
-                )
+                # Check if tag is already associated
+                existing_playlist = playlist_service.get_playlist_by_tag(data['nfc_tag'])
                 if existing_playlist:
                     return jsonify({
                         "error": f"NFC tag already associated with playlist: {existing_playlist['title']}"
                     }), 409
 
                 # Find playlist to associate
-                playlist = next((p for p in mapping if p['id'] == data['playlist_id']), None)
+                playlist = playlist_service.get_playlist_by_id(data['playlist_id'])
                 if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
 
                 # Associate the tag
-                playlist['nfc_tag'] = data['nfc_tag']
-                playlist_service.save_playlist_file(mapping)
-
-                return jsonify({
-                    "status": "success",
-                    "playlist": playlist
-                })
+                if playlist_service.associate_tag(data['playlist_id'], data['nfc_tag']):
+                    return jsonify({
+                        "status": "success",
+                        "playlist": playlist_service.get_playlist_by_id(data['playlist_id'])
+                    })
+                else:
+                    return jsonify({"error": "Failed to associate tag"}), 500
 
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"NFC tag association error: {str(e)}")
@@ -97,11 +96,11 @@ class NFCRoutes:
                 if not data.get('playlist_id'):
                     return jsonify({"error": "playlist_id is required"}), 400
 
-                playlist_service = PlaylistService(current_app.container.config.playlists_file)
-                mapping = playlist_service.read_playlist_file()
+                # Utiliser db_file au lieu de playlists_file
+                playlist_service = PlaylistService(current_app.container.config.db_file)
 
                 # Find the playlist
-                playlist = next((p for p in mapping if p['id'] == data['playlist_id']), None)
+                playlist = playlist_service.get_playlist_by_id(data['playlist_id'])
                 if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
 
@@ -109,13 +108,13 @@ class NFCRoutes:
                     return jsonify({"error": "Playlist has no NFC tag associated"}), 400
 
                 # Remove the association
-                playlist['nfc_tag'] = None
-                playlist_service.save_playlist_file(mapping)
-
-                return jsonify({
-                    "status": "success",
-                    "playlist": playlist
-                })
+                if playlist_service.dissociate_tag(data['playlist_id']):
+                    return jsonify({
+                        "status": "success",
+                        "playlist": playlist_service.get_playlist_by_id(data['playlist_id'])
+                    })
+                else:
+                    return jsonify({"error": "Failed to dissociate tag"}), 500
 
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"NFC tag dissociation error: {str(e)}")
@@ -133,9 +132,9 @@ class NFCRoutes:
                     }), HTTPStatus.CONFLICT
 
                 # Check that the playlist exists
-                playlists_service = PlaylistService(current_app.container.config.playlists_file)
-                playlists = playlists_service.read_playlist_file()
-                playlist = next((p for p in playlists if p['id'] == playlist_id), None)
+                # Utiliser db_file au lieu de playlists_file
+                playlist_service = PlaylistService(current_app.container.config.db_file)
+                playlist = playlist_service.get_playlist_by_id(playlist_id)
 
                 if not playlist:
                     return jsonify({
@@ -143,6 +142,7 @@ class NFCRoutes:
                         'message': 'Playlist not found'
                     }), HTTPStatus.NOT_FOUND
 
+                playlists = playlist_service.read_playlist_file()
                 self.nfc_service.load_mapping(playlists)
                 self.nfc_service.start_listening(playlist_id)
                 return jsonify({

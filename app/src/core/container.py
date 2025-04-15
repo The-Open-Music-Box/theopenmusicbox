@@ -17,6 +17,7 @@ from src.module.audio_player.audio_factory import get_audio_player
 from src.module.ledhat.ledhat_interface import LedHatInterface
 from src.module.ledhat.ledhat_factory import get_led_hat
 from src.services.notification_service import PlaybackSubject
+from src.services.playlist_service import PlaylistService
 
 logger = ImprovedLogger(__name__)
 
@@ -112,6 +113,24 @@ class Container:
                 logger.log(LogLevel.WARNING, f"LED hat not available: {str(e)}")
                 self._led_hat = None
         return self._led_hat
+
+    @property
+    def playlist_service(self) -> PlaylistService:
+        """
+        Obtient ou crée le service de playlists.
+
+        Returns:
+            Instance du service de playlists
+        """
+        if not hasattr(self, '_playlist_service'):
+            try:
+                from src.services.playlist_service import PlaylistService
+                self._playlist_service = PlaylistService(self.config)
+                logger.log(LogLevel.INFO, "Playlist service initialized")
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Failed to initialize playlist service: {str(e)}")
+                raise
+        return self._playlist_service
 
     def cleanup(self):
         logger.log(LogLevel.INFO, "Starting container cleanup")

@@ -15,7 +15,7 @@ class Config:
         'SOCKETIO_HOST': str,
         'SOCKETIO_PORT': int,
         'UPLOAD_FOLDER': str,
-        'PLAYLISTS': str,
+        'DB_FILE': str,
         'CORS_ALLOWED_ORIGINS': str,
         'USE_RELOADER': bool,
         'LOG_LEVEL': str,
@@ -75,14 +75,21 @@ class Config:
 
     def _validate_directories(self) -> None:
         try:
-            Path(os.environ['UPLOAD_FOLDER']).mkdir(parents=True, exist_ok=True)
-            Path(os.environ['LOG_FILE']).parent.mkdir(parents=True, exist_ok=True)
-            Path(os.environ['LOG_FILE']).touch(exist_ok=True)
+            # Créer le dossier d'uploads s'il n'existe pas
+            upload_path = Path(__file__).parent.parent / os.environ['UPLOAD_FOLDER']
+            upload_path.mkdir(parents=True, exist_ok=True)
 
-            playlist_path = Path(os.environ['PLAYLISTS'])
-            playlist_path.parent.mkdir(parents=True, exist_ok=True)
-            if not playlist_path.exists():
-                playlist_path.write_text('[]', encoding='utf-8')
+            # Créer le dossier des logs s'il n'existe pas
+            log_path = Path(os.environ['LOG_FILE'])
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            log_path.touch(exist_ok=True)
+
+            # Vérifier le fichier de base de données
+            db_path = Path(__file__).parent.parent / os.environ['DB_FILE']
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            # Ne pas toucher au fichier de base de données s'il existe déjà
+
+            logger.log(LogLevel.INFO, f"Config paths: uploads={upload_path}, db={db_path}")
 
         except Exception as exc:
             raise AppError.configuration_error(
@@ -112,8 +119,8 @@ class Config:
         return str(Path(__file__).parent.parent / os.environ['UPLOAD_FOLDER'])
 
     @property
-    def playlists_file(self) -> str:
-        return str(Path(__file__).parent.parent / os.environ['PLAYLISTS'])
+    def db_file(self) -> str:
+        return str(Path(__file__).parent.parent / os.environ['DB_FILE'])
 
     @property
     def cors_allowed_origins(self) -> str:
