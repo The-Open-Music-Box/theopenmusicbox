@@ -44,5 +44,6 @@ log/
 htmlcov/
 
 # Custom
-data/
+*.db
+uploads/
 static/
