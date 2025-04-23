@@ -1,0 +1,7 @@
+# Development/Mac/testing dependencies (extends requirements_base.txt)
+-r requirements_base.txt
+pytest
+pytest-mock
+pydub
+sounddevice
+yt-dlp

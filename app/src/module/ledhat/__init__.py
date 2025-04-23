@@ -13,10 +13,8 @@ This module offers:
 The component is designed to be optional and its status can be reported in the health route.
 """
 
-from .ledhat_interface import LedHatInterface
 from .ledhat_factory import get_led_hat
 
 __all__ = [
-    'LedHatInterface',
     'get_led_hat'
 ]

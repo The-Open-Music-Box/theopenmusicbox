@@ -1,14 +1,16 @@
 # app/src/module/nfc/nfc_factory.py
 
+import os
 import sys
 from typing import Optional
 from eventlet.semaphore import Semaphore
-from .nfc_interface import NFCInterface
+from .nfc_handler import NFCHandler
+from .nfc_hardware import NFCHardware
 
-def get_nfc_handler(bus_lock: Optional[Semaphore] = None) -> NFCInterface:
-    if sys.platform == 'darwin':
+def get_nfc_handler(bus_lock: Optional[Semaphore] = None) -> NFCHandler[NFCHardware]:
+    if os.environ.get('USE_MOCK_HARDWARE', '').lower() == 'true' or sys.platform == 'darwin':
         from .nfc_mock import MockNFC
-        return MockNFC()
+        return NFCHandler(MockNFC())
     else:
-        from .nfc_pn532_i2c import NFCPN532I2C
-        return NFCPN532I2C(bus_lock)
+        from .nfc_pn532_i2c import PN532I2CNFC
+        return NFCHandler(PN532I2CNFC())

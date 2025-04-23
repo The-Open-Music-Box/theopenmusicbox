@@ -1,4 +1,4 @@
-# app/tests/run_api_tester.py
+# api_tester/run_api_tester.py
 
 # app/tests/run_api_tester.py
 

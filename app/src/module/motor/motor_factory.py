@@ -1,16 +1,16 @@
 # app/src/module/motor/motor_factory.py
 
 import sys
-from src.module.gpio.gpio_interface import GPIOInterface
+import os
+from src.module.gpio.gpio_hardware import GPIOHardware
 
-from .motor_interface import MotorInterface
+from .motor import Motor
+from .motor_hardware import MotorHardware
 from .motor_mock import MockMotor
+from .motor_N2003 import N2003Motor
 
-def get_motor_controller(gpio: GPIOInterface) -> MotorInterface:
-
-    if sys.platform == 'darwin':
-        from .motor_mock import MockMotor
-        return MockMotor(gpio)
+def get_motor_controller(gpio: GPIOHardware) -> Motor[MotorHardware]:
+    if os.environ.get('USE_MOCK_HARDWARE', '').lower() == 'true' or sys.platform == 'darwin':
+        return Motor(MockMotor(gpio))
     else:
-        from .motor_raspberry import MotorN2003
-        return MotorN2003(gpio)
+        return Motor(N2003Motor(gpio))

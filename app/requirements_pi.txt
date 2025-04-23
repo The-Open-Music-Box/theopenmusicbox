@@ -1,9 +1,7 @@
-# Dependencies for Raspberry Pi
+# Raspberry Pi-specific dependencies (extends requirements_base.txt)
 -r requirements_base.txt
-
-# Raspberry Pi specific dependencies
-pygame==2.5.2
-RPi.GPIO==0.7.1
-spidev==3.6
-PyAudio==0.2.14
-pydub==0.25.1
+RPi.GPIO
+pygame
+adafruit-circuitpython-bh1750
+adafruit-circuitpython-pn532
+rpi_ws281x

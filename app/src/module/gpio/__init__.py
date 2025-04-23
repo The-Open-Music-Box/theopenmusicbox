@@ -14,10 +14,8 @@ Features include:
 - Automatic platform detection
 """
 
-from .gpio_interface import GPIOInterface
 from .gpio_factory import get_gpio_controller
 
 __all__ = [
-    'GPIOInterface',
     'get_gpio_controller'
 ]

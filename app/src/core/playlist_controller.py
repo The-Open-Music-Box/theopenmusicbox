@@ -6,7 +6,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.module.audio_player.audio_interface import AudioPlayerInterface
+from src.module.audio_player.audio_player import AudioPlayer
+from src.module.audio_player.audio_hardware import AudioPlayerHardware
 from src.services.playlist_service import PlaylistService
 from src.model.playlist import Playlist
 from src.model.track import Track
@@ -22,7 +23,7 @@ class PlaylistController:
     jouer les playlists associées.
     """
 
-    def __init__(self, audio_player: AudioPlayerInterface, playlist_service: PlaylistService, config: Config):
+    def __init__(self, audio_player: AudioPlayer, playlist_service: PlaylistService, config: Config):
         """
         Initialise le contrôleur de playlists.
 

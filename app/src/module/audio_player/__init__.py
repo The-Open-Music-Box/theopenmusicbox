@@ -8,10 +8,8 @@ with implementations for both Raspberry Pi hardware (WM8960)
 and mock testing.
 """
 
-from .audio_interface import AudioPlayerInterface
 from .audio_factory import get_audio_player
 
 __all__ = [
-    'AudioPlayerInterface',
     'get_audio_player'
 ]

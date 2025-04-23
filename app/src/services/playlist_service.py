@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Set, Tuple
 from uuid import uuid4
-from datetime import datetime
+from datetime import datetime, timezone
 import threading
 
 from src.config import Config
@@ -137,7 +137,7 @@ class PlaylistService:
                 'type': 'playlist',
                 'title': title or folder_path.name,
                 'path': str(rel_path),
-                'created_at': datetime.utcnow().isoformat(),
+                'created_at': datetime.now(timezone.utc).isoformat(),
                 'tracks': []
             }
 
@@ -458,7 +458,7 @@ class PlaylistService:
             'type': 'playlist',
             'title': playlist.name,
             'path': str(rel_path),
-            'created_at': datetime.utcnow().isoformat(),
+            'created_at': datetime.now(timezone.utc).isoformat(),
             'nfc_tag_id': playlist.nfc_tag_id,
             'tracks': []
         }

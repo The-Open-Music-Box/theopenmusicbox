@@ -2,13 +2,14 @@
 
 import eventlet
 from typing import Callable
-from src.module.gpio.gpio_interface import GPIOInterface, PinMode
+from src.module.gpio.gpio_hardware import GPIOHardware
+from src.module.gpio.gpio_mock import PinMode  # Adjust if PinMode is defined elsewhere
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from .motor_interface import MotorInterface, MotorDirection
+from .motor_hardware import MotorHardware, MotorDirection
 
 logger = ImprovedLogger(__name__)
 
-class MotorN2003(MotorInterface):
+class MotorN2003(MotorHardware):
     PINS = {
         'IN1': 16,
         'IN2': 23,
@@ -23,7 +24,7 @@ class MotorN2003(MotorInterface):
         [0, 0, 0, 1],
     ]
 
-    def __init__(self, gpio_controller: GPIOInterface):
+    def __init__(self, gpio_controller: GPIOHardware):
         self._gpio = gpio_controller
         self._position = 0
         self._running = False

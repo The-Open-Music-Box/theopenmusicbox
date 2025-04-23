@@ -10,11 +10,11 @@ import adafruit_bh1750
 
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from src.helpers.exceptions import AppError
-from .light_sensor_interface import LightSensorInterface, LightLevel
+from .light_sensor_hardware import LightSensorHardware, LightLevel
 
 logger = ImprovedLogger(__name__)
 
-class LightSensorBH1750I2C(LightSensorInterface):
+class Bh1750I2cLightSensor(LightSensorHardware):
     I2C_ADDRESS = 0x23
     MONITOR_INTERVAL = 1.0
     MAX_CONSECUTIVE_ERRORS = 3

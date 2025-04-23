@@ -1,12 +1,15 @@
 # app/src/module/ledhat/ledhat_factory.py
 
+import os
 import sys
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from .ledhat_interface import LedHatInterface
+from .ledhat import LedHat
+from .ledhat_mock import MockLedHat
+from .ledhat_rpi_ws281x import RpiWs281xLedHat
 
 logger = ImprovedLogger(__name__)
 
-def get_led_hat(gpio_pin) -> LedHatInterface:
+def get_led_hat(gpio_pin):
     """
     Returns the appropriate LED controller implementation based on the platform.
     If the real implementation fails, no fallback is performed and an exception is raised.
@@ -25,14 +28,9 @@ def get_led_hat(gpio_pin) -> LedHatInterface:
         ImportError: If the necessary libraries are not available
         Exception: If hardware initialization fails
     """
-    if sys.platform == 'darwin' or sys.platform == 'win32':
-        # Use mock implementation for macOS and Windows
-        from .ledhat_mock import MockLedHat
+    if os.environ.get('USE_MOCK_HARDWARE', '').lower() == 'true' or sys.platform in ['darwin', 'win32']:
         logger.log(LogLevel.INFO, f"Creating mock LED hat")
-        return MockLedHat(num_pixels=36, brightness=0.1)
+        return LedHat(MockLedHat())
     else:
-        # Use real implementation for Raspberry Pi (Linux)
-        # No automatic fallback, if it fails, the component will be in error
-        from .ledhat_rpi_ws281x import RpiWs281xLedHat
         logger.log(LogLevel.INFO, f"Creating Raspberry Pi LED hat")
-        return RpiWs281xLedHat(num_pixels=36, brightness=0.1, pin=gpio_pin)
+        return LedHat(RpiWs281xLedHat(num_pixels=36, brightness=0.1, pin=gpio_pin))

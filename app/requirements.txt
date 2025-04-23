@@ -1,3 +1,0 @@
-# This file is maintained for compatibility
-# Use requirements_pi.txt for installations on Raspberry Pi
--r requirements_pi.txt

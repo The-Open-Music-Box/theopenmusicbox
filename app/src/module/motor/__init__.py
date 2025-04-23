@@ -15,16 +15,8 @@ and mock testing. Features include:
 - Automatic platform detection
 """
 
-from .motor_interface import (
-    MotorInterface,
-    MotorDirection,
-    MotorStatus
-)
 from .motor_factory import get_motor_controller
 
 __all__ = [
-    'MotorInterface',
-    'MotorDirection',
-    'MotorStatus',
     'get_motor_controller'
 ]

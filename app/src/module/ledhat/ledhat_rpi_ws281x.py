@@ -5,12 +5,11 @@ import math
 import threading
 from typing import Tuple, Optional, Dict, Any, List
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from .ledhat_interface import LedHatInterface
-from rpi_ws281x import PixelStrip, Color
+from .ledhat_hardware import LedHatHardware
 
 logger = ImprovedLogger(__name__)
 
-class RpiWs281xLedHat(LedHatInterface):
+class RpiWs281xLedHat(LedHatHardware):
     """
     Implementation for Raspberry Pi LED strip controller using the rpi_ws281x library.
     Based on the example code in app/demo/ledhat.py.
@@ -36,6 +35,10 @@ class RpiWs281xLedHat(LedHatInterface):
         LED_INVERT = False    # Invert the signal (when using NPN transistor)
         LED_CHANNEL = 0       # '0' for GPIO 12, 18
 
+        # Import rpi_ws281x only when this class is instantiated
+        from rpi_ws281x import PixelStrip, Color
+        self._Color = Color
+
         # Create the strip object with configuration
         self.pixels = PixelStrip(
             num_pixels, pin, LED_FREQ_HZ, LED_DMA, LED_INVERT, led_brightness, LED_CHANNEL
@@ -53,7 +56,7 @@ class RpiWs281xLedHat(LedHatInterface):
     def clear(self) -> None:
         """Turn off all pixels."""
         for i in range(self.num_pixels):
-            self.pixels.setPixelColor(i, Color(0, 0, 0))
+            self.pixels.setPixelColor(i, self._Color(0, 0, 0))
         self.pixels.show()
 
     # MARK: Animation methods

@@ -12,11 +12,11 @@ from adafruit_pn532.i2c import PN532_I2C
 
 from src.helpers.exceptions import AppError, ErrorSeverity
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from .nfc_interface import NFCInterface
+from .nfc_hardware import NFCHardware
 
 logger = ImprovedLogger(__name__)
 
-class NFCPN532I2C(NFCInterface):
+class PN532I2CNFC(NFCHardware):
     READ_TIMEOUT = 0.1
     RETRY_DELAY = 0.1
     TAG_COOLDOWN = 0.5

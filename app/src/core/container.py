@@ -7,14 +7,14 @@ import eventlet
 
 from src.config import Config
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.module.gpio.gpio_interface import GPIOInterface
+from src.module.gpio.gpio_controller import GPIOController
 from src.module.gpio.gpio_factory import get_gpio_controller
-from src.module.nfc.nfc_interface import NFCInterface
+from src.module.nfc.nfc_handler import NFCHandler
 from src.module.nfc.nfc_factory import get_nfc_handler
 from src.helpers.exceptions import AppError
-from src.module.audio_player.audio_interface import AudioPlayerInterface
 from src.module.audio_player.audio_factory import get_audio_player
-from src.module.ledhat.ledhat_interface import LedHatInterface
+from src.module.audio_player.audio_player import AudioPlayer
+from src.module.audio_player.audio_hardware import AudioPlayerHardware
 from src.module.ledhat.ledhat_factory import get_led_hat
 from src.services.notification_service import PlaybackSubject
 from src.services.playlist_service import PlaylistService
@@ -70,7 +70,7 @@ class Container:
         return self._playback_subject
 
     @property
-    def gpio(self) -> GPIOInterface:
+    def gpio(self) -> GPIOController:
         if not self._gpio:
             try:
                 self._gpio = get_gpio_controller()
@@ -81,7 +81,7 @@ class Container:
         return self._gpio
 
     @property
-    def nfc(self) -> Optional[NFCInterface]:
+    def nfc(self) -> Optional[NFCHandler]:
         if not self._nfc:
             try:
                 self._nfc = get_nfc_handler(self.bus_lock)
@@ -92,7 +92,7 @@ class Container:
         return self._nfc
 
     @property
-    def audio(self) -> Optional[AudioPlayerInterface]:
+    def audio(self) -> Optional[AudioPlayer]:
         if not self._audio:
             try:
                 self._audio = get_audio_player(self._playback_subject)
@@ -103,7 +103,7 @@ class Container:
         return self._audio
 
     @property
-    def led_hat(self) -> Optional[LedHatInterface]:
+    def led_hat(self):
         if not self._led_hat:
             try:
                 self._led_hat = get_led_hat(12)

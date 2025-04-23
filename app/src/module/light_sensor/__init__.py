@@ -12,14 +12,8 @@ and mock testing. Features include:
 - Thread-safe I2C communication
 """
 
-from .light_sensor_interface import (
-    LightSensorInterface,
-    LightLevel
-)
 from .light_sensor_factory import get_light_sensor
 
 __all__ = [
-    'LightSensorInterface',
-    'LightLevel',
     'get_light_sensor'
 ]

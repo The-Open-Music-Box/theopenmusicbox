@@ -4,7 +4,7 @@ import sqlite3
 import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
 
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
@@ -196,7 +196,7 @@ class PlaylistRepository:
                         playlist_data.get('nfc_tag_id'),
                         playlist_data['title'],
                         playlist_data['path'],
-                        playlist_data.get('created_at', datetime.utcnow().isoformat()),
+                        playlist_data.get('created_at', datetime.now(timezone.utc).isoformat()),
                         playlist_data.get('last_played')
                     )
                 )

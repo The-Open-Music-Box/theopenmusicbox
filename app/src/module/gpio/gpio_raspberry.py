@@ -6,11 +6,11 @@ import RPi.GPIO as GPIO
 
 from src.helpers.exceptions import AppError
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from .gpio_interface import GPIOInterface, PinMode
+from .gpio_hardware import GPIOHardware, PinMode
 
 logger = ImprovedLogger(__name__)
 
-class RaspberryGPIO(GPIOInterface):
+class RaspberryGPIO(GPIOHardware):
     def __init__(self) -> None:
         self._gpio_lock = Lock()
         self._pwm_instances: Dict[int, Any] = {}

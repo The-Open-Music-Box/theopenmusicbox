@@ -13,10 +13,8 @@ and mock. Features include:
 - Thread-safe bus access
 """
 
-from .nfc_interface import NFCInterface
 from .nfc_factory import get_nfc_handler
 
 __all__ = [
-    'NFCInterface',
     'get_nfc_handler'
 ]

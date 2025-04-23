@@ -13,13 +13,13 @@ import io
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from src.helpers.exceptions import AppError
 from src.services.notification_service import PlaybackSubject
-from src.module.audio_player.audio_interface import AudioPlayerInterface
+from src.module.audio_player.audio_hardware import AudioPlayerHardware
 from src.model.track import Track
 from src.model.playlist import Playlist
 
 logger = ImprovedLogger(__name__)
 
-class AudioPlayerWM8960(AudioPlayerInterface):
+class AudioPlayerWM8960(AudioPlayerHardware):
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
         super().__init__(playback_subject)
         self._is_playing = False
