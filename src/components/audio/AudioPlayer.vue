@@ -71,6 +71,16 @@ onMounted(() => {
     duration.value = data.duration
     isPlaying.value = data.is_playing
   })
+  socketService.on('playback_status', (data: any) => {
+    // data: { status, playlist, current_track }
+    currentTrack.value = data.current_track || null
+    currentPlaylist.value = data.playlist || null
+    // Optionally map status to isPlaying
+    isPlaying.value = data.status === 'playing'
+    // duration and currentTime may not be present; set to 0 if missing
+    duration.value = data.current_track?.duration || 0
+    currentTime.value = 0 // Or keep previous if you want to preserve progress
+  })
   socketService.on('connection_status', (data: any) => {
     // Optionally handle connection status changes
   })
@@ -79,6 +89,7 @@ onMounted(() => {
 
 onUnmounted(() => {
   socketService.off('track_progress')
+  socketService.off('playback_status')
   socketService.off('connection_status')
 })
 
