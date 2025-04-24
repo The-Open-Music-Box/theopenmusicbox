@@ -275,6 +275,7 @@ class PlaylistRoutes:
 
                 actions = {
                     'play': audio.resume,
+                    'resume': audio.resume,
                     'pause': audio.pause,
                     'next': audio.next_track,
                     'previous': audio.previous_track,
