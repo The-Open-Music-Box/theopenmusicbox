@@ -309,11 +309,22 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                 elapsed = time.time() - self._stream_start_time
                 total = self._get_track_duration(self._current_track.path)
 
+                # Build track_info and playlist_info for frontend
+                track_info = {
+                    'number': self._current_track.number,
+                    'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
+                    'filename': getattr(self._current_track, 'filename', None),
+                    'duration': total
+                }
+                playlist_info = self._playlist.to_dict() if self._playlist and hasattr(self._playlist, 'to_dict') else None
+
                 # Send update
                 self._playback_subject.notify_track_progress(
-                    elapsed=elapsed,
-                    total=total,
-                    track_number=self._current_track.number
+                    currentTrack=track_info,
+                    playlist=playlist_info,
+                    currentTime=elapsed,
+                    duration=total,
+                    isPlaying=self._is_playing
                 )
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error updating progress: {str(e)}")

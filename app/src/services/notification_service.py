@@ -50,16 +50,22 @@ class PlaybackSubject:
             'current_track': track_info
         }))
 
-    def notify_track_progress(self, elapsed: float, total: float, track_number: int):
+    def notify_track_progress(self, elapsed: float, total: float, track_number: int, track_info: dict = None, playlist_info: dict = None, is_playing: bool = True):
         """
-        Emit a track progress event
+        Emit a track progress event with full info for the frontend
         elapsed: elapsed time in seconds
         total: total duration in seconds
         track_number: track number in playlist
+        track_info: dict with track metadata (title, filename, duration, etc.)
+        playlist_info: dict with playlist metadata (optional)
+        is_playing: bool, if playback is active
         """
-        self._progress_subject.on_next(PlaybackEvent('progress', {
-            'elapsed': elapsed,
-            'total': total,
-            'progress': (elapsed / total) * 100 if total > 0 else 0,
-            'track_number': track_number
-        }))
+        # Compose frontend-compatible payload
+        event_data = {
+            'currentTrack': track_info,
+            'playlist': playlist_info,
+            'currentTime': elapsed,
+            'duration': total,
+            'isPlaying': is_playing
+        }
+        self._progress_subject.on_next(PlaybackEvent('progress', event_data))

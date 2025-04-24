@@ -284,7 +284,10 @@ class MockAudioPlayer(AudioPlayerHardware):
                         self._playback_subject.notify_track_progress(
                             elapsed=elapsed,
                             total=self._track_duration,
-                            track_number=self._current_track.number
+                            track_number=self._current_track.number,
+                            track_info=track_info,
+                            playlist_info=playlist_info,
+                            is_playing=self._is_playing
                         )
 
             # Pause pour éviter de surcharger le CPU
