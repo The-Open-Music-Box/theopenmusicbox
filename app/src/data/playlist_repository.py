@@ -78,7 +78,7 @@ class PlaylistRepository:
         """Convertit une ligne SQLite en dictionnaire."""
         return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
-    def get_all_playlists(self) -> List[Dict[str, Any]]:
+    def get_all_playlists(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """
         Récupère toutes les playlists avec leurs pistes.
 
@@ -88,17 +88,20 @@ class PlaylistRepository:
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
                 conn.row_factory = self._dict_factory
-                playlists = conn.execute("SELECT * FROM playlists").fetchall()
+                playlists = conn.execute(
+                    "SELECT * FROM playlists LIMIT ? OFFSET ?",
+                    (limit, offset)
+                ).fetchall()
 
                 for playlist in playlists:
-                    playlist['tracks'] = self._get_tracks_for_playlist(conn, playlist['id'])
+                    playlist['tracks'] = self._get_tracks_for_playlist(conn, playlist['id'], limit, offset)
 
                 return playlists
         except sqlite3.Error as e:
             logger.log(LogLevel.ERROR, f"Error fetching playlists: {str(e)}")
             return []
 
-    def _get_tracks_for_playlist(self, conn, playlist_id: str) -> List[Dict[str, Any]]:
+    def _get_tracks_for_playlist(self, conn, playlist_id: str, limit: int = 1000, offset: int = 0) -> List[Dict[str, Any]]:
         """
         Récupère les pistes d'une playlist.
 
@@ -110,11 +113,11 @@ class PlaylistRepository:
             Liste de dictionnaires représentant les pistes
         """
         return conn.execute(
-            "SELECT * FROM tracks WHERE playlist_id = ? ORDER BY number",
-            (playlist_id,)
+            "SELECT * FROM tracks WHERE playlist_id = ? ORDER BY number LIMIT ? OFFSET ?",
+            (playlist_id, limit, offset)
         ).fetchall()
 
-    def get_playlist_by_id(self, playlist_id: str) -> Optional[Dict[str, Any]]:
+    def get_playlist_by_id(self, playlist_id: str, track_limit: int = 1000, track_offset: int = 0) -> Optional[Dict[str, Any]]:
         """
         Récupère une playlist par son ID.
 
@@ -136,7 +139,7 @@ class PlaylistRepository:
                 if not playlist:
                     return None
 
-                playlist['tracks'] = self._get_tracks_for_playlist(conn, playlist_id)
+                playlist['tracks'] = self._get_tracks_for_playlist(conn, playlist_id, limit=track_limit, offset=track_offset)
                 return playlist
         except sqlite3.Error as e:
             logger.log(LogLevel.ERROR, f"Error fetching playlist {playlist_id}: {str(e)}")

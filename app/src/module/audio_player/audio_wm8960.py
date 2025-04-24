@@ -22,6 +22,7 @@ logger = ImprovedLogger(__name__)
 class AudioPlayerWM8960(AudioPlayerHardware):
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
         super().__init__(playback_subject)
+        self._playback_subject = playback_subject  # Ensure attribute is always set
         self._is_playing = False
         self._playlist = None
         self._current_track = None

@@ -14,6 +14,9 @@ class AudioPlayer(Generic[T]):
     def pause(self) -> None:
         self._hardware.pause()
 
+    def resume(self) -> None:
+        self._hardware.resume()
+
     def stop(self) -> None:
         self._hardware.stop()
 
@@ -22,3 +25,16 @@ class AudioPlayer(Generic[T]):
 
     def cleanup(self) -> None:
         self._hardware.cleanup()
+
+    def set_playlist(self, playlist) -> bool:
+        """Set the current playlist and start playback (delegated to hardware)."""
+        return self._hardware.set_playlist(playlist)
+
+    def next_track(self) -> None:
+        """Advance to the next track in the playlist (delegated to hardware)."""
+        self._hardware.next_track()
+
+    def previous_track(self) -> None:
+        """Return to the previous track in the playlist (delegated to hardware)."""
+        self._hardware.previous_track()
+

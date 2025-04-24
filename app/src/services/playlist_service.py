@@ -44,16 +44,17 @@ class PlaylistService:
         self.upload_folder = Path(config.upload_folder)
         self._sync_lock = threading.RLock()
 
-    def get_all_playlists(self) -> List[Dict[str, Any]]:
+    def get_all_playlists(self, page: int = 1, page_size: int = 50) -> List[Dict[str, Any]]:
         """
         Récupère toutes les playlists.
 
         Returns:
             Liste de dictionnaires représentant les playlists
         """
-        return self.repository.get_all_playlists()
+        offset = (page - 1) * page_size
+        return self.repository.get_all_playlists(limit=page_size, offset=offset)
 
-    def get_playlist_by_id(self, playlist_id: str) -> Optional[Dict[str, Any]]:
+    def get_playlist_by_id(self, playlist_id: str, track_page: int = 1, track_page_size: int = 1000) -> Optional[Dict[str, Any]]:
         """
         Récupère une playlist par son ID.
 
@@ -63,7 +64,8 @@ class PlaylistService:
         Returns:
             Dictionnaire représentant la playlist ou None si non trouvée
         """
-        return self.repository.get_playlist_by_id(playlist_id)
+        track_offset = (track_page - 1) * track_page_size
+        return self.repository.get_playlist_by_id(playlist_id, track_limit=track_page_size, track_offset=track_offset)
 
     def get_playlist_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
         """
@@ -477,43 +479,3 @@ class PlaylistService:
             playlist_data['tracks'].append(track_data)
 
         return playlist_data
-
-    # === Méthodes de compatibilité pour l'ancienne API ===
-
-    def read_mapping(self) -> List[Dict[str, Any]]:
-        """
-        Méthode de compatibilité - renvoie toutes les playlists.
-
-        Returns:
-            Liste de dictionnaires représentant les playlists
-        """
-        playlists = self.repository.get_all_playlists()
-
-        # Convertir les champs pour compatibilité avec le code existant
-        for playlist in playlists:
-            if 'nfc_tag_id' in playlist:
-                playlist['idtagnfc'] = playlist.pop('nfc_tag_id')
-
-        return playlists
-
-    def save_mapping(self, playlists: List[Dict[str, Any]]) -> None:
-        """
-        Méthode de compatibilité - enregistre les playlists.
-
-        Args:
-            playlists: Liste de dictionnaires représentant les playlists
-        """
-        for playlist in playlists:
-            # Convertir les champs pour compatibilité
-            if 'idtagnfc' in playlist:
-                playlist['nfc_tag_id'] = playlist.pop('idtagnfc')
-
-            # Mettre à jour ou créer la playlist
-            existing = self.repository.get_playlist_by_id(playlist['id']) if 'id' in playlist else None
-
-            if existing:
-                self.repository.update_playlist(playlist['id'], playlist)
-                if 'tracks' in playlist:
-                    self.repository.replace_tracks(playlist['id'], playlist['tracks'])
-            else:
-                self.repository.create_playlist(playlist)

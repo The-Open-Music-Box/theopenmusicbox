@@ -35,13 +35,13 @@ class PlaylistRoutes:
         Returns:
             Tuple containing: (playlist, mapping, playlist_service) or (None, mapping, playlist_service)
         """
-        playlist_service = PlaylistService(current_app.container.config.db_file)
+        playlist_service = PlaylistService(current_app.container.config)
         mapping = playlist_service.read_playlist_file()
 
         playlist = next((p for p in mapping if p['id'] == playlist_id), None)
         return playlist, mapping, playlist_service
 
-    def _create_playlist_model(self, playlist_data: Dict[str, Any], track_filter=None) -> Playlist:
+    def _create_playlist_model(self, playlist_data: Dict[str, Any], track_filter=None, debug_missing=False) -> Playlist:
         """
         Create a Playlist model object from playlist data.
 
@@ -53,18 +53,28 @@ class PlaylistRoutes:
             A Playlist model object
         """
         base_path = Path(current_app.container.config.upload_folder) / playlist_data['path']
+        logger.log(LogLevel.INFO, f"[DEBUG] Playlist '{playlist_data.get('title', playlist_data.get('id', ''))}' base_path: {base_path}")
 
         if track_filter:
             filtered_tracks = [t for t in playlist_data['tracks'] if track_filter(t)]
         else:
             filtered_tracks = playlist_data['tracks']
 
-        track_paths = [
-            str(base_path / track['filename'])
-            for track in filtered_tracks
-            if Path(base_path / track['filename']).exists()
-        ]
+        missing_tracks = []
+        track_paths = []
+        for track in filtered_tracks:
+            track_path = base_path / track['filename']
+            logger.log(LogLevel.INFO, f"[DEBUG] Checking track_path: {track_path}")
+            if Path(track_path).exists():
+                track_paths.append(str(track_path))
+            else:
+                missing_tracks.append(str(track_path))
+        if missing_tracks:
+            logger.log(LogLevel.WARNING, f"[DEBUG] Missing tracks for playlist '{playlist_data.get('title', playlist_data.get('id', ''))}': {missing_tracks}")
 
+        if debug_missing and missing_tracks:
+            logger.log(LogLevel.ERROR, f"Missing files for playlist '{playlist_data['title']}': {missing_tracks}")
+            # Optionally, you could return missing_tracks as part of the model or as a separate value
         return Playlist.from_files(playlist_data['title'], track_paths)
 
     def _validate_track_numbers(self, playlist: Dict[str, Any], track_numbers: List[int]) -> bool:
@@ -82,32 +92,137 @@ class PlaylistRoutes:
         return set(track_numbers).issubset(current_tracks)
 
     def _init_routes(self):
-        @self.api.route('/playlist/<playlist_id>/play', methods=['POST'])
+        @self.api.route('/playlists', methods=['GET'])
+        def list_playlists():
+            """Get all playlists with pagination support"""
+            try:
+                page = int(request.args.get('page', 1))
+                page_size = int(request.args.get('page_size', 50))
+                playlist_service = PlaylistService(current_app.container.config)
+                playlists = playlist_service.get_all_playlists(page=page, page_size=page_size)
+                return jsonify({
+                    "playlists": playlists,
+                    "page": page,
+                    "page_size": page_size
+                }), 200
+            except Exception as e:
+                import traceback
+                logger.log(LogLevel.ERROR, f"Error listing playlists: {str(e)}\n{traceback.format_exc()}")
+                return jsonify({"error": str(e)}), 500
+
+        @self.api.route('/playlists/<playlist_id>', methods=['GET'])
+        def get_playlist(playlist_id):
+            """Get a playlist by ID with track pagination support"""
+            try:
+                track_page = int(request.args.get('track_page', 1))
+                track_page_size = int(request.args.get('track_page_size', 1000))
+                playlist_service = PlaylistService(current_app.container.config)
+                playlist = playlist_service.get_playlist_by_id(playlist_id, track_page=track_page, track_page_size=track_page_size)
+                if not playlist:
+                    return jsonify({"error": "Playlist not found"}), 404
+                return jsonify({
+                    "playlist": playlist,
+                    "track_page": track_page,
+                    "track_page_size": track_page_size
+                }), 200
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error getting playlist: {str(e)}")
+                return jsonify({"error": str(e)}), 500
+
+        @self.api.route('/playlists/<playlist_id>', methods=['DELETE'])
+        def delete_playlist(playlist_id):
+            """Delete a playlist and its files"""
+            try:
+                playlist_service = PlaylistService(current_app.container.config)
+                success = playlist_service.delete_playlist(playlist_id)
+                if not success:
+                    return jsonify({"error": "Playlist not found or could not be deleted"}), 404
+                return jsonify({"status": "success", "playlist_id": playlist_id}), 200
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error deleting playlist: {str(e)}")
+                return jsonify({"error": str(e)}), 500
+
+        @self.api.route('/playlists', methods=['POST'])
+        def create_playlist():
+            """Create a new playlist"""
+            try:
+                data = request.get_json()
+                if not data or not data.get('title'):
+                    return jsonify({"error": "Playlist title is required"}), 400
+                playlist_service = PlaylistService(current_app.container.config)
+                playlist = playlist_service.create_playlist(data['title'])
+                return jsonify({"status": "success", "playlist": playlist}), 201
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Playlist creation error: {str(e)}")
+                return jsonify({"error": str(e)}), 500
+
+        @self.api.route('/playlists/<playlist_id>/tracks', methods=['POST'])
+        def upload_tracks(playlist_id):
+            """Upload files to a specific playlist"""
+            try:
+                if 'files' not in request.files:
+                    return jsonify({"error": "No files part in the request"}), 400
+                files = request.files.getlist('files')
+                upload_service = UploadService(current_app.container.config.upload_folder)
+                playlist_service = PlaylistService(current_app.container.config)
+                playlist = playlist_service.get_playlist_by_id(playlist_id)
+                if not playlist:
+                    return jsonify({"error": "Playlist not found"}), 404
+                uploaded_files = upload_service.save_files(playlist, files)
+                playlist_service.add_tracks_to_playlist(playlist_id, uploaded_files)
+                return jsonify({"status": "success", "uploaded": uploaded_files}), 201
+            except InvalidFileError as e:
+                logger.log(LogLevel.ERROR, f"Invalid file upload: {str(e)}")
+                return jsonify({"error": str(e)}), 400
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error uploading tracks: {str(e)}")
+                return jsonify({"error": str(e)}), 500
+
+        @self.api.route('/playlists/<playlist_id>/tracks', methods=['PATCH'])
+        def reorder_tracks(playlist_id):
+            """Reorder tracks in a playlist"""
+            try:
+                new_order = request.get_json().get('order', [])
+                if not new_order or not isinstance(new_order, list):
+                    return jsonify({"error": "Invalid track order"}), 400
+                playlist_service = PlaylistService(current_app.container.config)
+                success = playlist_service.reorder_tracks(playlist_id, new_order)
+                if not success:
+                    return jsonify({"error": "Could not reorder tracks"}), 400
+                return jsonify({"status": "success"}), 200
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Track reordering error: {str(e)}")
+                return jsonify({"error": str(e)}), 500
+
+        @self.api.route('/playlists/<playlist_id>/tracks/<track_id>', methods=['DELETE'])
+        def delete_track(playlist_id, track_id):
+            """Remove a track from a playlist"""
+            try:
+                playlist_service = PlaylistService(current_app.container.config)
+                success = playlist_service.delete_track(playlist_id, track_id)
+                if not success:
+                    return jsonify({"error": "Track not found or could not be deleted"}), 404
+                return jsonify({"status": "success", "track_id": track_id}), 200
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error deleting track: {str(e)}")
+                return jsonify({"error": str(e)}), 500
+
+        @self.api.route('/playback/<playlist_id>/start', methods=['POST'])
         def start_playlist(playlist_id):
             """Start playing a specific playlist"""
             try:
                 audio = current_app.container.audio
                 if not audio:
                     return jsonify({"error": "Audio system not available"}), 503
-
-                playlist, _, _ = self._get_playlist_or_404(playlist_id)
+                playlist_service = PlaylistService(current_app.container.config)
+                playlist = playlist_service.get_playlist_by_id(playlist_id)
                 if not playlist:
                     return jsonify({"error": "Playlist not found"}), 404
-
-                # Create playlist model
-                playlist_model = self._create_playlist_model(playlist)
-
+                playlist_model = self._create_playlist_model(playlist, debug_missing=True)
                 if not playlist_model.tracks:
-                    return jsonify({"error": "No valid tracks found in playlist"}), 404
-
-                # Start playback
+                    return jsonify({"error": "No valid tracks found in playlist. Check logs for missing file details."}), 404
                 audio.set_playlist(playlist_model)
-
-                return jsonify({
-                    "status": "success",
-                    "message": f"Started playing playlist: {playlist['title']}"
-                })
-
+                return jsonify({"status": "success", "message": f"Started playing playlist: {playlist['title']}"})
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error starting playlist: {str(e)}")
                 return jsonify({"error": str(e)}), 500
@@ -251,34 +366,8 @@ class PlaylistRoutes:
                 logger.log(LogLevel.ERROR, f"File upload error: {str(e)}")
                 return jsonify({"error": str(e)}), 500
 
-        @self.api.route('/playlist/<playlist_id>', methods=['DELETE'])
-        def delete_playlist(playlist_id):
-            """Delete a playlist and its files"""
-            try:
-                playlist, mapping, playlist_service = self._get_playlist_or_404(playlist_id)
-                if not playlist:
-                    return jsonify({"error": "Playlist not found"}), 404
 
-                # Delete files
-                playlist_path = Path(current_app.container.config.upload_folder) / playlist['path']
-                if playlist_path.exists():
-                    for track in playlist['tracks']:
-                        file_path = playlist_path / track['filename']
-                        if file_path.exists():
-                            file_path.unlink()
-                    playlist_path.rmdir()
-
-                # Remove from mapping
-                mapping.remove(playlist)
-                playlist_service.save_playlist_file(mapping)
-
-                return jsonify({"status": "success"})
-
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Playlist deletion error: {str(e)}")
-                return jsonify({"error": str(e)}), 500
-
-        @self.api.route('/playlist/<playlist_id>/tracks', methods=['DELETE'])
+        @self.api.route('/playlists/<playlist_id>/tracks', methods=['DELETE'])
         def delete_tracks(playlist_id):
             """Delete multiple tracks from a playlist"""
             try:
@@ -320,98 +409,4 @@ class PlaylistRoutes:
 
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Track deletion error: {str(e)}")
-                return jsonify({"error": str(e)}), 500
-
-        @self.api.route('/playlist/<playlist_id>/reorder', methods=['POST'])
-        def reorder_tracks(playlist_id):
-            """Reorder tracks in a playlist"""
-            try:
-                if not request.is_json:
-                    return jsonify({"error": "Content-Type must be application/json"}), 400
-
-                new_order = request.json.get('order', [])
-                if not new_order or not isinstance(new_order, list):
-                    return jsonify({"error": "Invalid track order"}), 400
-
-                playlist, mapping, playlist_service = self._get_playlist_or_404(playlist_id)
-                if not playlist:
-                    return jsonify({"error": "Playlist not found"}), 404
-
-                # Verify all track numbers are valid
-                current_tracks = {track['number'] for track in playlist['tracks']}
-                if set(new_order) != current_tracks:
-                    return jsonify({"error": "Invalid track numbers in order"}), 400
-
-                # Create a map of current tracks by number
-                tracks_by_number = {track['number']: track for track in playlist['tracks']}
-
-                # Reorder tracks
-                playlist['tracks'] = [tracks_by_number[num] for num in new_order]
-
-                # Update track numbers
-                for idx, track in enumerate(playlist['tracks'], 1):
-                    track['number'] = idx
-
-                playlist_service.save_playlist_file(mapping)
-                return jsonify({"status": "success"})
-
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Track reordering error: {str(e)}")
-                return jsonify({"error": str(e)}), 500
-
-        @self.api.route('/playlist', methods=['POST'])
-        def create_playlist():
-            """Create a new playlist"""
-            try:
-                if not request.is_json:
-                    return jsonify({"error": "Content-Type must be application/json"}), 400
-
-                data = request.json
-                if not data:
-                    return jsonify({"error": "Request body is empty"}), 400
-
-                # Validate required fields
-                if not data.get('title'):
-                    return jsonify({"error": "Playlist title is required"}), 400
-
-                # Validate title length
-                if len(data['title']) > 100:
-                    return jsonify({"error": "Playlist title is too long (max 100 characters)"}), 400
-
-                # Validate title format (optional)
-                if not re.match(r'^[\w\s\-_.,()]+$', data['title']):
-                    return jsonify({"error": "Playlist title contains invalid characters"}), 400
-
-                playlist_service = PlaylistService(current_app.container.config.db_file)
-
-                # Generate unique ID
-                playlist_id = str(uuid.uuid4())
-
-                # Create new playlist
-                new_playlist = {
-                    "id": playlist_id,
-                    "type": "playlist",
-                    "title": data['title'],
-                    "path": f"playlist_{playlist_id}",
-                    "tracks": [],
-                    "nfc_tag": None,  # No NFC tag initially associated
-                    "created_at": datetime.datetime.now().isoformat()
-                }
-
-                # Add to mapping
-                mapping = playlist_service.read_playlist_file()
-                mapping.append(new_playlist)
-                playlist_service.save_playlist_file(mapping)
-
-                # Create directory for the playlist
-                playlist_path = Path(current_app.container.config.upload_folder) / new_playlist['path']
-                playlist_path.mkdir(parents=True, exist_ok=True)
-
-                return jsonify({
-                    "status": "success",
-                    "playlist": new_playlist
-                })
-
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Playlist creation error: {str(e)}")
                 return jsonify({"error": str(e)}), 500
