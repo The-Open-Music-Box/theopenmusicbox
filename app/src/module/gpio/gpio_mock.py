@@ -31,19 +31,20 @@ class MockGPIO(GPIOHardware):
     Mock implementation of GPIOHardware for testing and non-hardware environments.
     Simulates pin state and PWM behavior.
     """
-    def __init__(self):
+    def __init__(self, lock):
+        self._global_lock = lock
         self._pin_states: Dict[int, bool] = {}
         self._pin_modes: Dict[int, PinMode] = {}
         self._pwm_instances: Dict[int, MockPWM] = {}
         self._pin_locks: Dict[int, RLock] = {}
-        print("[MockGPIO] Initialized")
+        print("[MockGPIO] Initialized with injected lock")
 
     def setup_pin(self,
                   pin: int,
                   mode: PinMode,
                   initial: Optional[bool] = None,
                   timeout: float = 0) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             self._pin_modes[pin] = mode
             if mode == PinMode.OUTPUT:
                 self._pin_states[pin] = initial if initial is not None else False
@@ -51,7 +52,7 @@ class MockGPIO(GPIOHardware):
                   (f" with initial={initial}" if initial is not None else ""))
 
     def read_pin(self, pin: int) -> bool:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             if pin not in self._pin_states:
                 raise RuntimeError(f"Pin {pin} not configured")
             value = self._pin_states.get(pin, False)
@@ -59,14 +60,14 @@ class MockGPIO(GPIOHardware):
             return value
 
     def write_pin(self, pin: int, value: bool) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             if self._pin_modes.get(pin) != PinMode.OUTPUT:
                 raise RuntimeError(f"Pin {pin} not configured as output")
             self._pin_states[pin] = value
             print(f"[MockGPIO] Write {value} to pin {pin}")
 
     def setup_pwm(self, pin: int, frequency: int = 1000) -> 'MockPWM':
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             if pin in self._pwm_instances:
                 return self._pwm_instances[pin]
 
@@ -77,7 +78,7 @@ class MockGPIO(GPIOHardware):
             return pwm
 
     def cleanup_pin(self, pin: int) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             if pin in self._pwm_instances:
                 self._pwm_instances[pin].stop()
                 del self._pwm_instances[pin]
@@ -101,11 +102,11 @@ class MockGPIO(GPIOHardware):
         return self._pin_locks[pin]
 
     def add_event_detect(self, pin: int, callback: callable, bouncetime: int = 200) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             print(f"[MockGPIO] Added event detect on pin {pin}")
 
     def remove_event_detect(self, pin: int) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             print(f"[MockGPIO] Removed event detect on pin {pin}")
 
     """Implémentation mock du contrôleur GPIO pour les tests."""
@@ -123,7 +124,7 @@ class MockGPIO(GPIOHardware):
                   initial: Optional[bool] = None,
                   timeout: float = 0) -> None:
 
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             self._pin_modes[pin] = mode
             if mode == PinMode.OUTPUT:
                 self._pin_states[pin] = initial if initial is not None else False
@@ -131,7 +132,7 @@ class MockGPIO(GPIOHardware):
                   (f" with initial={initial}" if initial is not None else ""))
 
     def read_pin(self, pin: int) -> bool:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             if pin not in self._pin_states:
                 raise RuntimeError(f"Pin {pin} not configured")
             value = self._pin_states.get(pin, False)
@@ -139,14 +140,14 @@ class MockGPIO(GPIOHardware):
             return value
 
     def write_pin(self, pin: int, value: bool) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             if self._pin_modes.get(pin) != PinMode.OUTPUT:
                 raise RuntimeError(f"Pin {pin} not configured as output")
             self._pin_states[pin] = value
             print(f"[MockGPIO] Write {value} to pin {pin}")
 
     def setup_pwm(self, pin: int, frequency: int = 1000) -> '_MockPWM':
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             if pin in self._pwm_instances:
                 return self._pwm_instances[pin]
             self._pin_modes[pin] = PinMode.PWM
@@ -156,7 +157,7 @@ class MockGPIO(GPIOHardware):
             return pwm
 
     def cleanup_pin(self, pin: int) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             if pin in self._pwm_instances:
                 self._pwm_instances[pin].stop()
                 del self._pwm_instances[pin]
@@ -180,9 +181,9 @@ class MockGPIO(GPIOHardware):
         return self._pin_locks[pin]
 
     def add_event_detect(self, pin: int, callback: callable, bouncetime: int = 200) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             print(f"[MockGPIO] Added event detect on pin {pin}")
 
     def remove_event_detect(self, pin: int) -> None:
-        with self._get_pin_lock(pin):
+        with self._global_lock, self._get_pin_lock(pin):
             print(f"[MockGPIO] Removed event detect on pin {pin}")

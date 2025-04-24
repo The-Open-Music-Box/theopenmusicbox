@@ -11,8 +11,8 @@ from .gpio_hardware import GPIOHardware, PinMode
 logger = ImprovedLogger(__name__)
 
 class RaspberryGPIO(GPIOHardware):
-    def __init__(self) -> None:
-        self._gpio_lock = Lock()
+    def __init__(self, lock) -> None:
+        self._global_lock = lock
         self._pwm_instances: Dict[int, Any] = {}
 
         try:
@@ -26,7 +26,7 @@ class RaspberryGPIO(GPIOHardware):
             )
 
     def setup_pin(self, pin: int, mode: PinMode, initial: Optional[bool] = None, timeout: float = 2.0) -> None:
-        with self._gpio_lock:
+        with self._global_lock:
             try:
                 if mode == PinMode.PWM:
                     GPIO.setup(pin, GPIO.OUT)
@@ -43,7 +43,7 @@ class RaspberryGPIO(GPIOHardware):
                 )
 
     def read_pin(self, pin: int) -> bool:
-        with self._gpio_lock:
+        with self._global_lock:
             try:
                 return GPIO.input(pin)
             except Exception as e:
@@ -55,7 +55,7 @@ class RaspberryGPIO(GPIOHardware):
                 )
 
     def write_pin(self, pin: int, value: bool) -> None:
-        with self._gpio_lock:
+        with self._global_lock:
             try:
                 GPIO.output(pin, value)
             except Exception as e:
@@ -67,7 +67,7 @@ class RaspberryGPIO(GPIOHardware):
                 )
 
     def setup_pwm(self, pin: int, frequency: int = 1000) -> Any:
-        with self._gpio_lock:
+        with self._global_lock:
             try:
                 if pin not in self._pwm_instances:
                     self._pwm_instances[pin] = GPIO.PWM(pin, frequency)
@@ -81,7 +81,7 @@ class RaspberryGPIO(GPIOHardware):
                 )
 
     def cleanup_pin(self, pin: int) -> None:
-        with self._gpio_lock:
+        with self._global_lock:
             try:
                 if pin in self._pwm_instances:
                     self._pwm_instances[pin].stop()
@@ -92,7 +92,7 @@ class RaspberryGPIO(GPIOHardware):
 
     def cleanup_all(self) -> None:
         try:
-            with self._gpio_lock:
+            with self._global_lock:
                 for pin in list(self._pwm_instances.keys()):
                     self.cleanup_pin(pin)
                 GPIO.cleanup()
@@ -100,7 +100,7 @@ class RaspberryGPIO(GPIOHardware):
             logger.log(LogLevel.WARNING, f"Error during GPIO cleanup: {str(e)}")
 
     def add_event_detect(self, pin: int, callback: callable, bouncetime: int = 200) -> None:
-        with self._gpio_lock:
+        with self._global_lock:
             try:
                 GPIO.add_event_detect(pin, GPIO.BOTH, callback=callback, bouncetime=bouncetime)
             except Exception as e:
@@ -112,7 +112,7 @@ class RaspberryGPIO(GPIOHardware):
                 )
 
     def remove_event_detect(self, pin: int) -> None:
-        with self._gpio_lock:
+        with self._global_lock:
             try:
                 GPIO.remove_event_detect(pin)
             except Exception as e:

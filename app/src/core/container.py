@@ -73,7 +73,7 @@ class Container:
     def gpio(self) -> GPIOController:
         if not self._gpio:
             try:
-                self._gpio = get_gpio_controller()
+                self._gpio = get_gpio_controller(self.bus_lock)
                 logger.log(LogLevel.INFO, "GPIO initialized")
             except AppError as e:
                 logger.log(LogLevel.ERROR, f"GPIO init failed: {e}")
