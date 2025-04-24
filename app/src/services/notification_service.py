@@ -60,12 +60,12 @@ class PlaybackSubject:
         playlist_info: dict with playlist metadata (optional)
         is_playing: bool, if playback is active
         """
-        # Compose frontend-compatible payload
+        # Compose frontend-compatible payload (snake_case for frontend)
         event_data = {
-            'currentTrack': track_info,
+            'track': track_info,
             'playlist': playlist_info,
-            'currentTime': elapsed,
+            'current_time': elapsed,
             'duration': total,
-            'isPlaying': is_playing
+            'is_playing': is_playing
         }
         self._progress_subject.on_next(PlaybackEvent('progress', event_data))
