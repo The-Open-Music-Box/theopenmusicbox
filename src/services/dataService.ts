@@ -10,75 +10,44 @@
 import mockDataService from './mockData'
 import realApiService from './realApiService'
 
-interface UploadOptions {
-  headers?: Record<string, string>;
-  onUploadProgress?: (progress: any) => void;
-}
-
 const USE_MOCK = process.env.VUE_APP_USE_MOCK === 'true'
 
 const dataService = {
   /**
-   * Checks system health status
-   * @returns Promise resolving to system health data
+   * Fetches the list of audio files from the server
+   * @returns Promise resolving to the list of audio files
    */
-  async checkHealth() {
+  getAudioFiles() {
     return USE_MOCK
-      ? mockDataService.checkHealth()
-      : realApiService.checkHealth()
+      ? mockDataService.getAudioFiles()
+      : realApiService.getAudioFiles()
   },
 
   /**
-   * Fetches available playlists
-   * @returns Promise resolving to array of playlists
+   * Uploads files to a playlist (with progress events)
+   * @param playlistId - ID of the playlist
+   * @param files - FileList or array of files
+   * @param onUploadProgress - Optional progress callback
+   * @returns Promise resolving to server response
    */
-  getPlaylists() {
+  uploadFiles(playlistId: string, files: FileList | File[], onUploadProgress?: (progressEvent: any) => void) {
     return USE_MOCK
-      ? mockDataService.getPlaylists()
-      : realApiService.getPlaylists()
+      ? mockDataService.uploadFile(files[0], { onUploadProgress }, playlistId)
+      : realApiService.uploadFiles(playlistId, files, onUploadProgress)
   },
 
   /**
-   * Uploads a file to the server
-   * @param file - File or FormData object to upload
-   * @param options - Optional configuration including progress callback
-   * @returns Promise resolving to the uploaded file data
+   * Generates a new upload session ID
+   * @returns Promise resolving to session ID string
    */
-  uploadFile(file: File | FormData, options?: UploadOptions) {
+  getUploadSessionId() {
     return USE_MOCK
-      ? mockDataService.uploadFile(file, options)
-      : realApiService.uploadFile(file, options)
+      ? mockDataService.getUploadSessionId()
+      : realApiService.getUploadSessionId()
   },
 
   /**
-   * Deletes a file by ID
-   * @param id - ID of the file to delete
-   * @returns Promise that resolves when the delete operation completes
-   */
-  /**
-   * Deletes a track from a playlist
-   * @param playlistId - Playlist identifier
-   * @param trackId - Track identifier or number
-   * @returns Promise that resolves when the delete operation completes
-   */
-  deleteTrack(playlistId: string, trackId: string | number) {
-    return USE_MOCK
-      ? mockDataService.deleteTrack(playlistId, trackId)
-      : realApiService.deleteTrack(playlistId, trackId)
-  },
-
-  /**
-   * Fetches system statistics
-   * @returns Promise resolving to system statistics
-   */
-  getStats() {
-    return USE_MOCK
-      ? mockDataService.getStats()
-      : realApiService.getStats()
-  },
-
-  /**
-   * Downloads a file by ID
+   * Downloads a file from the server
    * @param fileId - ID of the file to download
    * @param onProgress - Optional callback for tracking download progress
    * @returns Promise resolving to the file blob
@@ -101,14 +70,101 @@ const dataService = {
   },
 
   /**
-   * Requests a new upload session ID
-   * Used for tracking multi-part or chunked uploads
-   * @returns Promise resolving to the session ID string
+   * Download YouTube audio by URL (if supported)
+   * @param url - YouTube URL
+   * @returns Promise resolving to server response
    */
-  getUploadSessionId() {
+  downloadYouTube(url: string) {
     return USE_MOCK
-      ? mockDataService.getUploadSessionId()
-      : realApiService.getUploadSessionId()
+      ? mockDataService.downloadYouTube(url)
+      : realApiService.downloadYouTube(url)
+  },
+  /**
+   * Checks system health status
+   * @returns Promise resolving to system health data
+   */
+  checkHealth() {
+    return USE_MOCK
+      ? mockDataService.checkHealth()
+      : realApiService.checkHealth()
+  },
+
+  /**
+   * Fetches available playlists
+   * @returns Promise resolving to array of playlists
+   */
+  getPlaylists() {
+    return USE_MOCK
+      ? mockDataService.getPlaylists()
+      : realApiService.getPlaylists()
+  },
+
+  /**
+   * Deletes a track from a playlist
+   * @param playlistId - Playlist identifier
+   * @param trackId - Track identifier or number
+   * @returns Promise that resolves when the delete operation completes
+   */
+  deleteTrack(playlistId: string, trackId: string | number) {
+    return USE_MOCK
+      ? mockDataService.deleteTrack(playlistId, trackId)
+      : realApiService.deleteTrack(playlistId, trackId)
+  },
+
+  /**
+   * Creates a new playlist
+   * @param playlistData - Data for the new playlist
+   * @returns Promise that resolves when the create operation completes
+   */
+  createPlaylist(playlistData: any) {
+    return USE_MOCK
+      ? mockDataService.createPlaylist(playlistData)
+      : realApiService.createPlaylist(playlistData)
+  },
+
+  /**
+   * Reorders tracks in a playlist
+   * @param playlistId - Playlist identifier
+   * @param newOrder - New order of tracks
+   * @returns Promise that resolves when the reorder operation completes
+   */
+  reorderTracks(playlistId: string, newOrder: string[]) {
+    return USE_MOCK
+      ? mockDataService.reorderTracks(playlistId, newOrder)
+      : realApiService.reorderTracks(playlistId, newOrder)
+  },
+
+  /**
+   * Controls a playlist
+   * @param action - Action to perform on the playlist
+   * @returns Promise that resolves when the control operation completes
+   */
+  controlPlaylist(action: string) {
+    return USE_MOCK
+      ? mockDataService.controlPlaylist(action)
+      : realApiService.controlPlaylist(action)
+  },
+
+  /**
+   * Initiates NFC association
+   * @param tagId - NFC tag identifier
+   * @param playlistId - Playlist identifier
+   * @returns Promise that resolves when the association operation completes
+   */
+  initiateNfcAssociation(tagId: string, playlistId: string) {
+    return USE_MOCK
+      ? mockDataService.initiateNfcAssociation(tagId, playlistId)
+      : realApiService.initiateNfcAssociation(tagId, playlistId)
+  },
+
+  /**
+   * Retrieves NFC status
+   * @returns Promise resolving to NFC status data
+   */
+  getNfcStatus() {
+    return USE_MOCK
+      ? mockDataService.getNfcStatus()
+      : realApiService.getNfcStatus()
   }
 }
 

@@ -28,7 +28,12 @@ export function useFileUpload() {
    *
    * @returns {Promise<void>}
    */
-  const upload = async () => {
+  /**
+   * Uploads the selected files to the server
+   * @param playlistId - The ID of the playlist to upload files to
+   * @returns {Promise<void>}
+   */
+  const upload = async (playlistId: string) => {
     if (!uploadFiles.value.length) return
 
     try {
@@ -47,7 +52,7 @@ export function useFileUpload() {
           formData.append('sessionId', sessionId)
           formData.append('checksum', await generateChecksum(file))
 
-          await dataService.uploadFile(formData)
+          await dataService.uploadFiles(playlistId, [file])
 
           const percentCompleted = Math.round(
             ((uploadFiles.value.indexOf(file) + 1) * 100) /

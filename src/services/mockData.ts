@@ -358,6 +358,87 @@ class MockDataService {
       return v.toString(16);
     });
   }
+
+  /**
+   * Simulates downloading YouTube audio by URL
+   * @param url - YouTube URL
+   * @returns Promise resolving to mock download result
+   */
+  async downloadYouTube(url: string): Promise<{ status: string; url: string }> {
+    await this.simulateDelay();
+    return {
+      status: 'success',
+      url: `mock://youtube/download?url=${encodeURIComponent(url)}`
+    };
+  }
+
+  /**
+   * Simulates getting NFC status
+   * @returns Promise resolving to mock NFC status data
+   */
+  async getNfcStatus(): Promise<{ status: string; lastTagId: string | null }> {
+    await this.simulateDelay();
+    return {
+      status: 'ready',
+      lastTagId: null
+    };
+  }
+
+  /**
+   * Simulates initiating NFC association
+   * @param tagId - NFC tag identifier
+   * @param playlistId - Playlist identifier
+   * @returns Promise resolving to mock association result
+   */
+  async initiateNfcAssociation(tagId: string, playlistId: string): Promise<{ status: string; tagId: string; playlistId: string }> {
+    await this.simulateDelay();
+    return {
+      status: 'associated',
+      tagId,
+      playlistId
+    };
+  }
+
+  /**
+   * Simulates playlist control (pause, resume, stop, etc)
+   * @param action - Action string
+   * @returns Promise resolving to mock control result
+   */
+  async controlPlaylist(action: string): Promise<{ status: string; action: string }> {
+    await this.simulateDelay();
+    return {
+      status: 'ok',
+      action
+    };
+  }
+
+  /**
+   * Simulates creating a new playlist
+   * @param playlistData - Data for the new playlist
+   * @returns Promise resolving to mock playlist data
+   */
+  async createPlaylist(playlistData: any): Promise<{ status: string; playlist: any }> {
+    await this.simulateDelay();
+    return {
+      status: 'created',
+      playlist: playlistData
+    };
+  }
+
+  /**
+   * Simulates reordering tracks in a playlist
+   * @param playlistId - Playlist identifier
+   * @param newOrder - New order of tracks
+   * @returns Promise resolving to mock reorder result
+   */
+  async reorderTracks(playlistId: string, newOrder: string[]): Promise<{ status: string; playlistId: string; newOrder: string[] }> {
+    await this.simulateDelay();
+    return {
+      status: 'reordered',
+      playlistId,
+      newOrder
+    };
+  }
 }
 
 export default new MockDataService();
