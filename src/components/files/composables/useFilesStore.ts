@@ -43,7 +43,7 @@ export function useFilesStore() {
    */
   const deleteTrack = async (playlistId: string, trackNumber: number) => {
     try {
-      await dataService.deleteFile(trackNumber)
+      await dataService.deleteTrack(playlistId, trackNumber)
       const playlist = playlists.value.find(p => p.id === playlistId)
       if (playlist) {
         playlist.tracks = playlist.tracks.filter(t => t.number !== trackNumber)

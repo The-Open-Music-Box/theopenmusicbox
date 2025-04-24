@@ -34,8 +34,8 @@ const dataService = {
    */
   getPlaylists() {
     return USE_MOCK
-      ? mockDataService.getAudioFiles()
-      : realApiService.getAudioFiles()
+      ? mockDataService.getPlaylists()
+      : realApiService.getPlaylists()
   },
 
   /**
@@ -55,10 +55,16 @@ const dataService = {
    * @param id - ID of the file to delete
    * @returns Promise that resolves when the delete operation completes
    */
-  deleteFile(id: number) {
+  /**
+   * Deletes a track from a playlist
+   * @param playlistId - Playlist identifier
+   * @param trackId - Track identifier or number
+   * @returns Promise that resolves when the delete operation completes
+   */
+  deleteTrack(playlistId: string, trackId: string | number) {
     return USE_MOCK
-      ? mockDataService.deleteFile(id)
-      : realApiService.deleteFile(id)
+      ? mockDataService.deleteTrack(playlistId, trackId)
+      : realApiService.deleteTrack(playlistId, trackId)
   },
 
   /**

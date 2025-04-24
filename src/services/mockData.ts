@@ -231,23 +231,23 @@ class MockDataService {
   }
 
   /**
-   * Simulates deleting a file by ID
-   * @param id - ID of the file to delete
+   * Simulates deleting a track from a playlist
+   * @param playlistId - ID of the playlist
+   * @param trackId - ID (or number) of the track to delete
    * @returns Promise that resolves when the delete operation completes
    */
-  async deleteFile(id: number): Promise<void> {
+  async deleteTrack(playlistId: string, trackId: string | number): Promise<void> {
     await this.simulateDelay();
-    for (const item of mockBackendData) {
-      if (item.type === 'playlist') {
-        const playlist = item as PlayList;
-        const index = playlist.tracks.findIndex(track => track.number === id);
-        if (index !== -1) {
-          playlist.tracks.splice(index, 1);
-          return;
-        }
-      }
+    const playlist = mockBackendData.find(
+      (item): item is PlayList => item.type === 'playlist' && item.id === playlistId
+    );
+    if (!playlist) throw new Error('Playlist not found');
+    const index = playlist.tracks.findIndex(track => String(track.number) === String(trackId));
+    if (index !== -1) {
+      playlist.tracks.splice(index, 1);
+      return;
     }
-    throw new Error('File not found');
+    throw new Error('Track not found');
   }
 
   /**

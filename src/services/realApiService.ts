@@ -184,12 +184,18 @@ class RealApiService {
    * @param id - ID of the file to delete
    * @returns Promise resolving to the server response
    */
-  async deleteFile(id: number) {
+  /**
+   * Deletes a track from a playlist
+   * @param playlistId - ID of the playlist
+   * @param trackId - ID (or number) of the track to delete
+   * @returns Promise resolving to the server response
+   */
+  async deleteTrack(playlistId: string, trackId: string | number) {
     try {
-      const response = await apiClient.post('/api/remove_file', { id })
+      const response = await apiClient.delete(`/api/playlists/${playlistId}/tracks/${trackId}`)
       return response.data
     } catch (error) {
-      console.error('Error deleting file:', error)
+      console.error('Error deleting track:', error)
       throw error
     }
   }
@@ -273,6 +279,21 @@ class RealApiService {
       return response.data.sessionId
     } catch (error) {
       console.error('Error getting upload session:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Fetches all playlists from the backend
+   * @returns Promise resolving to array of playlists
+   */
+  async getPlaylists() {
+    try {
+      const response = await apiClient.get('/api/playlists')
+      // API returns { playlists: [...], page, page_size }
+      return response.data.playlists
+    } catch (error) {
+      console.error('Error fetching playlists:', error)
       throw error
     }
   }
