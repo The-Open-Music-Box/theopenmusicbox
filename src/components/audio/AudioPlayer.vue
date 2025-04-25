@@ -62,24 +62,60 @@ const currentTrack = ref<Track | null>(null)
 const currentPlaylist = ref<PlayList | null>(null)
 
 // Listen for WebSocket events
+let lastBackendTime = 0
+let lastReceivedTimestamp = 0
+let progressInterval: ReturnType<typeof setInterval> | null = null
+
+function startProgressTimer() {
+  console.log('[AudioPlayer] startProgressTimer called. isPlaying:', isPlaying.value, 'duration:', duration.value, 'at', Date.now());
+  if (progressInterval) clearInterval(progressInterval)
+  progressInterval = setInterval(() => {
+    // Log à chaque tick d'update progress bar
+    if (isPlaying.value && duration.value > 0) {
+     // console.log('[AudioPlayer] ProgressBar Tick. isPlaying:', isPlaying.value, 'currentTime:', currentTime.value, 'duration:', duration.value, 'at', Date.now());
+      const now = Date.now() / 1000
+      const elapsed = now - lastReceivedTimestamp
+      const displayTime = Math.min(lastBackendTime + elapsed, duration.value)
+      currentTime.value = displayTime
+    } else {
+      // Stop timer if not playing
+      if (progressInterval) {
+        clearInterval(progressInterval)
+        progressInterval = null
+        console.log('[AudioPlayer] Progress timer stopped (paused or no duration) at', Date.now());
+      }
+    }
+  }, 200)
+}
+
+import { watch } from 'vue'
+
 onMounted(() => {
+  console.log('[AudioPlayer] onMounted at', Date.now());
   socketService.on('track_progress', (data: any) => {
+    console.log('[AudioPlayer] Received backend track_progress:', data, 'at', Date.now());
     // data: { track, playlist, current_time, duration, is_playing }
     currentTrack.value = data.track
     currentPlaylist.value = data.playlist
-    currentTime.value = data.current_time
+    lastBackendTime = data.current_time
+    lastReceivedTimestamp = Date.now() / 1000
     duration.value = data.duration
-    isPlaying.value = data.is_playing
+    isPlaying.value = data.is_playing // Always sync from backend
+    // Set currentTime immediately to backend value
+    currentTime.value = lastBackendTime
+    // Timer will be managed by watcher
   })
   socketService.on('playback_status', (data: any) => {
+    console.log('[AudioPlayer] Received backend playback_status:', data, 'at', Date.now());
     // data: { status, playlist, current_track }
     currentTrack.value = data.current_track || null
     currentPlaylist.value = data.playlist || null
     // Optionally map status to isPlaying
-    isPlaying.value = data.status === 'playing'
+    isPlaying.value = data.status === 'playing' // Always sync from backend
     // duration and currentTime may not be present; set to 0 if missing
     duration.value = data.current_track?.duration || 0
     currentTime.value = 0 // Or keep previous if you want to preserve progress
+    // Timer will be managed by watcher
   })
   socketService.on('connection_status', (data: any) => {
     // Optionally handle connection status changes
@@ -91,12 +127,29 @@ onUnmounted(() => {
   socketService.off('track_progress')
   socketService.off('playback_status')
   socketService.off('connection_status')
+  if (progressInterval) clearInterval(progressInterval)
+})
+
+// Watcher pour gérer le timer selon l'état lecture/pause
+watch(isPlaying, (newVal) => {
+  if (newVal) {
+    startProgressTimer()
+  } else if (progressInterval) {
+    clearInterval(progressInterval)
+    progressInterval = null
+    console.log('[AudioPlayer] Progress timer stopped by watcher (paused) at', Date.now());
+  }
 })
 
 const togglePlayPause = async () => {
+  console.log('[AudioPlayer] Play/Pause button clicked. isPlaying before:', isPlaying.value, 'at', Date.now());
   if (!currentTrack.value) return
   const action = isPlaying.value ? 'pause' : 'resume'
+  console.log('[AudioPlayer] Sending controlPlaylist action:', action, 'at', Date.now());
+  // Optimistic UI update for immediate feedback
+  isPlaying.value = !isPlaying.value;
   await apiService.controlPlaylist(action)
+  // The real value will be resynced on backend event
 }
 
 const rewind = () => {
@@ -108,10 +161,12 @@ const skip = () => {
 }
 
 const previous = async () => {
+  console.log('[AudioPlayer] Previous button clicked at', Date.now());
   await apiService.controlPlaylist('previous')
 }
 
 const next = async () => {
+  console.log('[AudioPlayer] Next button clicked at', Date.now());
   await apiService.controlPlaylist('next')
 }
 </script>

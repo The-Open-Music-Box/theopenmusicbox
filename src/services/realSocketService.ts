@@ -76,6 +76,7 @@ class RealSocketService {
       console.warn('Attempting to emit while socket is not connected:', event)
       return
     }
+    console.log('[SocketService] Emitting event:', event, data, 'at', Date.now());
     this.socket.emit(event, data)
   }
 
@@ -85,7 +86,10 @@ class RealSocketService {
    * @param callback - Function to call when the event occurs
    */
   on(event: string, callback: (data: any) => void) {
-    this.socket.on(event, callback)
+    this.socket.on(event, (data: any) => {
+      console.log('[SocketService] Received event:', event, data, 'at', Date.now());
+      callback(data);
+    })
   }
 
   /**
