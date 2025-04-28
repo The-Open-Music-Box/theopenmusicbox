@@ -60,6 +60,9 @@ const currentTime = ref(0)
 const duration = ref(0)
 const currentTrack = ref<Track | null>(null)
 const currentPlaylist = ref<PlayList | null>(null)
+// Loading state for track change
+const isChangingTrack = ref(false)
+let pendingTrackFilename: string | null = null
 
 // Listen for WebSocket events
 let lastBackendTime = 0
@@ -93,32 +96,65 @@ import { watch } from 'vue'
 onMounted(() => {
   console.log('[AudioPlayer] onMounted at', Date.now());
   socketService.on('track_progress', (data: any) => {
-    console.log('[AudioPlayer] Received backend track_progress:', data, 'at', Date.now());
-    // data: { track, playlist, current_time, duration, is_playing }
-    currentTrack.value = data.track
-    currentPlaylist.value = data.playlist
-    lastBackendTime = data.current_time
-    lastReceivedTimestamp = Date.now() / 1000
-    duration.value = data.duration
-    isPlaying.value = data.is_playing // Always sync from backend
-    // Set currentTime immediately to backend value
-    currentTime.value = lastBackendTime
-    // Timer will be managed by watcher
+    try {
+      console.log('[AudioPlayer] Received backend track_progress:', data, 'at', Date.now());
+      // data: { track, playlist, current_time, duration, is_playing }
+      // Detect track change
+      const isNewTrack = currentTrack.value?.filename !== data.track?.filename
+      if (isChangingTrack.value && isNewTrack) {
+        isChangingTrack.value = false;
+        pendingTrackFilename = null;
+        // Resume playback and reset progress bar
+        isPlaying.value = true;
+        currentTime.value = 0;
+      }
+      currentTrack.value = data.track;
+      currentPlaylist.value = data.playlist;
+      lastBackendTime = data.current_time;
+      lastReceivedTimestamp = Date.now() / 1000;
+      duration.value = data.duration;
+      // Always sync from backend, but only auto-resume if this was a track change
+      if (!isChangingTrack.value) {
+        isPlaying.value = data.is_playing;
+      }
+      // Set currentTime immediately to backend value or reset if new track
+      if (!isChangingTrack.value) {
+        currentTime.value = isNewTrack ? 0 : lastBackendTime;
+      }
+      // Timer will be managed by watcher
+    } catch (err) {
+      console.error('[AudioPlayer] Error updating playback state from track_progress:', err, data);
+    }
   })
   socketService.on('playback_status', (data: any) => {
-    console.log('[AudioPlayer] Received backend playback_status:', data, 'at', Date.now());
-    // data: { status, playlist, current_track }
-    currentTrack.value = data.current_track || null
-    currentPlaylist.value = data.playlist || null
-    // Optionally map status to isPlaying
-    isPlaying.value = data.status === 'playing' // Always sync from backend
-    // duration and currentTime may not be present; set to 0 if missing
-    duration.value = data.current_track?.duration || 0
-    currentTime.value = 0 // Or keep previous if you want to preserve progress
-    // Timer will be managed by watcher
+    try {
+      console.log('[AudioPlayer] Received backend playback_status:', data, 'at', Date.now());
+      // data: { status, playlist, current_track }
+      // Detect track change
+      const isNewTrack = currentTrack.value?.filename !== data.current_track?.filename
+      currentTrack.value = data.current_track || null
+      currentPlaylist.value = data.playlist || null
+      // Optionally map status to isPlaying
+      isPlaying.value = data.status === 'playing' // Always sync from backend
+      // duration and currentTime may not be present; set to 0 if missing
+      duration.value = data.current_track?.duration || 0
+      currentTime.value = isNewTrack ? 0 : currentTime.value
+      // Timer will be managed by watcher
+    } catch (err) {
+      console.error('[AudioPlayer] Error updating playback state from playback_status:', err, data);
+    }
   })
   socketService.on('connection_status', (data: any) => {
-    // Optionally handle connection status changes
+    // Handle connection status changes, especially reconnection
+    if (data.status === 'connected') {
+      // Request current playback status to resync state
+      try {
+        socketService.emit && socketService.emit('get_playback_status', {});
+        console.log('[AudioPlayer] Requested playback status after reconnect.');
+      } catch (err) {
+        console.error('[AudioPlayer] Error requesting playback status after reconnect:', err);
+      }
+    }
   })
   socketService.setupSocketConnection()
 })
@@ -161,12 +197,48 @@ const skip = () => {
 }
 
 const previous = async () => {
-  console.log('[AudioPlayer] Previous button clicked at', Date.now());
-  await apiService.controlPlaylist('previous')
+  console.log('[AudioPlayer] previous() called at', Date.now(), {
+    isChangingTrack: isChangingTrack.value,
+    currentPlaylist: currentPlaylist.value,
+    currentTrack: currentTrack.value
+  });
+  if (isChangingTrack.value) {
+    console.log('[AudioPlayer] previous() aborted: isChangingTrack is true');
+    return;
+  }
+  if (!currentPlaylist.value || !currentTrack.value) {
+    console.log('[AudioPlayer] previous() aborted: no playlist or no track');
+    return;
+  }
+  isChangingTrack.value = true;
+  isPlaying.value = false; // Stop playback immediately
+  currentTime.value = 0;   // Reset progress bar
+  pendingTrackFilename = null;
+  console.log('[AudioPlayer] previous() sending controlPlaylist("previous") at', Date.now());
+  await apiService.controlPlaylist('previous');
+  // Wait for backend event to resume playback and reset isChangingTrack
 }
 
 const next = async () => {
-  console.log('[AudioPlayer] Next button clicked at', Date.now());
-  await apiService.controlPlaylist('next')
+  console.log('[AudioPlayer] next() called at', Date.now(), {
+    isChangingTrack: isChangingTrack.value,
+    currentPlaylist: currentPlaylist.value,
+    currentTrack: currentTrack.value
+  });
+  if (isChangingTrack.value) {
+    console.log('[AudioPlayer] next() aborted: isChangingTrack is true');
+    return;
+  }
+  if (!currentPlaylist.value || !currentTrack.value) {
+    console.log('[AudioPlayer] next() aborted: no playlist or no track');
+    return;
+  }
+  isChangingTrack.value = true;
+  isPlaying.value = false; // Stop playback immediately
+  currentTime.value = 0;   // Reset progress bar
+  pendingTrackFilename = null;
+  console.log('[AudioPlayer] next() sending controlPlaylist("next") at', Date.now());
+  await apiService.controlPlaylist('next');
+  // Wait for backend event to resume playback and reset isChangingTrack
 }
 </script>

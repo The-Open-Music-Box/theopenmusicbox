@@ -2,7 +2,7 @@
   <div class="flex items-center justify-evenly">
     <button
       type="button"
-      class="hidden sm:block lg:hidden xl:block"
+      class="block"
       :aria-label="$t('player.previous')"
       @click="$emit('previous')"
     >
@@ -88,7 +88,7 @@
 
     <button
       type="button"
-      class="hidden sm:block lg:hidden xl:block"
+      class="block"
       :aria-label="$t('player.next')"
       @click="$emit('next')"
     >

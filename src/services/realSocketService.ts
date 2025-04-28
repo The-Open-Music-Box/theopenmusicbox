@@ -7,6 +7,8 @@ import { io, Socket } from 'socket.io-client'
  */
 class RealSocketService {
   private socket: Socket
+  private connectionReady = false // Track connection state
+  private eventBuffer: Array<{event: string, data: any, callback: (data: any) => void}> = [] // Buffer for early events
 
   /**
    * Creates a new RealSocketService instance
@@ -28,6 +30,7 @@ class RealSocketService {
     })
 
     this.setupBaseHandlers()
+    console.log('[SocketService] Base handlers registered at', Date.now())
   }
 
   /**
@@ -37,7 +40,17 @@ class RealSocketService {
    */
   private setupBaseHandlers() {
     this.socket.on('connect', () => {
-      console.log('Socket connected successfully', this.socket.id)
+      this.connectionReady = true
+      console.log('Socket connected successfully', this.socket.id, 'at', Date.now())
+      // Process buffered events
+      if (this.eventBuffer.length > 0) {
+        console.log('[SocketService] Processing', this.eventBuffer.length, 'buffered events at', Date.now())
+        this.eventBuffer.forEach(({event, data, callback}) => {
+          console.log('[SocketService] Processing buffered event:', event, data, 'at', Date.now())
+          callback(data)
+        })
+        this.eventBuffer = []
+      }
     })
 
     this.socket.on('connect_error', (error) => {
@@ -45,7 +58,8 @@ class RealSocketService {
     })
 
     this.socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason)
+      this.connectionReady = false
+      console.log('Socket disconnected:', reason, 'at', Date.now())
     })
 
     this.socket.on('reconnect', (attemptNumber) => {
@@ -61,8 +75,12 @@ class RealSocketService {
    * Initiates the socket connection if not already connected
    */
   setupSocketConnection() {
+    console.log('[SocketService] setupSocketConnection called at', Date.now())
     if (!this.socket.connected) {
+      console.log('[SocketService] Calling .connect() at', Date.now())
       this.socket.connect()
+    } else {
+      console.log('[SocketService] Socket already connected at', Date.now())
     }
   }
 
@@ -72,8 +90,8 @@ class RealSocketService {
    * @param data - Data payload to send with the event
    */
   emit(event: string, data: any) {
-    if (!this.socket.connected) {
-      console.warn('Attempting to emit while socket is not connected:', event)
+    if (!this.connectionReady) {
+      console.warn('[SocketService] Attempting to emit while socket is not fully connected:', event, 'at', Date.now())
       return
     }
     console.log('[SocketService] Emitting event:', event, data, 'at', Date.now());
@@ -86,7 +104,14 @@ class RealSocketService {
    * @param callback - Function to call when the event occurs
    */
   on(event: string, callback: (data: any) => void) {
+    console.log('[SocketService] Registering handler for event:', event, 'at', Date.now())
     this.socket.on(event, (data: any) => {
+      if (!this.connectionReady && event !== 'connect') {
+        // Buffer the event for processing after connect
+        console.warn('[SocketService] Buffering event before connect:', event, data, 'at', Date.now())
+        this.eventBuffer.push({event, data, callback})
+        return
+      }
       console.log('[SocketService] Received event:', event, data, 'at', Date.now());
       callback(data);
     })
