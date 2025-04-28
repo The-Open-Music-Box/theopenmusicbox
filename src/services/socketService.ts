@@ -1,7 +1,4 @@
-import mockSocketService from './mockSocketService';
 import realSocketService from './realSocketService';
-
-const USE_MOCK = process.env.VUE_APP_USE_MOCK === 'true';
 
 /**
  * Interface defining the required methods for socket service implementations.
@@ -11,6 +8,7 @@ interface SocketService {
   setupSocketConnection(): void;
   emit(event: string, data: any): void;
   on(event: string, callback: (data: any) => void): void;
+  off(event: string): void;
   disconnect?(): void;
 }
 
@@ -28,7 +26,7 @@ class SocketServiceWrapper implements SocketService {
    * Uses either mock or real socket service based on the VUE_APP_USE_MOCK environment variable
    */
   constructor() {
-    this.service = USE_MOCK ? mockSocketService : realSocketService;
+    this.service = realSocketService;
   }
 
   /**
@@ -66,6 +64,18 @@ class SocketServiceWrapper implements SocketService {
       this.service.on(event, callback);
     } catch (error) {
       console.error('Error setting up event listener:', event, error);
+    }
+  }
+
+  /**
+   * Removes an event listener for socket events
+   * @param event - Name of the event to stop listening for
+   */
+  off(event: string): void {
+    try {
+      this.service.off(event);
+    } catch (error) {
+      console.error('Error removing event listener:', event, error);
     }
   }
 

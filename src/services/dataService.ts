@@ -1,16 +1,12 @@
 /**
  * Unified Data Service
- * Provides a consistent interface for data operations by selecting between
- * mock and real implementations based on environment configuration.
+ * Provides a consistent interface for data operations.
  *
  * This abstraction layer allows components to use the same API regardless of
- * whether the app is running in development (with mock data) or production mode.
+ * the environment.
  */
 
-import mockDataService from './mockData'
 import realApiService from './realApiService'
-
-const USE_MOCK = process.env.VUE_APP_USE_MOCK === 'true'
 
 const dataService = {
   /**
@@ -18,9 +14,7 @@ const dataService = {
    * @returns Promise resolving to the list of audio files
    */
   getAudioFiles() {
-    return USE_MOCK
-      ? mockDataService.getAudioFiles()
-      : realApiService.getAudioFiles()
+    return realApiService.getAudioFiles();
   },
 
   /**
@@ -31,9 +25,7 @@ const dataService = {
    * @returns Promise resolving to server response
    */
   uploadFiles(playlistId: string, files: FileList | File[], onUploadProgress?: (progressEvent: any) => void) {
-    return USE_MOCK
-      ? mockDataService.uploadFile(files[0], { onUploadProgress }, playlistId)
-      : realApiService.uploadFiles(playlistId, files, onUploadProgress)
+    return realApiService.uploadFiles(playlistId, files, onUploadProgress);
   },
 
   /**
@@ -41,9 +33,7 @@ const dataService = {
    * @returns Promise resolving to session ID string
    */
   getUploadSessionId() {
-    return USE_MOCK
-      ? mockDataService.getUploadSessionId()
-      : realApiService.getUploadSessionId()
+    return realApiService.getUploadSessionId();
   },
 
   /**
@@ -53,9 +43,7 @@ const dataService = {
    * @returns Promise resolving to the file blob
    */
   downloadFile(fileId: number, onProgress?: (progress: number) => void) {
-    return USE_MOCK
-      ? mockDataService.downloadFile(fileId, onProgress)
-      : realApiService.downloadFile(fileId, onProgress)
+    return realApiService.downloadFile(fileId, onProgress);
   },
 
   /**
@@ -64,9 +52,7 @@ const dataService = {
    * @returns URL string for downloading the file
    */
   downloadFileUrl(fileId: number) {
-    return USE_MOCK
-      ? mockDataService.downloadFileUrl(fileId)
-      : realApiService.downloadFileUrl(fileId)
+    return realApiService.downloadFileUrl(fileId);
   },
 
   /**
@@ -75,18 +61,15 @@ const dataService = {
    * @returns Promise resolving to server response
    */
   downloadYouTube(url: string) {
-    return USE_MOCK
-      ? mockDataService.downloadYouTube(url)
-      : realApiService.downloadYouTube(url)
+    return realApiService.downloadYouTube(url);
   },
+
   /**
    * Checks system health status
    * @returns Promise resolving to system health data
    */
   checkHealth() {
-    return USE_MOCK
-      ? mockDataService.checkHealth()
-      : realApiService.checkHealth()
+    return realApiService.checkHealth();
   },
 
   /**
@@ -94,9 +77,7 @@ const dataService = {
    * @returns Promise resolving to array of playlists
    */
   getPlaylists() {
-    return USE_MOCK
-      ? mockDataService.getPlaylists()
-      : realApiService.getPlaylists()
+    return realApiService.getPlaylists();
   },
 
   /**
@@ -106,9 +87,7 @@ const dataService = {
    * @returns Promise that resolves when the delete operation completes
    */
   deleteTrack(playlistId: string, trackId: string | number) {
-    return USE_MOCK
-      ? mockDataService.deleteTrack(playlistId, trackId)
-      : realApiService.deleteTrack(playlistId, trackId)
+    return realApiService.deleteTrack(playlistId, trackId);
   },
 
   /**
@@ -117,9 +96,7 @@ const dataService = {
    * @returns Promise that resolves when the create operation completes
    */
   createPlaylist(playlistData: any) {
-    return USE_MOCK
-      ? mockDataService.createPlaylist(playlistData)
-      : realApiService.createPlaylist(playlistData)
+    return realApiService.createPlaylist(playlistData);
   },
 
   /**
@@ -129,9 +106,7 @@ const dataService = {
    * @returns Promise that resolves when the reorder operation completes
    */
   reorderTracks(playlistId: string, newOrder: string[]) {
-    return USE_MOCK
-      ? mockDataService.reorderTracks(playlistId, newOrder)
-      : realApiService.reorderTracks(playlistId, newOrder)
+    return realApiService.reorderTracks(playlistId, newOrder);
   },
 
   /**
@@ -140,9 +115,7 @@ const dataService = {
    * @returns Promise that resolves when the control operation completes
    */
   controlPlaylist(action: string) {
-    return USE_MOCK
-      ? mockDataService.controlPlaylist(action)
-      : realApiService.controlPlaylist(action)
+    return realApiService.controlPlaylist(action);
   },
 
   /**
@@ -152,9 +125,7 @@ const dataService = {
    * @returns Promise that resolves when the association operation completes
    */
   initiateNfcAssociation(tagId: string, playlistId: string) {
-    return USE_MOCK
-      ? mockDataService.initiateNfcAssociation(tagId, playlistId)
-      : realApiService.initiateNfcAssociation(tagId, playlistId)
+    return realApiService.initiateNfcAssociation(tagId, playlistId);
   },
 
   /**
@@ -162,9 +133,7 @@ const dataService = {
    * @returns Promise resolving to NFC status data
    */
   getNfcStatus() {
-    return USE_MOCK
-      ? mockDataService.getNfcStatus()
-      : realApiService.getNfcStatus()
+    return realApiService.getNfcStatus();
   }
 }
 
