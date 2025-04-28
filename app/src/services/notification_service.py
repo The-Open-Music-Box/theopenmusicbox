@@ -26,6 +26,8 @@ class PlaybackSubject:
     def __init__(self):
         self._status_subject = Subject()
         self._progress_subject = Subject()
+        self._last_status_event = None
+        self._last_progress_event = None
 
     @property
     def status_stream(self) -> Subject:
@@ -44,11 +46,13 @@ class PlaybackSubject:
         playlist_info: information about current playlist
         track_info: information about current track
         """
-        self._status_subject.on_next(PlaybackEvent('status', {
+        event = PlaybackEvent('status', {
             'status': status,
             'playlist': playlist_info,
             'current_track': track_info
-        }))
+        })
+        self._last_status_event = event
+        self._status_subject.on_next(event)
 
     def notify_track_progress(self, elapsed: float, total: float, track_number: int, track_info: dict = None, playlist_info: dict = None, is_playing: bool = True):
         """
@@ -68,4 +72,12 @@ class PlaybackSubject:
             'duration': total,
             'is_playing': is_playing
         }
-        self._progress_subject.on_next(PlaybackEvent('progress', event_data))
+        event = PlaybackEvent('progress', event_data)
+        self._last_progress_event = event
+        self._progress_subject.on_next(event)
+
+    def get_last_status_event(self):
+        return self._last_status_event
+
+    def get_last_progress_event(self):
+        return self._last_progress_event

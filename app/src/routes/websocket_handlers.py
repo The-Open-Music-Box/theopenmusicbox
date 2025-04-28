@@ -33,7 +33,18 @@ class WebSocketHandlers:
         @self.socketio.on('connect')
         def handle_connect():
             logger.log(LogLevel.INFO, f"Client connected: {request.sid}")
-            self.socketio.emit('connection_status', {'status': 'connected', 'sid': request.sid})
+            self.socketio.emit('connection_status', {'status': 'connected', 'sid': request.sid}, room=request.sid)
+            # Emit current playback status and progress to the newly connected client
+            playback_subject = None
+            if hasattr(self.app, 'container') and hasattr(self.app.container, 'playback_subject'):
+                playback_subject = self.app.container.playback_subject
+            if playback_subject:
+                status_event = playback_subject.get_last_status_event()
+                progress_event = playback_subject.get_last_progress_event()
+                if status_event:
+                    self.socketio.emit('playback_status', status_event.data, room=request.sid)
+                if progress_event:
+                    self.socketio.emit('track_progress', progress_event.data, room=request.sid)
 
         @self.socketio.on('disconnect')
         def handle_disconnect():

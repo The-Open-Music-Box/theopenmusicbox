@@ -286,9 +286,13 @@ class AudioPlayerWM8960(AudioPlayerHardware):
     def _progress_loop(self):
         """Progress tracking loop"""
         last_playing_state = False
+        last_update_time = 0
         while not self._stop_progress:
             if self._is_playing and self._playback_subject and self._current_track:
-                self._update_progress()
+                current_time = time.time()
+                if current_time - last_update_time >= 1.0:
+                    last_update_time = current_time
+                    self._update_progress()
 
                 # Check if music has stopped playing (track ended)
                 current_playing_state = pygame.mixer.music.get_busy()
@@ -320,11 +324,12 @@ class AudioPlayerWM8960(AudioPlayerHardware):
 
                 # Send update
                 self._playback_subject.notify_track_progress(
-                    currentTrack=track_info,
-                    playlist=playlist_info,
-                    currentTime=elapsed,
-                    duration=total,
-                    isPlaying=self._is_playing
+                    elapsed=elapsed,
+                    total=total,
+                    track_number=track_info.get('number'),
+                    track_info=track_info,
+                    playlist_info=playlist_info,
+                    is_playing=self._is_playing
                 )
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error updating progress: {str(e)}")
