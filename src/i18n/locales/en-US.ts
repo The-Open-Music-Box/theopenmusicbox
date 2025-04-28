@@ -5,6 +5,7 @@
 export default {
   welcome: 'Welcome',
   common: {
+    link: 'Link',
     loading: 'Loading...',
     error: 'Error',
     success: 'Success',

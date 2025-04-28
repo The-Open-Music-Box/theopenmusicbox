@@ -4,6 +4,7 @@
 
 export default {
   common: {
+    link: 'Lier',
     loading: 'Chargement...',
     error: 'Erreur',
     success: 'Succès',

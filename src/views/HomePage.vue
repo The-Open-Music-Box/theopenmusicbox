@@ -4,7 +4,7 @@
       <div class="mx-auto max-w-7xl px-4 pb-12 sm:px-6 lg:px-8">
         <div class="rounded-lg bg-white px-5 py-6 shadow sm:px-6">
           <div class="app-container">
-            <AudioPlayer 
+            <AudioPlayer
               :selectedTrack="selectedTrack"
               :playlist="selectedPlaylist"
             />
@@ -23,12 +23,12 @@
           </div>
           <UploadForm />
 
-          <FileListContainer 
+          <FileListContainer
             :selectedTrack="selectedTrack"
             @select-track="handleSelectTrack"
           />
-          
-          <GeneralInfo />
+
+
         </div>
       </div>
     </main>
