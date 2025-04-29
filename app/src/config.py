@@ -5,7 +5,7 @@ from typing import Any
 from dotenv import load_dotenv
 import os
 from .helpers.exceptions import AppError
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 
@@ -120,6 +120,11 @@ class Config:
 
     @property
     def db_file(self) -> str:
+        """
+        Returns the absolute path to the SQLite database file as defined by the DB_FILE environment variable.
+        By convention, this should be 'database/themusicbox.db' (relative to the project root).
+        All code must use this property for database access.
+        """
         return str(Path(__file__).parent.parent / os.environ['DB_FILE'])
 
     @property

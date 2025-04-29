@@ -4,11 +4,11 @@ from pathlib import Path
 from typing import List, Optional
 import threading
 import time
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.module.audio_player.audio_hardware import AudioPlayerHardware
-from src.services.notification_service import PlaybackSubject
-from src.model.track import Track
-from src.model.playlist import Playlist
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.module.audio_player.audio_hardware import AudioPlayerHardware
+from app.src.services.notification_service import PlaybackSubject
+from app.src.model.track import Track
+from app.src.model.playlist import Playlist
 
 logger = ImprovedLogger(__name__)
 
@@ -22,6 +22,8 @@ class MockAudioPlayer(AudioPlayerHardware):
     """
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
         super().__init__(playback_subject)
+        # Always set _playback_subject for compatibility with AudioPlayer interface
+        self._playback_subject = playback_subject
         self._is_playing = False
         self._playlist = None
         self._current_track = None

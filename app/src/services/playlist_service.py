@@ -3,16 +3,16 @@
 import os
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Set, Tuple
+import threading
+from typing import Dict, List, Optional, Any, Tuple
 from uuid import uuid4
 from datetime import datetime, timezone
-import threading
 
-from src.config import Config
-from src.data.playlist_repository import PlaylistRepository
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.model.playlist import Playlist
-from src.model.track import Track
+from app.src.config import Config
+from app.src.data.playlist_repository import PlaylistRepository
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.model.playlist import Playlist
+from app.src.model.track import Track
 
 logger = ImprovedLogger(__name__)
 
@@ -41,8 +41,30 @@ class PlaylistService:
         """
         self.config = config
         self.repository = PlaylistRepository(config)
-        self.upload_folder = Path(config.upload_folder)
+        # Support both Config and ContainerAsync (which exposes .config)
+        if hasattr(config, 'upload_folder'):
+            self.upload_folder = Path(config.upload_folder)
+        elif hasattr(config, 'config') and hasattr(config.config, 'upload_folder'):
+            self.upload_folder = Path(config.config.upload_folder)
+        else:
+            raise AttributeError("Config object must have an 'upload_folder' attribute or a 'config' property with 'upload_folder'.")
         self._sync_lock = threading.RLock()
+
+    def create_playlist(self, title: str) -> dict:
+        """
+        Create a new empty playlist with the given title.
+        """
+        playlist_data = {
+            'id': str(uuid4()),
+            'type': 'playlist',
+            'title': title,
+            'path': title.replace(" ", "_"),  # or generate a unique path
+            'created_at': datetime.now(timezone.utc).isoformat(),
+            'tracks': []
+        }
+        self.repository.create_playlist(playlist_data)
+        return playlist_data
+
 
     def get_all_playlists(self, page: int = 1, page_size: int = 50) -> List[Dict[str, Any]]:
         """

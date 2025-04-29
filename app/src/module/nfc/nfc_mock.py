@@ -3,7 +3,7 @@
 import time
 from typing import Optional
 from rx.subject import Subject
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .nfc_hardware import NFCHardware
 
 logger = ImprovedLogger(__name__)

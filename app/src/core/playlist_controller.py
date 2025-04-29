@@ -5,13 +5,13 @@ import threading
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.module.audio_player.audio_player import AudioPlayer
-from src.module.audio_player.audio_hardware import AudioPlayerHardware
-from src.services.playlist_service import PlaylistService
-from src.model.playlist import Playlist
-from src.model.track import Track
-from src.config import Config
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.module.audio_player.audio_player import AudioPlayer
+from app.src.module.audio_player.audio_hardware import AudioPlayerHardware
+from app.src.services.playlist_service import PlaylistService
+from app.src.model.playlist import Playlist
+from app.src.model.track import Track
+from app.src.config import Config
 
 logger = ImprovedLogger(__name__)
 

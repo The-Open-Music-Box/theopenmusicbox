@@ -2,8 +2,8 @@
 
 from flask import Blueprint, current_app, request, jsonify
 
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.services import YouTubeService
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.services import YouTubeService
 
 logger = ImprovedLogger(__name__)
 

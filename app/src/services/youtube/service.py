@@ -4,9 +4,9 @@ from uuid import uuid4
 from typing import Dict
 from pathlib import Path
 
-from src.services.notification_service import DownloadNotifier
-from src.services.playlist_service import PlaylistService
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.services.notification_service import DownloadNotifier
+from app.src.services.playlist_service import PlaylistService
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .downloader import YouTubeDownloader
 
 logger = ImprovedLogger(__name__)

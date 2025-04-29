@@ -1,7 +1,7 @@
 # app/src/services/notification_service.py
 
 from typing import Dict, Any
-from gevent import sleep
+import asyncio
 from rx.subject import Subject
 
 class DownloadNotifier:
@@ -15,7 +15,7 @@ class DownloadNotifier:
             'status': status,
             **data
         })
-        sleep(0)
+        # await asyncio.sleep(0)  # Optionnel en async, peut être retiré si inutile
 
 class PlaybackEvent:
     def __init__(self, event_type: str, data: Dict[str, Any]):

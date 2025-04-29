@@ -7,8 +7,8 @@ from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
 from uuid import uuid4
 
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.config import Config
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.config import Config
 
 logger = ImprovedLogger(__name__)
 
@@ -25,7 +25,13 @@ class PlaylistRepository:
         Args:
             config: Instance de configuration de l'application
         """
-        self.db_path = Path(config.db_file)
+        # Support both Config and ContainerAsync (which exposes .config)
+        if hasattr(config, 'db_file'):
+            self.db_path = Path(config.db_file)
+        elif hasattr(config, 'config') and hasattr(config.config, 'db_file'):
+            self.db_path = Path(config.config.db_file)
+        else:
+            raise AttributeError("Config object must have a 'db_file' attribute or a 'config' property with 'db_file'.")
         self._ensure_db_directory()
         self._init_db()
 

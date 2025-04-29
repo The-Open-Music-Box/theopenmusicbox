@@ -10,12 +10,12 @@ from mutagen.mp3 import MP3
 from pydub import AudioSegment
 import io
 
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.helpers.exceptions import AppError
-from src.services.notification_service import PlaybackSubject
-from src.module.audio_player.audio_hardware import AudioPlayerHardware
-from src.model.track import Track
-from src.model.playlist import Playlist
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.helpers.exceptions import AppError
+from app.src.services.notification_service import PlaybackSubject
+from app.src.module.audio_player.audio_hardware import AudioPlayerHardware
+from app.src.model.track import Track
+from app.src.model.playlist import Playlist
 
 logger = ImprovedLogger(__name__)
 

@@ -2,9 +2,9 @@
 
 import eventlet
 from typing import Callable
-from src.module.gpio.gpio_hardware import GPIOHardware
-from src.module.gpio.gpio_mock import PinMode  # Adjust if PinMode is defined elsewhere
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.module.gpio.gpio_hardware import GPIOHardware
+from app.src.module.gpio.gpio_mock import PinMode  # Adjust if PinMode is defined elsewhere
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .motor_hardware import MotorHardware, MotorDirection
 
 logger = ImprovedLogger(__name__)

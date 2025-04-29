@@ -2,7 +2,7 @@
 
 import os
 import sys
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .ledhat import LedHat
 from .ledhat_mock import MockLedHat
 from .ledhat_rpi_ws281x import RpiWs281xLedHat

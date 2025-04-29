@@ -1,14 +1,12 @@
 # app/src/core/application.py
 
-import os
 import time
 import threading
 from pathlib import Path
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.services.playlist_service import PlaylistService
-from .playlist_controller import PlaylistController
-from .container import Container
-from src.config import Config
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.services.playlist_service import PlaylistService
+from app.src.core.playlist_controller import PlaylistController
+from app.src.config import Config
 
 logger = ImprovedLogger(__name__)
 
@@ -18,15 +16,14 @@ class Application:
     of various components.
     """
 
-    def __init__(self, container: Container):
+    def __init__(self, config):
         """
-        Initialize the application.
+        Initialize the application with async config only (legacy DI container removed).
 
         Args:
-            container: Dependency injection container
+            config: Configuration object
         """
-        self._container = container
-        self._config = container.config
+        self._config = config
 
         # Initialize playlist service with configuration
         self._playlists = PlaylistService(self._config)
@@ -34,14 +31,14 @@ class Application:
         # Synchronize playlists at startup with protection against blocking
         self._sync_playlists()
 
-        # Initialize playlist controller
+        # Initialize playlist controller (async version)
         self._playlist_controller = PlaylistController(
-            container.audio,
+            None,  # audio system handled elsewhere async
             self._playlists,
             self._config
         )
 
-        # Set up peripherals
+        # Set up peripherals (async-compatible)
         self._setup_led()
         self._setup_nfc()
         self._setup_audio()
@@ -57,7 +54,13 @@ class Application:
             logger.log(LogLevel.INFO, "Starting playlist synchronization")
 
             # Check that required paths exist
-            upload_folder = Path(self._config.upload_folder)
+            # Support both Config and ContainerAsync (which exposes .config)
+            if hasattr(self._config, 'upload_folder'):
+                upload_folder = Path(self._config.upload_folder)
+            elif hasattr(self._config, 'config') and hasattr(self._config.config, 'upload_folder'):
+                upload_folder = Path(self._config.config.upload_folder)
+            else:
+                raise AttributeError("Config object must have an 'upload_folder' attribute or a 'config' property with 'upload_folder'.")
             if not upload_folder.exists():
                 logger.log(LogLevel.WARNING, f"Upload folder doesn't exist: {upload_folder}")
                 upload_folder.mkdir(parents=True, exist_ok=True)
@@ -112,33 +115,11 @@ class Application:
 
     def _setup_led(self):
         """Set up and initialize LED display."""
-        try:
-            led_hat = self._container.led_hat
-            if not led_hat:
-                logger.log(LogLevel.WARNING, "LED hat not available")
-                return
-
-            led_hat.start_animation("rotating_circle", color=(10, 50, 10))
-            logger.log(LogLevel.INFO, "LED animation started successfully")
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error starting LED animation: {str(e)}")
-            import traceback
-            logger.log(LogLevel.DEBUG, f"Error details: {traceback.format_exc()}")
+        logger.log(LogLevel.INFO, "Skipping LED setup: no DI container in async mode.")
 
     def _setup_nfc(self):
         """Set up and initialize NFC reader."""
-        try:
-            if self._container.nfc:
-                self._container.nfc.start_nfc_reader()
-                self._container.nfc.tag_subject.subscribe(
-                    on_next=self._handle_tag_scanned,
-                    on_error=self._handle_nfc_error
-                )
-                logger.log(LogLevel.INFO, "NFC reader started")
-            else:
-                logger.log(LogLevel.WARNING, "NFC reader not available")
-        except Exception as e:
-            logger.log(LogLevel.WARNING, f"NFC setup failed: {str(e)}")
+        logger.log(LogLevel.INFO, "Skipping NFC setup: no DI container in async mode.")
 
     def _handle_tag_scanned(self, tag):
         """
@@ -160,29 +141,10 @@ class Application:
         logger.log(LogLevel.ERROR, f"NFC error: {error}")
 
     def _setup_audio(self):
-        """Set up and initialize audio system."""
+        """Set up and initialize audio system (async version, no DI container)."""
         try:
-            if self._container.audio and self._container.playback_subject:
-                # Subscribe to playback status events for logging
-                self._container.playback_subject.status_stream.subscribe(
-                    on_next=self._handle_playback_status,
-                    on_error=self._handle_audio_error
-                )
-                # Subscribe to track progress events for logging
-                self._container.playback_subject.progress_stream.subscribe(
-                    on_next=self._handle_track_progress,
-                    on_error=self._handle_audio_error
-                )
-
-                # Connect playlist controller to audio events
-                if hasattr(self._container.audio, 'register_status_callback'):
-                    self._container.audio.register_status_callback(
-                        self._playlist_controller.update_playback_status_callback
-                    )
-
-                logger.log(LogLevel.INFO, "Audio system ready")
-            else:
-                logger.log(LogLevel.WARNING, "Audio system not available")
+            # TODO: Inject or initialize audio system in async context if needed
+            logger.log(LogLevel.INFO, "Audio system setup skipped (async mode, no DI container)")
         except Exception as e:
             logger.log(LogLevel.WARNING, f"Audio setup failed: {str(e)}")
 
@@ -229,17 +191,8 @@ class Application:
         """
         logger.log(LogLevel.INFO, "Starting application cleanup")
         try:
-            # First stop active playback
-            if self._container.audio:
-                try:
-                    self._container.audio.stop()
-                    logger.log(LogLevel.INFO, "Stopped active playback")
-                except Exception as e:
-                    logger.log(LogLevel.ERROR, f"Error stopping playback: {e}")
-
-            # Clean up peripherals via container
-            if self._container:
-                self._container.cleanup()
+            # First stop active playback (no DI container, so skip)
+            logger.log(LogLevel.INFO, "No DI container: skipping audio and peripheral cleanup")
 
             # Additional cleanup specific to Application
             if hasattr(self, '_playlist_controller') and hasattr(self._playlist_controller, 'cleanup'):

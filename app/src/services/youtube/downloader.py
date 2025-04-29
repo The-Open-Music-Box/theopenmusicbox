@@ -4,7 +4,7 @@ import yt_dlp
 from pathlib import Path
 import os
 from typing import Callable, Dict, Any
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 

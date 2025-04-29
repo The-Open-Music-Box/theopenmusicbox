@@ -4,8 +4,8 @@ from typing import Dict, Optional, Any
 from threading import Lock
 import RPi.GPIO as GPIO
 
-from src.helpers.exceptions import AppError
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.helpers.exceptions import AppError
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .gpio_hardware import GPIOHardware, PinMode
 
 logger = ImprovedLogger(__name__)

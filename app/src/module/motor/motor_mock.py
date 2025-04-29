@@ -2,7 +2,7 @@
 
 
 from typing import Callable
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .motor_hardware import MotorHardware, MotorDirection
 
 logger = ImprovedLogger(__name__)

@@ -3,7 +3,7 @@
 from pathlib import Path
 from flask import Blueprint, current_app, jsonify
 
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 

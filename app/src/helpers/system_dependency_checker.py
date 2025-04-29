@@ -5,7 +5,7 @@ import subprocess
 from dataclasses import dataclass
 from typing import List, Optional
 
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 

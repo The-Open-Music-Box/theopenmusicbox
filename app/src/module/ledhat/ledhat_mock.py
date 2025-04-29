@@ -1,6 +1,6 @@
 # app/src/module/ledhat/ledhat_mock.py
 
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .ledhat_hardware import LedHatHardware
 
 logger = ImprovedLogger(__name__)

@@ -2,7 +2,7 @@
 
 from typing import Optional, Dict, Any, List
 from flask_socketio import SocketIO
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 

@@ -4,7 +4,7 @@ import time
 import math
 import threading
 from typing import Tuple, Optional, Dict, Any, List
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from .ledhat_hardware import LedHatHardware
 
 logger = ImprovedLogger(__name__)

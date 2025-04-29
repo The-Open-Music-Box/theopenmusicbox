@@ -2,7 +2,7 @@
 
 import sys
 import os
-from src.module.gpio.gpio_hardware import GPIOHardware
+from app.src.module.gpio.gpio_hardware import GPIOHardware
 
 from .motor import Motor
 from .motor_hardware import MotorHardware

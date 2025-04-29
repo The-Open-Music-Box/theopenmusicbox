@@ -7,8 +7,8 @@ from werkzeug.utils import secure_filename
 from mutagen import File as MutagenFile
 from mutagen.easyid3 import EasyID3
 
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from src.helpers.exceptions import InvalidFileError, ProcessingError
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.helpers.exceptions import InvalidFileError, ProcessingError
 
 logger = ImprovedLogger(__name__)
 

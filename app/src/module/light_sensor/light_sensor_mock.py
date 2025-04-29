@@ -5,7 +5,7 @@ import eventlet
 from eventlet import Event, spawn_n
 from rx.subject import Subject
 from .light_sensor_hardware import LightSensorHardware, LightLevel
-from src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 

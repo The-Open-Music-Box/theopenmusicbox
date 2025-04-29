@@ -3,7 +3,7 @@
 import os
 import sys
 from typing import Optional
-from src.services.notification_service import PlaybackSubject
+from app.src.services.notification_service import PlaybackSubject
 from .audio_player import AudioPlayer
 from .audio_hardware import AudioPlayerHardware
 
