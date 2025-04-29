@@ -6,9 +6,10 @@ from src.monitoring.improved_logger import ImprovedLogger, LogLevel
 logger = ImprovedLogger(__name__)
 
 class WebSocketHandlers:
-    def __init__(self, socketio, app):
+    def __init__(self, socketio, app, nfc_service=None):
         self.socketio = socketio
         self.app = app
+        self.nfc_service = nfc_service
         self._setup_progress_subscription()
 
     def _setup_progress_subscription(self):
@@ -30,6 +31,33 @@ class WebSocketHandlers:
                 logger.log(LogLevel.ERROR, f"Error setting up progress subscription: {str(e)}")
 
     def register(self):
+        @self.socketio.on('start_nfc_link')
+        def handle_start_nfc_link(data):
+            sid = request.sid
+            playlist_id = data.get('playlist_id') if data else None
+            if not playlist_id:
+                self.socketio.emit('nfc_error', {'message': 'playlist_id missing'}, room=sid)
+                return
+            try:
+                if self.nfc_service.is_listening():
+                    self.socketio.emit('nfc_error', {'message': 'NFC already listening'}, room=sid)
+                    return
+                # Start listening for NFC tag for the playlist
+                self.nfc_service.start_listening(playlist_id)
+                self.socketio.emit('nfc_status', {'status': 'waiting'}, room=sid)
+                # Patch: Register a callback for tag detection (mock or real)
+                # For demo, simulate immediate tag detection
+                # In real use, NFCService should call this when tag is detected
+                def on_tag_detected():
+                    self.socketio.emit('nfc_linked', {'playlist_id': playlist_id}, room=sid)
+                # You must wire this to your NFCService logic, e.g.:
+                # self.nfc_service.set_tag_detected_callback(on_tag_detected)
+                # For now, simulate after a short delay
+                import threading
+                threading.Timer(2.0, on_tag_detected).start()
+            except Exception as e:
+                self.socketio.emit('nfc_error', {'message': str(e)}, room=sid)
+
         @self.socketio.on('connect')
         def handle_connect():
             logger.log(LogLevel.INFO, f"Client connected: {request.sid}")

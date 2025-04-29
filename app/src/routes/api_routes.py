@@ -28,7 +28,7 @@ class APIRoutes:
         self.web_routes = WebRoutes(app)
         self.nfc_routes = NFCRoutes(app, nfc_service)
         self.youtube_routes = YouTubeRoutes(app, socketio)
-        self.websocket_handlers = WebSocketHandlers(socketio, app)
+        self.websocket_handlers = WebSocketHandlers(socketio, app, nfc_service)
         self.playlist_routes = PlaylistRoutes(app)
 
     def init_routes(self):
