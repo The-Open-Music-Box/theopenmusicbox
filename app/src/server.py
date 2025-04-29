@@ -2,7 +2,7 @@
 
 import signal
 import sys
-import eventlet
+from gevent import sleep
 import atexit
 from pathlib import Path
 
@@ -45,7 +45,7 @@ def create_server(config: Config):
     socketio = SocketIO(
         app,
         cors_allowed_origins=config.cors_allowed_origins,
-        async_mode='eventlet',
+        async_mode='gevent',
         logger=config.debug,
         engineio_logger=config.debug,
         ping_timeout=60,
@@ -81,7 +81,7 @@ def create_server(config: Config):
                 logger.log(LogLevel.INFO, "Container cleanup completed")
 
             # Give a short grace period for resources to be released
-            eventlet.sleep(1)
+            sleep(1)
 
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during shutdown: {e}")

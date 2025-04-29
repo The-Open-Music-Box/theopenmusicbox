@@ -3,7 +3,7 @@
 import os
 import sys
 from typing import Optional
-from eventlet.semaphore import Semaphore
+from gevent.lock import Semaphore
 from .nfc_handler import NFCHandler
 from .nfc_hardware import NFCHardware
 

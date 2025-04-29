@@ -1,9 +1,10 @@
 # app/src/module/nfc/nfc_pn532_i2c.py
 
 from typing import Optional
-import eventlet
-from eventlet import spawn_n, Event
-from eventlet.semaphore import Semaphore
+from gevent import sleep
+from gevent import spawn, Event
+spawn_n = spawn
+from gevent.lock import Semaphore
 import board
 import busio
 import time
@@ -118,12 +119,12 @@ class PN532I2CNFC(NFCHardware):
                 else:
                     logger.log(LogLevel.DEBUG, "No tag detected in this cycle")
 
-                eventlet.sleep(self.RETRY_DELAY)
+                sleep(self.RETRY_DELAY)
 
             except Exception as e:
                 error_count += 1
                 logger.log(LogLevel.ERROR, f"Reader loop error #{error_count}: {str(e)}")
-                eventlet.sleep(min(2 ** error_count, 10))
+                sleep(min(2 ** error_count, 10))
 
     def start_nfc_reader(self) -> None:
         spawn_n(self._nfc_reader_loop)

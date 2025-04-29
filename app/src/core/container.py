@@ -2,8 +2,8 @@
 
 from typing import Optional
 from abc import ABC, abstractmethod
-from eventlet.semaphore import Semaphore
-import eventlet
+from gevent.lock import Semaphore
+from gevent import Timeout
 
 from src.config import Config
 from src.monitoring.improved_logger import ImprovedLogger, LogLevel
@@ -138,10 +138,10 @@ class Container:
 
         def cleanup_with_timeout(resource_name, cleanup_func):
             try:
-                with eventlet.Timeout(cleanup_timeout):
+                with Timeout(cleanup_timeout):
                     cleanup_func()
                 logger.log(LogLevel.INFO, f"{resource_name} cleanup completed")
-            except eventlet.Timeout:
+            except Timeout:
                 logger.log(LogLevel.ERROR, f"{resource_name} cleanup timed out after {cleanup_timeout} seconds")
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error cleaning up {resource_name}: {e}")
@@ -169,9 +169,9 @@ class Container:
         # Release bus lock if held
         try:
             if self.bus_lock and self.bus_lock.locked():
-                with eventlet.Timeout(1):
+                with Timeout(1):
                     self.bus_lock.release()
-        except (eventlet.Timeout, Exception) as e:
+        except (Timeout, Exception) as e:
             logger.log(LogLevel.ERROR, f"Error releasing bus lock: {e}")
 
         # Force garbage collection to ensure resources are freed

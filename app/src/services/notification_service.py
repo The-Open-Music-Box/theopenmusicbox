@@ -1,7 +1,7 @@
 # app/src/services/notification_service.py
 
 from typing import Dict, Any
-import eventlet
+from gevent import sleep
 from rx.subject import Subject
 
 class DownloadNotifier:
@@ -15,7 +15,7 @@ class DownloadNotifier:
             'status': status,
             **data
         })
-        eventlet.sleep(0)
+        sleep(0)
 
 class PlaybackEvent:
     def __init__(self, event_type: str, data: Dict[str, Any]):

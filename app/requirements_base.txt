@@ -5,7 +5,7 @@ python-dotenv
 python-socketio
 requests
 pytest
-eventlet
+gevent
 flask_socketio
 colorama
 rx
