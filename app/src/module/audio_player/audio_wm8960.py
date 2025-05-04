@@ -1,4 +1,4 @@
-# app/src/module/audio_player/audio_wm8960.py
+# back/app/src/module/audio_player/audio_wm8960.py
 
 import pygame
 from pathlib import Path
@@ -287,7 +287,9 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         """Progress tracking loop"""
         last_playing_state = False
         last_update_time = 0
+        tick = 0
         while not self._stop_progress:
+            tick += 1
             if self._is_playing and self._playback_subject and self._current_track:
                 current_time = time.time()
                 if current_time - last_update_time >= 1.0:
@@ -297,40 +299,39 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                 # Check if music has stopped playing (track ended)
                 current_playing_state = pygame.mixer.music.get_busy()
                 if last_playing_state and not current_playing_state:
+                    logger.log(LogLevel.INFO, f"[PROGRESS_LOOP] Detected track end at tick={tick}")
                     self._handle_track_end()
                 last_playing_state = current_playing_state
-
             time.sleep(0.1)  # Update more frequently to catch track end
 
     def _update_progress(self):
         """Update and send current progress"""
         if not self._current_track or not self._playback_subject:
+            logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] No current_track or playback_subject; skipping progress update.")
             return
 
         try:
-            if pygame.mixer.music.get_busy():
-                # Calculate position based on elapsed time
-                elapsed = time.time() - self._stream_start_time
-                total = self._get_track_duration(self._current_track.path)
+            busy = pygame.mixer.music.get_busy()
+            elapsed = time.time() - self._stream_start_time
+            total = self._get_track_duration(self._current_track.path)
+            track_info = {
+                'number': self._current_track.number,
+                'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
+                'filename': getattr(self._current_track, 'filename', None),
+                'duration': total
+            }
+            playlist_info = self._playlist.to_dict() if self._playlist and hasattr(self._playlist, 'to_dict') else None
 
-                # Build track_info and playlist_info for frontend
-                track_info = {
-                    'number': self._current_track.number,
-                    'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
-                    'filename': getattr(self._current_track, 'filename', None),
-                    'duration': total
-                }
-                playlist_info = self._playlist.to_dict() if self._playlist and hasattr(self._playlist, 'to_dict') else None
-
-                # Send update
-                self._playback_subject.notify_track_progress(
-                    elapsed=elapsed,
-                    total=total,
-                    track_number=track_info.get('number'),
-                    track_info=track_info,
-                    playlist_info=playlist_info,
-                    is_playing=self._is_playing
-                )
+            # Publier les informations de progression sans logger les détails
+            self._playback_subject.notify_track_progress(
+                elapsed=elapsed,
+                total=total,
+                track_number=track_info.get('number'),
+                track_info=track_info,
+                playlist_info=playlist_info,
+                is_playing=self._is_playing
+            )
+            logger.log(LogLevel.INFO, f"[UPDATE_PROGRESS] notify_track_progress called (elapsed={elapsed:.2f} / {total:.2f})")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error updating progress: {str(e)}")
 

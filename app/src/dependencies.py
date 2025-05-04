@@ -1,21 +1,20 @@
-# app/src/dependencies.py
+# back/app/src/dependencies.py
+
 """
 Dependency providers for FastAPI DI (Depends pattern).
 Provides config, container, audio, playback_subject, etc.
 """
 from fastapi import Depends
-from app.src.config import Config
+from app.src.config import config_singleton
 from app.src.core.container_async import ContainerAsync
 
 # Singleton instance or factory as needed
-_config_instance = None
+
 _container_instance = None
 
 def get_config():
-    global _config_instance
-    if _config_instance is None:
-        _config_instance = Config()
-    return _config_instance
+    """Dependency provider for the global config singleton."""
+    return config_singleton
 
 def get_container(config=Depends(get_config)):
     global _container_instance

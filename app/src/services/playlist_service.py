@@ -3,6 +3,7 @@
 import os
 import time
 from pathlib import Path
+from app.src.config import Config
 import threading
 from typing import Dict, List, Optional, Any, Tuple
 from uuid import uuid4
@@ -472,9 +473,9 @@ class PlaylistService:
                 rel_path = folder_path.relative_to(self.upload_folder.parent)
             except ValueError:
                 # En cas d'échec, utiliser le nom de la playlist comme chemin relatif
-                rel_path = Path('uploads') / playlist.name.lower().replace(' ', '_')
+                rel_path = Path(Config().upload_folder) / playlist.name.lower().replace(' ', '_')
         else:
-            rel_path = Path('uploads') / playlist.name.lower().replace(' ', '_')
+            rel_path = Path(Config().upload_folder) / playlist.name.lower().replace(' ', '_')
 
         # Créer le dictionnaire de playlist
         playlist_data = {
