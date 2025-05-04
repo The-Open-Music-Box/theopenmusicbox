@@ -1,6 +1,0 @@
-# app/src/module/light_sensor/light_sensor_hardware.py
-from typing import Protocol
-
-class LightSensorHardware(Protocol):
-    def read_lux(self) -> float: ...
-    def cleanup(self) -> None: ...
