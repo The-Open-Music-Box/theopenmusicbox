@@ -3,12 +3,9 @@
     <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
       {{ track?.title || $t('audio.noTrackSelected') }}
     </h2>
-    <p class="text-sm text-gray-500 dark:text-gray-400">
-      {{ track?.filename || '' }}
-    </p>
+    <!-- Nom de fichier masqué -->
     <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
       <span>{{ $t('audio.duration') }}: {{ track ? formatDuration(track.duration) : '00:00' }}</span>
-      <span>{{ $t('audio.plays') }}: {{ track?.play_counter || 0 }}</span>
     </div>
   </div>
 </template>
