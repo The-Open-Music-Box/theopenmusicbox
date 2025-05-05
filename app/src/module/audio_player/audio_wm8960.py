@@ -1,8 +1,6 @@
-# back/app/src/module/audio_player/audio_wm8960.py
-
 import pygame
 from pathlib import Path
-from typing import List, Optional, Dict
+from typing import Optional
 import time
 import threading
 import os
@@ -42,12 +40,11 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             logger.log(LogLevel.INFO, "✓ Audio system initialized with WM8960")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Failed to initialize audio system: {str(e)}")
-            raise AppError(f"Audio initialization failed: {str(e)}")
-
-    def load_playlist(self, playlist_path: str) -> bool:
-        """Load a playlist from a file"""
-        logger.log(LogLevel.INFO, f"Loading playlist from {playlist_path}")
-        return True
+            raise AppError.hardware_error(
+    message=f"Audio initialization failed: {str(e)}",
+    component="audio",
+    operation="init"
+)
 
     def play_track(self, track_number: int) -> bool:
         """Play a specific track from the playlist"""
@@ -179,14 +176,16 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             try:
                 pygame.mixer.music.stop()
                 pygame.mixer.quit()
-            except Exception as e:
-                logger.log(LogLevel.WARNING, f"Error cleaning up pygame: {str(e)}")
+            except pygame.error as e:
+                logger.log(LogLevel.WARNING, f"Pygame error during cleanup: {str(e)}")
 
             # Clear audio cache
             try:
                 self._audio_cache.clear()
+            except AttributeError as e:
+                logger.log(LogLevel.WARNING, f"Audio cache attribute missing: {str(e)}")
             except Exception as e:
-                logger.log(LogLevel.WARNING, f"Error clearing audio cache: {str(e)}")
+                logger.log(LogLevel.WARNING, f"Unexpected error clearing audio cache: {str(e)}")
 
             logger.log(LogLevel.INFO, "All resources cleaned up successfully")
 
@@ -211,14 +210,6 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error setting playlist: {str(e)}")
             return False
-
-    def get_current_track(self) -> Optional[Track]:
-        """Return the currently playing track"""
-        return self._current_track
-
-    def get_playlist(self) -> Optional[Playlist]:
-        """Return the current playlist"""
-        return self._playlist
 
     def next_track(self) -> None:
         """Play next track"""
@@ -259,13 +250,21 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             logger.log(LogLevel.ERROR, f"Error setting volume: {str(e)}")
             return False
 
-    def get_volume(self) -> int:
-        """Return current volume"""
+    def _get_current_track(self):
+        """(Private) Return the currently playing track (not part of Protocol)"""
+        return self._current_track
+
+    def _get_playlist(self):
+        """(Private) Return the current playlist (not part of Protocol)"""
+        return self._playlist
+
+    def _get_volume(self):
+        """(Private) Return current volume (not part of Protocol)"""
         return self._volume
 
     @property
     def is_playing(self) -> bool:
-        """Return True if currently playing"""
+        """Return True if currently playing (not part of Protocol)"""
         return self._is_playing
 
     def _setup_event_handler(self):
@@ -322,7 +321,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             }
             playlist_info = self._playlist.to_dict() if self._playlist and hasattr(self._playlist, 'to_dict') else None
 
-            # Publier les informations de progression sans logger les détails
+            # Publish progress information without logging details
             self._playback_subject.notify_track_progress(
                 elapsed=elapsed,
                 total=total,
@@ -356,7 +355,3 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             else:
                 logger.log(LogLevel.INFO, "Playlist ended")
                 self.stop()
-
-    # def is_finished(self) -> bool:
-    #     """Return True if playlist has finished playing"""
-    #     return self._playlist_finished if hasattr(self, '_playlist_finished') else False

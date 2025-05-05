@@ -1,7 +1,18 @@
-# app/src/module/audio_player/audio_mock.py
+"""
+Mock Audio Player Implementation
+
+This module provides the mock implementation of the AudioPlayerHardware Protocol for use in development and testing environments.
+It simulates playback, playlist management, and observer notification without requiring real audio hardware, enabling robust local testing and CI workflows.
+
+Business Logic and Architectural Notes:
+- Used automatically when the application is running in a development or test environment (e.g., on macOS).
+- Ensures that all backend code can be tested without actual hardware.
+- Notifies observers via the PlaybackSubject for integration with real-time status updates and frontend Socket.IO.
+- All methods match the AudioPlayerHardware Protocol and are invoked via the AudioPlayer wrapper.
+"""
 
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 import threading
 import time
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
@@ -14,48 +25,50 @@ logger = ImprovedLogger(__name__)
 
 class MockAudioPlayer(AudioPlayerHardware):
     """
-    Mock implementation of AudioPlayerHardware for testing and non-hardware environments.
-    Simulates playback state and notifies observers as needed.
+    Mock implementation of AudioPlayerHardware for development and testing.
 
-    Cette implémentation est conçue pour être facilement exploitable dans
-    l'environnement de développement et pour les tests unitaires.
+    Simulates playback, playlist management, and observer notification without requiring real audio hardware.
+    Used by the AudioPlayer wrapper when running in a non-hardware environment (e.g., macOS).
     """
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
+        """
+        Initialize the mock audio player.
+        Args:
+            playback_subject: Optional observer for playback events (used for real-time status updates)
+        """
         super().__init__(playback_subject)
-        # Always set _playback_subject for compatibility with AudioPlayer interface
-        self._playback_subject = playback_subject
+        self._playback_subject = playback_subject  # Always set for compatibility with AudioPlayer interface
         self._is_playing = False
         self._playlist = None
         self._current_track = None
         self._volume = 50
         self._progress_thread = None
         self._stop_progress = False
-        self._track_duration = 180.0  # Durée simulée en secondes (3 minutes)
+        self._track_duration = 180.0  # Simulated track duration in seconds
         self._track_position = 0.0
         self._track_start_time = 0.0
         logger.log(LogLevel.INFO, "Mock Audio Player initialized")
 
-        # Démarrer le thread de suivi de progression si un playback_subject est fourni
+        # Start the progress tracking thread if a playback_subject is provided (for real-time frontend updates)
         if playback_subject:
             self._start_progress_thread()
 
-    def load_playlist(self, playlist_path: str) -> bool:
-        """Charge une playlist à partir d'un chemin"""
+    def _load_playlist(self, playlist_path: str) -> bool:
+        """(Private) Load a playlist from a path (not part of Protocol)"""
         logger.log(LogLevel.INFO, f"Mock: Loading playlist from {playlist_path}")
-
-        # Simuler le chargement d'une playlist vide
         self._playlist = Playlist(name=Path(playlist_path).stem, tracks=[])
         return True
 
     def set_playlist(self, playlist: Playlist) -> bool:
-        """Définit la playlist courante et démarre la lecture"""
+        """Set the current playlist and start playback"""
         try:
             self.stop()
             self._playlist = playlist
 
             if self._playlist and self._playlist.tracks:
                 logger.log(LogLevel.INFO, f"Mock: Set playlist with {len(self._playlist.tracks)} tracks")
-                return self.play_track(1)  # Jouer la première piste
+                # Play the first track in the playlist
+                return self.play_track(1)
 
             logger.log(LogLevel.WARNING, "Mock: Empty playlist or no tracks")
             return False
@@ -65,24 +78,24 @@ class MockAudioPlayer(AudioPlayerHardware):
             return False
 
     def play_track(self, track_number: int) -> bool:
-        """Joue une piste spécifique de la playlist"""
-        # Arrêter la lecture en cours sans effacer la playlist
+        """Play a specific track from the playlist"""
+        # Stop current playback without clearing the playlist
         self.stop(clear_playlist=False)
 
         if not self._playlist or not self._playlist.tracks:
             logger.log(LogLevel.WARNING, "Mock: No playlist or empty playlist")
             return False
 
-        # Trouver la piste dans la playlist
+        # Find the track in the playlist
         track = next((t for t in self._playlist.tracks if t.number == track_number), None)
 
-        # Si on ne trouve pas la piste, créer une piste simulée
+        # If the track is not found, create a simulated track
         if not track:
             if track_number <= len(self._playlist.tracks):
                 track = self._playlist.tracks[track_number-1]
             else:
                 logger.log(LogLevel.WARNING, f"Mock: Track number {track_number} not found in playlist")
-                # Créer une piste mock pour les tests
+                # Create a mock track for tests
                 track = Track(
                     number=track_number,
                     title=f"Mock Track {track_number}",
@@ -95,36 +108,36 @@ class MockAudioPlayer(AudioPlayerHardware):
         self._track_position = 0.0
         self._track_start_time = time.time()
 
-        # Notifier du changement d'état
+        # Notify playback state change
         self._notify_playback_status('playing')
         logger.log(LogLevel.INFO, f"Mock: Playing track: {track.title}")
 
         return True
 
     def pause(self) -> None:
-        """Met en pause la lecture"""
+        """Pause playback"""
         if self._is_playing:
             self._is_playing = False
-            # Stocker la position actuelle pour une reprise ultérieure
+            # Store the current position for later resume
             self._track_position = time.time() - self._track_start_time
 
-            # Notifier de la pause
+            # Notify pause
             self._notify_playback_status('paused')
             logger.log(LogLevel.INFO, "Mock: Playback paused")
 
     def resume(self) -> None:
-        """Reprend la lecture"""
+        """Resume playback"""
         if not self._is_playing and self._current_track:
             self._is_playing = True
-            # Ajuster le temps de démarrage pour tenir compte de la position actuelle
+            # Adjust start time to account for current position
             self._track_start_time = time.time() - self._track_position
 
-            # Notifier de la reprise
+            # Notify resume
             self._notify_playback_status('playing')
             logger.log(LogLevel.INFO, "Mock: Playback resumed")
 
     def stop(self, clear_playlist: bool = True) -> None:
-        """Arrête la lecture"""
+        """Stop playback"""
         was_playing = self._is_playing
         self._is_playing = False
         self._current_track = None
@@ -138,7 +151,7 @@ class MockAudioPlayer(AudioPlayerHardware):
             logger.log(LogLevel.INFO, "Mock: Playback stopped")
 
     def next_track(self) -> None:
-        """Passe à la piste suivante"""
+        """Go to the next track"""
         if not self._current_track or not self._playlist:
             logger.log(LogLevel.WARNING, "Mock: No current track or playlist")
             return
@@ -149,11 +162,11 @@ class MockAudioPlayer(AudioPlayerHardware):
             self.play_track(next_number)
         else:
             logger.log(LogLevel.INFO, "Mock: Reached end of playlist")
-            # Simuler la fin de la playlist
+            # Simulate the end of the playlist
             self.stop()
 
     def previous_track(self) -> None:
-        """Passe à la piste précédente"""
+        """Go to the previous track"""
         if not self._current_track or not self._playlist:
             logger.log(LogLevel.WARNING, "Mock: No current track or playlist")
             return
@@ -166,7 +179,7 @@ class MockAudioPlayer(AudioPlayerHardware):
             logger.log(LogLevel.INFO, "Mock: Already at first track")
 
     def set_volume(self, volume: int) -> bool:
-        """Règle le volume (0-100)"""
+        """Set the volume (0-100)"""
         try:
             self._volume = max(0, min(100, volume))
             logger.log(LogLevel.INFO, f"Mock: Volume set to {self._volume}%")
@@ -175,35 +188,10 @@ class MockAudioPlayer(AudioPlayerHardware):
             logger.log(LogLevel.ERROR, f"Mock: Error setting volume: {str(e)}")
             return False
 
-    def get_volume(self) -> int:
-        """Retourne le volume actuel"""
-        return self._volume
-
-    def get_current_track(self) -> Optional[Track]:
-        """Retourne la piste en cours de lecture"""
-        return self._current_track
-
-    def get_playlist(self) -> Optional[Playlist]:
-        """Retourne la playlist courante"""
-        return self._playlist
-
-    @property
-    def is_playing(self) -> bool:
-        """Retourne True si en cours de lecture"""
-        return self._is_playing
-
-    def is_finished(self) -> bool:
-        """Retourne True si la playlist est terminée"""
-        # Considérer que la playlist est terminée si on n'est plus en train de jouer
-        # et qu'on était sur la dernière piste
-        if not self._is_playing and self._current_track and self._playlist:
-            return self._current_track.number >= len(self._playlist.tracks)
-        return False
-
     def cleanup(self) -> None:
-        """Nettoie les ressources"""
+        """Clean up resources"""
         try:
-            # Arrêter le thread de progression
+            # Stop the progress thread
             if self._progress_thread:
                 self._stop_progress = True
                 try:
@@ -211,7 +199,7 @@ class MockAudioPlayer(AudioPlayerHardware):
                 except Exception as e:
                     logger.log(LogLevel.WARNING, f"Mock: Error stopping progress thread: {str(e)}")
 
-            # Arrêter la lecture
+            # Stop playback
             self.stop()
             logger.log(LogLevel.INFO, "Mock: Resources cleaned up")
 
@@ -224,7 +212,7 @@ class MockAudioPlayer(AudioPlayerHardware):
             self._progress_thread = None
 
     def _notify_playback_status(self, status: str) -> None:
-        """Notifie du changement d'état de lecture"""
+        """Notify playback state change"""
         if self._playback_subject:
             playlist_info = None
             track_info = None
@@ -252,7 +240,7 @@ class MockAudioPlayer(AudioPlayerHardware):
             })
 
     def _start_progress_thread(self) -> None:
-        """Démarre le thread de suivi de progression"""
+        """Start the progress tracking thread"""
         if self._progress_thread:
             self._stop_progress = True
             self._progress_thread.join(timeout=1.0)
@@ -263,26 +251,38 @@ class MockAudioPlayer(AudioPlayerHardware):
         self._progress_thread.start()
 
     def _progress_loop(self) -> None:
-        """Boucle de suivi de progression"""
+        """Progress tracking loop"""
         last_update_time = 0
 
         while not self._stop_progress:
             if self._is_playing and self._playback_subject and self._current_track:
                 current_time = time.time()
 
-                # Mettre à jour la progression toutes les 500ms
+                # Update progress every 500ms
                 if current_time - last_update_time >= 0.5:
                     last_update_time = current_time
 
-                    # Calculer la position actuelle
+                    # Calculate the current position
                     elapsed = current_time - self._track_start_time
 
-                    # Si on atteint la fin de la piste, passer à la suivante
+                    # If the end of the track is reached, go to the next
                     if elapsed >= self._track_duration:
-                        # Simuler la fin de la piste
+                        # Simulate the end of the track
                         self._handle_track_end()
                     else:
-                        # Envoyer la mise à jour
+                        # Prepare track and playlist info for progress notification
+                        track_info = {
+                            'number': self._current_track.number,
+                            'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
+                            'filename': getattr(self._current_track, 'filename', None),
+                            'duration': self._track_duration
+                        }
+                        playlist_info = None
+                        if self._playlist:
+                            playlist_info = {
+                                'name': getattr(self._playlist, 'name', None),
+                                'track_count': len(self._playlist.tracks) if self._playlist.tracks else 0
+                            }
                         self._playback_subject.notify_track_progress(
                             elapsed=elapsed,
                             total=self._track_duration,
@@ -292,11 +292,11 @@ class MockAudioPlayer(AudioPlayerHardware):
                             is_playing=self._is_playing
                         )
 
-            # Pause pour éviter de surcharger le CPU
+            # Sleep to avoid CPU overload
             time.sleep(0.1)
 
     def _handle_track_end(self) -> None:
-        """Gère la fin d'une piste"""
+        """Handle the end of a track"""
         if self._is_playing and self._current_track and self._playlist:
             next_number = self._current_track.number + 1
             if next_number <= len(self._playlist.tracks):

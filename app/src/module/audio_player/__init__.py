@@ -1,5 +1,3 @@
-# app/src/module/audio_player/__init__.py
-
 """
 Audio Player module for playback with hardware support.
 
