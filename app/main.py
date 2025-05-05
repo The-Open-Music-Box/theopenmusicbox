@@ -8,7 +8,6 @@ from app.src.config import config_singleton
 from app.src.core.container_async import ContainerAsync
 from app.src.core.application import Application
 from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
-from app.src.routes.playlist_routes import router as playlist_router
 
 # Load config
 env_config = config_singleton
@@ -48,8 +47,10 @@ container = ContainerAsync(env_config)
 app.container = container
 app.application = Application(container)
 
-# Register playlist REST API router (FastAPI)
-app.include_router(playlist_router, prefix="/api")
+# Register PlaylistRoutes
+from app.src.routes.playlist_routes import PlaylistRoutes
+PlaylistRoutes(app).register()
+
 
 # Init Socket.IO handlers (async)
 ws_handlers = WebSocketHandlersAsync(sio, app, container.nfc)

@@ -1,4 +1,4 @@
-# app/src/routes/api_routes.py
+# back/app/src/routes/api_routes.py
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,11 +14,15 @@ from app.src.routes.playlist_routes import PlaylistRoutes
 logger = ImprovedLogger(__name__)
 
 class APIRoutes:
+    """
+    Organizes and initializes all API route groups for the application.
+
+    This class instantiates and registers the various route handlers.
+    It also manages their dependencies and provides a unified entry point for route initialization.
+    """
     def __init__(self, app: FastAPI, socketio):
         self.app = app
         self.socketio = socketio
-
-        # CORS est maintenant géré dans main_async.py
 
         # Create NFC service
         nfc_service = NFCService(socketio)
@@ -35,7 +39,7 @@ class APIRoutes:
         try:
             logger.log(LogLevel.INFO, "Initializing routes")
 
-            # Enregistrement des routes par domaine
+            # Register routes
             self.web_routes.register()
             self.nfc_routes.register()
             self.youtube_routes.register()
