@@ -94,11 +94,11 @@ class NFCRoutes:
             try:
                 if nfc_service.is_listening():
                     return JSONResponse({'status': 'error', 'message': 'An NFC listening session is already active'}, status_code=409)
-                playlist_service = PlaylistService(config.db_file)
+                playlist_service = PlaylistService(config)
                 playlist = playlist_service.get_playlist_by_id(playlist_id)
                 if not playlist:
                     return JSONResponse({'status': 'error', 'message': 'Playlist not found'}, status_code=404)
-                playlists = playlist_service.read_playlist_file()
+                playlists = playlist_service.get_all_playlists()
                 nfc_service.load_mapping(playlists)
                 nfc_service.start_listening(playlist_id)
                 return JSONResponse({'status': 'success', 'message': 'NFC listening started'}, status_code=200)
