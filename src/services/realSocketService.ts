@@ -22,11 +22,12 @@ class RealSocketService {
     console.log('Connecting to socket server at:', socketUrl);
 
     this.socket = io(socketUrl, {
-      transports: ['websocket'],
+      transports: ['polling', 'websocket'],
       autoConnect: false,
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionAttempts: 5
+      reconnectionAttempts: 5,
+      withCredentials: false
     })
 
     this.setupBaseHandlers()
