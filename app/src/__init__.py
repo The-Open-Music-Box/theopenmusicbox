@@ -1,5 +1,3 @@
-# app/src/__init__.py
-
 """
 Core package for the music box application.
 """
@@ -12,7 +10,7 @@ __author__ = "Jonathan Piette"
 from .helpers.exceptions import AppError
 
 __all__ = [
-    
+
     'AppError',
     '__version__',
     '__app_name__',

@@ -1,5 +1,3 @@
-# back/app/src/dependencies.py
-
 """
 Dependency providers for FastAPI DI (Depends pattern).
 Provides config, container, audio, playback_subject, etc.

@@ -1,4 +1,3 @@
-
 import socketio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +6,7 @@ from app.src.config import config_singleton
 from app.src.core.container_async import ContainerAsync
 from app.src.core.application import Application
 from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
+from app.src.routes.playlist_routes import PlaylistRoutes
 
 # Load config
 env_config = config_singleton
@@ -47,7 +47,6 @@ app.container = container
 app.application = Application(container.config)
 
 # Register PlaylistRoutes
-from app.src.routes.playlist_routes import PlaylistRoutes
 PlaylistRoutes(app).register()
 
 

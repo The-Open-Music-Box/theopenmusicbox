@@ -1,5 +1,3 @@
-# back/app/src/config.py
-
 from pathlib import Path
 from typing import Any
 from dotenv import load_dotenv

@@ -1,5 +1,3 @@
-# back/app/start_async.py
-
 """
 Async FastAPI/Socket.IO stack launcher.
 Centralizes configuration using the Config class.
