@@ -5,21 +5,25 @@ import pytest
 
 def test_list_playlists_empty(test_client_with_mock_db):
     client = test_client_with_mock_db
-    response = client.get("/playlists/")
+    response = client.get("/api/playlists/")
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
+    # New structure: {"playlists": [...]}
+    data = response.json()
+    assert isinstance(data, dict)
+    assert "playlists" in data
+    assert isinstance(data["playlists"], list)
 
 def test_create_and_get_playlist(test_client_with_mock_db):
     client = test_client_with_mock_db
     playlist_title = f"Test Playlist {uuid.uuid4()}"
     # Create
-    response = client.post("/playlists/", json={"title": playlist_title})
+    response = client.post("/api/playlists/", json={"title": playlist_title})
     assert response.status_code in (200, 201)
     playlist = response.json()
     assert playlist["title"] == playlist_title
     playlist_id = playlist["id"]
     # Get
-    response = client.get(f"/playlists/{playlist_id}")
+    response = client.get(f"/api/playlists/{playlist_id}")
     assert response.status_code == 200
     fetched = response.json()
     assert fetched["id"] == playlist_id
@@ -29,14 +33,14 @@ def test_delete_playlist(test_client_with_mock_db):
     client = test_client_with_mock_db
     playlist_title = f"Delete Playlist {uuid.uuid4()}"
     # Create
-    response = client.post("/playlists/", json={"title": playlist_title})
+    response = client.post("/api/playlists/", json={"title": playlist_title})
     assert response.status_code in (200, 201)
     playlist_id = response.json()["id"]
     # Delete
-    response = client.delete(f"/playlists/{playlist_id}")
+    response = client.delete(f"/api/playlists/{playlist_id}")
     assert response.status_code == 200
     # Confirm Gone
-    response = client.get(f"/playlists/{playlist_id}")
+    response = client.get(f"/api/playlists/{playlist_id}")
     assert response.status_code == 404
 
 
@@ -45,9 +49,9 @@ def test_playback_track_switch(test_client_with_mock_db, dummy_audio, mock_playl
     audio = dummy_audio
     playlist_id = mock_playlist_with_tracks
     # Simulate playing track 1
-    client.post(f"/playlists/{playlist_id}/play/1")
+    client.post(f"/api/playlists/{playlist_id}/play/1")
     # Simulate a 'next' action
-    client.post("/playlists/control", json={"action": "next"})
+    client.post("/api/playlists/control", json={"action": "next"})
     # Check that the correct audio calls were made
     assert audio.calls[0][0] == 'play'
     assert audio.calls[1][0] == 'next'
@@ -57,9 +61,9 @@ def test_playback_pause_resume(test_client_with_mock_db, dummy_audio, mock_playl
     client = test_client_with_mock_db
     audio = dummy_audio
     playlist_id = mock_playlist_with_tracks
-    client.post(f"/playlists/{playlist_id}/play/1")
-    client.post("/playlists/control", json={"action": "pause"})
-    client.post("/playlists/control", json={"action": "resume"})
+    client.post(f"/api/playlists/{playlist_id}/play/1")
+    client.post("/api/playlists/control", json={"action": "pause"})
+    client.post("/api/playlists/control", json={"action": "resume"})
     assert audio.calls[0][0] == 'play'
     assert audio.calls[1][0] == 'pause'
     assert audio.calls[2][0] == 'resume'
@@ -69,8 +73,8 @@ def test_playback_stop(test_client_with_mock_db, dummy_audio, mock_playlist_with
     client = test_client_with_mock_db
     audio = dummy_audio
     playlist_id = mock_playlist_with_tracks
-    client.post(f"/playlists/{playlist_id}/play/1")
-    client.post("/playlists/control", json={"action": "stop"})
+    client.post(f"/api/playlists/{playlist_id}/play/1")
+    client.post("/api/playlists/control", json={"action": "stop"})
     assert audio.calls[0][0] == 'play'
     assert audio.calls[1][0] == 'stop'
 
@@ -79,7 +83,7 @@ def test_playback_previous(test_client_with_mock_db, dummy_audio, mock_playlist_
     client = test_client_with_mock_db
     audio = dummy_audio
     playlist_id = mock_playlist_with_tracks
-    client.post(f"/playlists/{playlist_id}/play/2")  # Simulate playing track 2
-    client.post("/playlists/control", json={"action": "previous"})
+    client.post(f"/api/playlists/{playlist_id}/play/2")  # Simulate playing track 2
+    client.post("/api/playlists/control", json={"action": "previous"})
     assert audio.calls[0][0] == 'play'
     assert audio.calls[1][0] == 'previous'

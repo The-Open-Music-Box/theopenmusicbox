@@ -14,7 +14,7 @@ class NFCRoutes:
     def __init__(self, app, nfc_service: NFCService):
         self.app = app
         self.nfc_service = nfc_service
-        self.router = APIRouter(prefix="/nfc", tags=["nfc"])
+        self.router = APIRouter(prefix="/api/nfc", tags=["nfc"])
         self._register_routes()
 
     def register(self):

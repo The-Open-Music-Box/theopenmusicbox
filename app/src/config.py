@@ -20,7 +20,7 @@ class Config:
         'SOCKETIO_PORT': 5004,
         'UPLOAD_FOLDER': 'uploads',
         'DB_FILE': 'database/app.db',
-        'CORS_ALLOWED_ORIGINS': 'http://10.0.0.83:8081;http://10.0.0.10:8081',
+        'CORS_ALLOWED_ORIGINS': 'http://10.0.0.83:8081;http://10.0.0.10:8081;http://10.0.0.10:8080',
         'USE_RELOADER': False,
         'LOG_LEVEL': 'INFO',
         'LOG_FORMAT': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',

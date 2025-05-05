@@ -13,7 +13,7 @@ class YouTubeRoutes:
 
     def register(self):
         self._init_routes()
-        self.app.register_blueprint(self.api, url_prefix='/api')
+        self.app.register_blueprint(self.api, url_prefix='/api/youtube')
 
     def _init_routes(self):
         @self.api.route('/youtube/download', methods=['POST'])

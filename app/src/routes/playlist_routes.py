@@ -18,19 +18,19 @@ class PlaylistRoutes:
     """
     def __init__(self, app: FastAPI):
         self.app = app
-        self.router = APIRouter(prefix="/playlists", tags=["playlists"])
+        self.router = APIRouter(prefix="/api/playlists", tags=["playlists"])
         self._register_routes()
 
     def register(self):
         self.app.include_router(self.router)
 
     def _register_routes(self):
-        @self.router.get("/", response_model=List[Dict[str, Any]])
+        @self.router.get("/", response_model=Dict[str, Any])
         async def list_playlists(page: int = 1, page_size: int = 50, config=Depends(get_config)):
             """Get all playlists with pagination support"""
             playlist_service = PlaylistService(config)
             playlists = playlist_service.get_all_playlists(page=page, page_size=page_size)
-            return playlists
+            return {"playlists": playlists}
 
         @self.router.post("/", response_model=Dict[str, Any])
         async def create_playlist(body: dict = Body(...), config=Depends(get_config)):
