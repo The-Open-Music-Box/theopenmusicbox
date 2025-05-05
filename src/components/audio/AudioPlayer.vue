@@ -1,14 +1,14 @@
 <template>
-  <div class="flex items-center justify-center">
-    <div class="w-2/3">
-      <div class="bg-white border-slate-100 dark:bg-slate-800 dark:border-slate-500 border-b rounded-t-xl p-4 pb-6 sm:p-10 sm:pb-8 lg:p-6 xl:p-10 xl:pb-8 space-y-6 sm:space-y-8 lg:space-y-6 xl:space-y-8 items-center">
-        <TrackInfo :track="currentTrack || undefined" />
-        <ProgressBar
-          :currentTime="currentTime"
-          :duration="duration"
-        />
-      </div>
-      <div class="bg-slate-50 text-slate-500 dark:bg-slate-600 dark:text-slate-200 rounded-b-xl flex items-center">
+  <div class="w-full max-w-xl mx-auto">
+    <div class="bg-white border-slate-100 dark:bg-slate-800 dark:border-slate-500 border-b rounded-t-xl p-4 pb-6 sm:p-10 sm:pb-8 lg:p-6 xl:p-10 xl:pb-8 space-y-6 sm:space-y-8 lg:space-y-6 xl:space-y-8 items-center">
+      <TrackInfo :track="currentTrack || undefined" />
+      <ProgressBar
+        :currentTime="currentTime"
+        :duration="duration"
+      />
+    </div>
+    <div class="bg-slate-50 text-slate-500 dark:bg-slate-600 dark:text-slate-200 rounded-b-xl flex items-center justify-center w-full">
+      <div class="w-full max-w-[380px] mx-auto flex justify-center">
         <PlaybackControls
           :isPlaying="isPlaying"
           @toggle-play-pause="togglePlayPause"
@@ -67,6 +67,7 @@ let pendingTrackFilename: string | null = null
 // Listen for WebSocket events
 let lastBackendTime = 0
 let lastReceivedTimestamp = 0
+
 let progressInterval: ReturnType<typeof setInterval> | null = null
 
 function startProgressTimer() {
@@ -179,13 +180,15 @@ watch(isPlaying, (newVal) => {
 
 const togglePlayPause = async () => {
   console.log('[AudioPlayer] Play/Pause button clicked. isPlaying before:', isPlaying.value, 'at', Date.now());
-  if (!currentTrack.value) return
-  const action = isPlaying.value ? 'pause' : 'resume'
+  const action = isPlaying.value ? 'pause' : 'resume';
   console.log('[AudioPlayer] Sending controlPlaylist action:', action, 'at', Date.now());
-  // Optimistic UI update for immediate feedback
-  isPlaying.value = !isPlaying.value;
-  await apiService.controlPlaylist(action)
-  // The real value will be resynced on backend event
+  try {
+    // Ne pas faire de mise à jour optimiste !
+    await apiService.controlPlaylist(action);
+    // La vraie valeur sera resynchronisée via l'événement backend
+  } catch (error) {
+    console.error('[AudioPlayer] Error in togglePlayPause():', error);
+  }
 }
 
 const rewind = () => {
@@ -198,47 +201,27 @@ const skip = () => {
 
 const previous = async () => {
   console.log('[AudioPlayer] previous() called at', Date.now(), {
-    isChangingTrack: isChangingTrack.value,
     currentPlaylist: currentPlaylist.value,
     currentTrack: currentTrack.value
   });
-  if (isChangingTrack.value) {
-    console.log('[AudioPlayer] previous() aborted: isChangingTrack is true');
-    return;
+  // Suppression de tout verrouillage : on envoie la commande à chaque clic
+  try {
+    await apiService.controlPlaylist('previous');
+  } catch (error) {
+    console.error('[AudioPlayer] Error in previous():', error);
   }
-  if (!currentPlaylist.value || !currentTrack.value) {
-    console.log('[AudioPlayer] previous() aborted: no playlist or no track');
-    return;
-  }
-  isChangingTrack.value = true;
-  isPlaying.value = false; // Stop playback immediately
-  currentTime.value = 0;   // Reset progress bar
-  pendingTrackFilename = null;
-  console.log('[AudioPlayer] previous() sending controlPlaylist("previous") at', Date.now());
-  await apiService.controlPlaylist('previous');
-  // Wait for backend event to resume playback and reset isChangingTrack
 }
 
 const next = async () => {
   console.log('[AudioPlayer] next() called at', Date.now(), {
-    isChangingTrack: isChangingTrack.value,
     currentPlaylist: currentPlaylist.value,
     currentTrack: currentTrack.value
   });
-  if (isChangingTrack.value) {
-    console.log('[AudioPlayer] next() aborted: isChangingTrack is true');
-    return;
+  // Suppression de tout verrouillage : on envoie la commande à chaque clic
+  try {
+    await apiService.controlPlaylist('next');
+  } catch (error) {
+    console.error('[AudioPlayer] Error in next():', error);
   }
-  if (!currentPlaylist.value || !currentTrack.value) {
-    console.log('[AudioPlayer] next() aborted: no playlist or no track');
-    return;
-  }
-  isChangingTrack.value = true;
-  isPlaying.value = false; // Stop playback immediately
-  currentTime.value = 0;   // Reset progress bar
-  pendingTrackFilename = null;
-  console.log('[AudioPlayer] next() sending controlPlaylist("next") at', Date.now());
-  await apiService.controlPlaylist('next');
-  // Wait for backend event to resume playback and reset isChangingTrack
 }
 </script>
