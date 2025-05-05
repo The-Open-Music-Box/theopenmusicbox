@@ -1,12 +1,10 @@
-# app/src/core/application.py
-
 import time
 import threading
+import traceback
 from pathlib import Path
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.services.playlist_service import PlaylistService
 from app.src.core.playlist_controller import PlaylistController
-from app.src.config import Config
 
 logger = ImprovedLogger(__name__)
 
@@ -33,9 +31,8 @@ class Application:
 
         # Initialize playlist controller (async version)
         self._playlist_controller = PlaylistController(
-            None,  # audio system handled elsewhere async
-            self._playlists,
-            self._config
+            None,
+            self._playlists
         )
 
         # Set up peripherals (async-compatible)
@@ -52,9 +49,6 @@ class Application:
         """
         try:
             logger.log(LogLevel.INFO, "Starting playlist synchronization")
-
-            # Check that required paths exist
-            # Support both Config and ContainerAsync (which exposes .config)
             if hasattr(self._config, 'upload_folder'):
                 upload_folder = Path(self._config.upload_folder)
             elif hasattr(self._config, 'config') and hasattr(self._config.config, 'upload_folder'):
@@ -66,7 +60,6 @@ class Application:
                 upload_folder.mkdir(parents=True, exist_ok=True)
                 logger.log(LogLevel.INFO, f"Created upload folder: {upload_folder}")
 
-            # Synchronization with timeout protection
             sync_completed = False
             sync_results = {"error": None, "stats": {}}
 
@@ -110,7 +103,6 @@ class Application:
 
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Playlist synchronization setup failed: {str(e)}")
-            import traceback
             logger.log(LogLevel.DEBUG, f"Sync error details: {traceback.format_exc()}")
 
     def _setup_led(self):
@@ -141,10 +133,9 @@ class Application:
         logger.log(LogLevel.ERROR, f"NFC error: {error}")
 
     def _setup_audio(self):
-        """Set up and initialize audio system (async version, no DI container)."""
+        """Set up and initialize audio system."""
         try:
-            # TODO: Inject or initialize audio system in async context if needed
-            logger.log(LogLevel.INFO, "Audio system setup skipped (async mode, no DI container)")
+            logger.log(LogLevel.INFO, "Audio system setup skipped")
         except Exception as e:
             logger.log(LogLevel.WARNING, f"Audio setup failed: {str(e)}")
 
@@ -191,14 +182,10 @@ class Application:
         """
         logger.log(LogLevel.INFO, "Starting application cleanup")
         try:
-            # First stop active playback (no DI container, so skip)
-            logger.log(LogLevel.INFO, "No DI container: skipping audio and peripheral cleanup")
-
             # Additional cleanup specific to Application
             if hasattr(self, '_playlist_controller') and hasattr(self._playlist_controller, 'cleanup'):
                 self._playlist_controller.cleanup()
 
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during application cleanup: {e}")
-            import traceback
             logger.log(LogLevel.DEBUG, f"Cleanup error details: {traceback.format_exc()}")

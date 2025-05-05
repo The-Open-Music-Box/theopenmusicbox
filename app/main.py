@@ -1,4 +1,3 @@
-# back/app/main.py
 
 import socketio
 from fastapi import FastAPI
@@ -45,7 +44,7 @@ app_sio = socketio.ASGIApp(sio, other_asgi_app=app)
 # Dependency injection
 container = ContainerAsync(env_config)
 app.container = container
-app.application = Application(container)
+app.application = Application(container.config)
 
 # Register PlaylistRoutes
 from app.src.routes.playlist_routes import PlaylistRoutes

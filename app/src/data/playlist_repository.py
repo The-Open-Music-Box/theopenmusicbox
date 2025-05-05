@@ -1,7 +1,4 @@
-# app/src/data/playlist_repository.py
-
 import sqlite3
-import os
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
@@ -14,33 +11,31 @@ logger = ImprovedLogger(__name__)
 
 class PlaylistRepository:
     """
-    Repository pour l'accès aux données des playlists et pistes en base de données.
-    Responsable uniquement des opérations CRUD de bas niveau sans logique métier.
+    Repository for accessing playlist and track data in the database.
+    Responsible only for low-level CRUD operations without business logic.
     """
 
     def __init__(self, config: Config):
         """
-        Initialise le repository avec le chemin de la base de données depuis la configuration.
+        Initializes the repository with the database path from the configuration.
 
         Args:
-            config: Instance de configuration de l'application
+            config: Application configuration instance with a 'db_file' attribute.
+        Raises:
+            AttributeError: If 'db_file' is not found in the config object.
         """
-        # Support both Config and ContainerAsync (which exposes .config)
-        if hasattr(config, 'db_file'):
-            self.db_path = Path(config.db_file)
-        elif hasattr(config, 'config') and hasattr(config.config, 'db_file'):
-            self.db_path = Path(config.config.db_file)
-        else:
-            raise AttributeError("Config object must have a 'db_file' attribute or a 'config' property with 'db_file'.")
+        if not hasattr(config, 'db_file'):
+            raise AttributeError("Config object must have a 'db_file' attribute.")
+        self.db_path = Path(config.db_file)
         self._ensure_db_directory()
         self._init_db()
 
     def _ensure_db_directory(self) -> None:
-        """Assure que le répertoire parent de la DB existe."""
+        """Ensures that the parent directory of the DB exists."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def _init_db(self) -> None:
-        """Initialise la structure de la base de données si nécessaire."""
+        """Initializes the database structure if necessary."""
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
                 conn.execute("PRAGMA foreign_keys = ON")
@@ -81,15 +76,15 @@ class PlaylistRepository:
             raise
 
     def _dict_factory(self, cursor, row):
-        """Convertit une ligne SQLite en dictionnaire."""
+        """Converts a SQLite row to a dictionary."""
         return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
     def get_all_playlists(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """
-        Récupère toutes les playlists avec leurs pistes.
+        Retrieves all playlists with their tracks.
 
         Returns:
-            Liste de dictionnaires représentant les playlists
+            List of dictionaries representing the playlists
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
@@ -109,14 +104,14 @@ class PlaylistRepository:
 
     def _get_tracks_for_playlist(self, conn, playlist_id: str, limit: int = 1000, offset: int = 0) -> List[Dict[str, Any]]:
         """
-        Récupère les pistes d'une playlist.
+        Retrieves the tracks of a playlist.
 
         Args:
-            conn: Connexion SQLite
-            playlist_id: ID de la playlist
+            conn: SQLite connection
+            playlist_id: Playlist ID
 
         Returns:
-            Liste de dictionnaires représentant les pistes
+            List of dictionaries representing the tracks
         """
         return conn.execute(
             "SELECT * FROM tracks WHERE playlist_id = ? ORDER BY number LIMIT ? OFFSET ?",
@@ -125,13 +120,13 @@ class PlaylistRepository:
 
     def get_playlist_by_id(self, playlist_id: str, track_limit: int = 1000, track_offset: int = 0) -> Optional[Dict[str, Any]]:
         """
-        Récupère une playlist par son ID.
+        Retrieves a playlist by its ID.
 
         Args:
-            playlist_id: ID de la playlist
+            playlist_id: Playlist ID
 
         Returns:
-            Dictionnaire représentant la playlist ou None si non trouvée
+            Dictionary representing the playlist or None if not found
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
@@ -153,13 +148,13 @@ class PlaylistRepository:
 
     def get_playlist_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
         """
-        Récupère une playlist par son tag NFC.
+        Retrieves a playlist by its NFC tag.
 
         Args:
-            nfc_tag_id: ID du tag NFC
+            nfc_tag_id: NFC tag ID
 
         Returns:
-            Dictionnaire représentant la playlist ou None si non trouvée
+            Dictionary representing the playlist or None if not found
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
@@ -181,13 +176,13 @@ class PlaylistRepository:
 
     def create_playlist(self, playlist_data: Dict[str, Any]) -> Optional[str]:
         """
-        Crée une nouvelle playlist.
+        Creates a new playlist.
 
         Args:
-            playlist_data: Données de la playlist à créer
+            playlist_data: Data of the playlist to create
 
         Returns:
-            ID de la playlist créée ou None en cas d'erreur
+            ID of the created playlist or None in case of error
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
@@ -224,12 +219,12 @@ class PlaylistRepository:
 
     def _insert_track(self, conn, playlist_id: str, track_data: Dict[str, Any]) -> None:
         """
-        Insère une piste dans la base de données.
+        Inserts a track into the database.
 
         Args:
-            conn: Connexion SQLite
-            playlist_id: ID de la playlist
-            track_data: Données de la piste
+            conn: SQLite connection
+            playlist_id: Playlist ID
+            track_data: Data of the track
         """
         conn.execute(
             '''
@@ -250,18 +245,18 @@ class PlaylistRepository:
 
     def update_playlist(self, playlist_id: str, updated_data: Dict[str, Any]) -> bool:
         """
-        Met à jour les informations d'une playlist.
+        Updates the information of a playlist.
 
         Args:
-            playlist_id: ID de la playlist
-            updated_data: Données à mettre à jour
+            playlist_id: Playlist ID
+            updated_data: Data to update
 
         Returns:
-            True si la mise à jour a réussi, False sinon
+            True if the update succeeded, False otherwise
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
-                # Vérifier que la playlist existe
+                # Check that the playlist exists
                 playlist = conn.execute(
                     "SELECT id FROM playlists WHERE id = ?",
                     (playlist_id,)
@@ -296,18 +291,18 @@ class PlaylistRepository:
 
     def replace_tracks(self, playlist_id: str, tracks: List[Dict[str, Any]]) -> bool:
         """
-        Remplace toutes les pistes d'une playlist.
+        Replaces all tracks of a playlist.
 
         Args:
-            playlist_id: ID de la playlist
-            tracks: Liste des nouvelles pistes
+            playlist_id: Playlist ID
+            tracks: List of new tracks
 
         Returns:
-            True si le remplacement a réussi, False sinon
+            True if the replacement succeeded, False otherwise
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
-                # Vérifier que la playlist existe
+                # Check that the playlist exists
                 playlist = conn.execute(
                     "SELECT id FROM playlists WHERE id = ?",
                     (playlist_id,)
@@ -333,17 +328,17 @@ class PlaylistRepository:
 
     def delete_playlist(self, playlist_id: str) -> bool:
         """
-        Supprime une playlist et toutes ses pistes.
+        Deletes a playlist and all its tracks.
 
         Args:
-            playlist_id: ID de la playlist
+            playlist_id: Playlist ID
 
         Returns:
-            True si la suppression a réussi, False sinon
+            True if the deletion succeeded, False otherwise
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
-                # Vérifier que la playlist existe
+                # Check that the playlist exists
                 playlist = conn.execute(
                     "SELECT id FROM playlists WHERE id = ?",
                     (playlist_id,)
@@ -353,7 +348,7 @@ class PlaylistRepository:
                     logger.log(LogLevel.WARNING, f"Playlist not found: {playlist_id}")
                     return False
 
-                # Supprimer la playlist (la suppression en cascade supprimera les pistes)
+                # Delete the playlist (cascade deletion will remove the tracks)
                 conn.execute("DELETE FROM playlists WHERE id = ?", (playlist_id,))
                 conn.commit()
                 logger.log(LogLevel.INFO, f"Deleted playlist: {playlist_id}")
@@ -364,14 +359,14 @@ class PlaylistRepository:
 
     def update_track_counter(self, playlist_id: str, track_number: int) -> bool:
         """
-        Incrémente le compteur de lectures d'une piste.
+        Increments the play counter of a track.
 
         Args:
-            playlist_id: ID de la playlist
-            track_number: Numéro de la piste
+            playlist_id: Playlist ID
+            track_number: Track number
 
         Returns:
-            True si la mise à jour a réussi, False sinon
+            True if the update succeeded, False otherwise
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
@@ -387,18 +382,18 @@ class PlaylistRepository:
 
     def associate_nfc_tag(self, playlist_id: str, nfc_tag_id: str) -> bool:
         """
-        Associe un tag NFC à une playlist.
+        Associates an NFC tag with a playlist.
 
         Args:
-            playlist_id: ID de la playlist
-            nfc_tag_id: ID du tag NFC
+            playlist_id: Playlist ID
+            nfc_tag_id: NFC tag ID
 
         Returns:
-            True si l'association a réussi, False sinon
+            True if the association succeeded, False otherwise
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
-                # Vérifier si le tag est déjà associé à une autre playlist
+                # Check if the tag is already associated with another playlist
                 existing = conn.execute(
                     "SELECT id FROM playlists WHERE nfc_tag_id = ? AND id != ?",
                     (nfc_tag_id, playlist_id)
@@ -408,7 +403,7 @@ class PlaylistRepository:
                     logger.log(LogLevel.WARNING, f"NFC tag {nfc_tag_id} already associated with playlist {existing[0]}")
                     return False
 
-                # Associer le tag à la playlist
+                # Associate the tag with the playlist
                 conn.execute(
                     "UPDATE playlists SET nfc_tag_id = ? WHERE id = ?",
                     (nfc_tag_id, playlist_id)
@@ -422,13 +417,13 @@ class PlaylistRepository:
 
     def disassociate_nfc_tag(self, playlist_id: str) -> bool:
         """
-        Supprime l'association d'un tag NFC avec une playlist.
+        Removes the association of an NFC tag with a playlist.
 
         Args:
-            playlist_id: ID de la playlist
+            playlist_id: Playlist ID
 
         Returns:
-            True si la dissociation a réussi, False sinon
+            True if the disassociation succeeded, False otherwise
         """
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
