@@ -1,5 +1,3 @@
-# app/src/module/gpio/gpio_raspberry.py
-
 from typing import Dict, Optional, Any
 from threading import Lock
 import RPi.GPIO as GPIO

@@ -1,4 +1,4 @@
-# app/src/model/__init__.py
+"""Model package for database entities and ORM mappings in TheMusicBox backend."""
 
 from .track import Track
 from .playlist import Playlist

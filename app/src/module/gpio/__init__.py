@@ -1,5 +1,3 @@
-# app/src/module/gpio/__init__.py
-
 """
 Hardware GPIO control module providing platform-independent GPIO management.
 

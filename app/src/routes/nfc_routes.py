@@ -1,5 +1,3 @@
-# app/src/routes/nfc_routes.py
-
 from flask import Blueprint, current_app, request, jsonify
 from app.src.services.nfc_service import NFCService
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel

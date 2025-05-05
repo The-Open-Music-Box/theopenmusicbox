@@ -1,7 +1,5 @@
 import socketio
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-
-# Import du PlaybackSubject pour accès direct
 from app.src.services.notification_service import PlaybackSubject
 
 logger = ImprovedLogger(__name__)
@@ -11,7 +9,7 @@ class WebSocketHandlersAsync:
         self.sio = sio
         self.app = app
         self.nfc_service = nfc_service
-        
+
         # Fournir l'instance de socketio au PlaybackSubject pour la communication directe
         # C'est la seule chose nécessaire maintenant - les événements seront envoyés directement
         PlaybackSubject.set_socketio(self.sio)
@@ -24,28 +22,28 @@ class WebSocketHandlersAsync:
         async def connect(sid, environ):
             logger.log(LogLevel.INFO, f"Client connected: {sid}")
             await self.sio.emit('connection_status', {'status': 'connected', 'sid': sid}, room=sid)
-            
+
             # Utiliser le singleton PlaybackSubject
             playback_subject = PlaybackSubject.get_instance()
             logger.log(LogLevel.INFO, f"[SOCKET.IO] Connect: using PlaybackSubject singleton (id: {id(playback_subject)})")
-            
+
             try:
                 # Récupérer et envoyer les derniers événements au client qui vient de se connecter
                 status_event = playback_subject.get_last_status_event()
                 progress_event = playback_subject.get_last_progress_event()
-                
+
                 if status_event:
                     logger.log(LogLevel.INFO, f"[SOCKET.IO] Sending last status to new client: {status_event.data['status']}")
                     # Utiliser await avec les méthodes asynchrones pour s'assurer qu'elles sont exécutées
                     await self.sio.emit('playback_status', status_event.data, room=sid)
-                
+
                 if progress_event:
                     current_time = progress_event.data.get('current_time', 0)
                     duration = progress_event.data.get('duration', 0)
                     logger.log(LogLevel.INFO, f"[SOCKET.IO] Sending last progress to new client: {current_time:.1f}/{duration:.1f}")
                     # Utiliser await avec les méthodes asynchrones pour s'assurer qu'elles sont exécutées
                     await self.sio.emit('track_progress', progress_event.data, room=sid)
-                    
+
                 # Log de confirmation que les événements ont bien été envoyés
                 logger.log(LogLevel.INFO, f"[SOCKET.IO] Initial events sent to client {sid}")
             except Exception as e:

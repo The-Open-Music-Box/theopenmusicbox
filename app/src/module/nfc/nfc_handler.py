@@ -1,5 +1,3 @@
-# back/app/src/module/nfc/nfc_handler.py
-
 from typing import Generic, TypeVar
 from .nfc_hardware import NFCHardware
 

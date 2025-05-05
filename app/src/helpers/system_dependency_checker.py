@@ -1,11 +1,11 @@
-# app/src/helpers/system_dependency_checker.py
+# back/app/src/helpers/system_dependency_checker.py
 
 import shutil
 import subprocess
 from dataclasses import dataclass
 from typing import List, Optional
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring.improved_logger import ImprovedLogger
 
 logger = ImprovedLogger(__name__)
 

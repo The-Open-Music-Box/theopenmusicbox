@@ -1,5 +1,3 @@
-# app/src/routes/__init__.py
-
 from .web_routes import WebRoutes
 from .nfc_routes import NFCRoutes
 from .youtube_routes import YouTubeRoutes

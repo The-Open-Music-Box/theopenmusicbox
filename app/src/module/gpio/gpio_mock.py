@@ -1,5 +1,3 @@
-# app/src/module/gpio/gpio_mock.py
-
 from typing import Dict, Optional, Any
 from threading import RLock
 from .gpio_hardware import GPIOHardware, PinMode

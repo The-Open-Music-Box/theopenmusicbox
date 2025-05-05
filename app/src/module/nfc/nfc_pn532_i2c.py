@@ -1,5 +1,3 @@
-# app/src/module/nfc/nfc_pn532_i2c.py
-
 from typing import Optional
 from gevent import sleep
 from gevent import spawn, Event

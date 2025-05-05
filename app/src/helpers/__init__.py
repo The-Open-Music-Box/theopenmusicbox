@@ -1,4 +1,4 @@
-# app/src/helpers/__init__.py
+# back/app/src/helpers/__init__.py
 
 from .exceptions import (
     AppError,

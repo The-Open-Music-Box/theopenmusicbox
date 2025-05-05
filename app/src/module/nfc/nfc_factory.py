@@ -1,8 +1,5 @@
-# app/src/module/nfc/nfc_factory.py
-
 import os
 import sys
-from typing import Optional
 from gevent.lock import Semaphore
 from .nfc_handler import NFCHandler
 from .nfc_hardware import NFCHardware

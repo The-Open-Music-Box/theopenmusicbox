@@ -1,5 +1,3 @@
-# app/src/services/notification_service.py
-
 from typing import Dict, Any
 import threading
 import asyncio
@@ -80,10 +78,10 @@ class PlaybackSubject:
             }
             event = PlaybackEvent('status', event_data)
             self._last_status_event = event
-            
+
             # 1. Maintenir la compatibilité avec RxPy (pour les composants existants)
             self._status_subject.on_next(event)
-            
+
             # 2. Méthode principale: Émettre directement via Socket.IO (plus fiable)
             if PlaybackSubject._socketio:
                 try:
@@ -115,10 +113,10 @@ class PlaybackSubject:
             }
             event = PlaybackEvent('progress', event_data)
             self._last_progress_event = event
-            
+
             # 1. Maintenir la compatibilité avec RxPy (pour les composants existants)
             self._progress_subject.on_next(event)
-            
+
             # 2. Méthode principale: Émettre directement via Socket.IO (plus fiable)
             if PlaybackSubject._socketio:
                 try:
@@ -134,7 +132,7 @@ class PlaybackSubject:
 
     def get_last_progress_event(self):
         return self._last_progress_event
-        
+
     def _emit_socketio_event(self, event_name, event_data):
         """
         Émet un événement Socket.IO de manière asynchrone sans bloquer.
@@ -147,20 +145,20 @@ class PlaybackSubject:
         # Identifier le thread actuel
         current_thread = threading.current_thread()
         thread_name = current_thread.name
-        
+
         # Dict pour stocker une référence aux données à traiter
         event_to_emit = {
             "name": event_name,
             "data": event_data
         }
-            
+
         # Méthode auxiliaire pour l'émission asynchrone
         async def async_emit():
             try:
                 await PlaybackSubject._socketio.emit(event_to_emit["name"], event_to_emit["data"])
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"[PlaybackSubject] Async Socket.IO emit failed: {e}")
-                
+
         # Gérer selon si thread principal ou secondaire
         try:
             try:

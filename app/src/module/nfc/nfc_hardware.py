@@ -1,4 +1,3 @@
-# app/src/module/nfc/nfc_hardware.py
 from typing import Protocol
 
 class NFCHardware(Protocol):

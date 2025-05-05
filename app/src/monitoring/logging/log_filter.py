@@ -1,9 +1,6 @@
-# app/src/monitoring/logging/log_filter.py
-
 import re
 
 class LogFilter:
-    # Messages à supprimer des logs
     IGNORED_PATTERNS = [
         "pygame.*Hello from the pygame community.*",
         "Restarting with stat",
@@ -18,7 +15,6 @@ class LogFilter:
 
     @classmethod
     def clean_message(cls, message: str) -> str:
-        # Nettoyer les codes ANSI et autres formatages
         message = re.sub(r'\[blue\]', '', str(message))
         message = re.sub(r'\[/.*?\]', '', message)
         message = re.sub(r'✓\s*✓', '✓', message)

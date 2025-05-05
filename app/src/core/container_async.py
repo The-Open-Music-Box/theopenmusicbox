@@ -1,6 +1,5 @@
-import logging
 from app.src.config import Config
-from app.src.monitoring.improved_logger import ImprovedLogger
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.services.notification_service import PlaybackSubject
 from app.src.services.playlist_service import PlaylistService
 from app.src.module.audio_player.audio_factory import get_audio_player
@@ -48,6 +47,5 @@ class ContainerAsync:
         Clean up all async resources before application shutdown.
         Extend this method to close DB connections, stop background tasks, etc.
         """
-        logger = logging.getLogger("ContainerAsync")
-        logger.info("Starting async resource cleanup...")
-        logger.info("Async resource cleanup complete.")
+        logger.log(LogLevel.INFO, "Starting async resource cleanup...")
+        logger.log(LogLevel.INFO, "Async resource cleanup complete.")

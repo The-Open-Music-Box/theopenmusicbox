@@ -1,5 +1,3 @@
-# app/src/monitoring/logging/log_level.py
-
 from enum import Enum
 
 class LogLevel(Enum):

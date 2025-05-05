@@ -1,5 +1,3 @@
-# app/src/services/youtube/service.py
-
 from uuid import uuid4
 from typing import Dict
 from pathlib import Path

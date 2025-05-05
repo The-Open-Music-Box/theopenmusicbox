@@ -1,4 +1,3 @@
-# app/src/module/gpio/gpio_controller.py
 from typing import Generic, TypeVar
 from .gpio_hardware import GPIOHardware
 

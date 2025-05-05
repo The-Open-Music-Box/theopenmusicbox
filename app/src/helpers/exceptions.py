@@ -1,5 +1,3 @@
-# app/src/helpers/exceptions.py
-
 from enum import Enum
 from typing import Optional, Dict, Any
 from dataclasses import dataclass

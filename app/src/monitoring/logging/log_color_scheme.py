@@ -1,5 +1,3 @@
-# app/src/monitoring/logging/log_color_scheme.py
-
 from colorama import Fore, Back
 
 class ColorScheme:

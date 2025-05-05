@@ -1,5 +1,3 @@
-# app/src/services/youtube/downloader.py
-
 import yt_dlp
 from pathlib import Path
 import os

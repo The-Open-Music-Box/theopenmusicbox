@@ -1,4 +1,3 @@
-# app/src/module/gpio/gpio_hardware.py
 from typing import Protocol
 from enum import Enum, auto
 

@@ -1,5 +1,3 @@
-# app/src/module/nfc/__init__.py
-
 """
 NFC Reader module for contactless tag detection and reading.
 

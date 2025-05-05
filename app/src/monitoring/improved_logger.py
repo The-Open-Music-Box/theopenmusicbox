@@ -1,5 +1,3 @@
-# app/src/monitoring/improved_logger.py
-
 from typing import Optional, Dict, Any
 import logging
 

@@ -1,5 +1,3 @@
-# app/src/model/playlist.py
-
 from dataclasses import dataclass, field
 from typing import List, Optional
 from .track import Track

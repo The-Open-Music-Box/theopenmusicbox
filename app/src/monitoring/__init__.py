@@ -1,5 +1,3 @@
-# app/src/monitoring/__init__.py
-
 """
 Module de monitoring et health check du système.
 """

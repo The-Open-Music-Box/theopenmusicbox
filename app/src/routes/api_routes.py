@@ -1,5 +1,3 @@
-# back/app/src/routes/api_routes.py
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

@@ -1,5 +1,3 @@
-# app/src/module/gpio/gpio_factory.py
-
 import os
 import sys
 from .gpio_controller import GPIOController

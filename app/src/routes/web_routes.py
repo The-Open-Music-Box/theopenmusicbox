@@ -1,5 +1,3 @@
-# app/src/routes/web_routes.py
-
 from pathlib import Path
 from flask import Blueprint, current_app, jsonify
 

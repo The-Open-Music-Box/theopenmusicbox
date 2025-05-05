@@ -1,8 +1,6 @@
-# app/src/services/upload_service.py
-
 from pathlib import Path
 import os
-from typing import List, Dict, Tuple
+from typing import Dict, Tuple
 from werkzeug.utils import secure_filename
 from mutagen import File as MutagenFile
 from mutagen.easyid3 import EasyID3
@@ -29,7 +27,7 @@ class UploadService:
         return size <= MAX_FILE_SIZE
 
     def _extract_metadata(self, file_path: Path) -> Dict:
-        """Extrait les métadonnées d'un fichier audio"""
+        """Extract metadata from an audio file."""
         try:
             audio = MutagenFile(str(file_path), easy=True)
             if audio is None:
@@ -54,7 +52,7 @@ class UploadService:
 
     def process_upload(self, file, playlist_path: str) -> Tuple[str, Dict]:
         """
-        Traite un fichier uploadé
+        Process an uploaded file
         Returns: (filename, metadata)
         """
         if not file or not file.filename:
@@ -66,14 +64,14 @@ class UploadService:
         if not self._check_file_size(file):
             raise InvalidFileError(f"File too large. Maximum size: {MAX_FILE_SIZE/1024/1024}MB")
 
-        # Sécuriser le nom de fichier
+        # Secure the filename
         filename = secure_filename(file.filename)
 
-        # Créer le dossier de la playlist si nécessaire
+        # Create the playlist folder if necessary
         upload_path = self.upload_folder / playlist_path
         upload_path.mkdir(parents=True, exist_ok=True)
 
-        # Sauvegarder le fichier
+        # Save the file
         file_path = upload_path / filename
         try:
             file.save(str(file_path))
@@ -89,7 +87,7 @@ class UploadService:
             raise ProcessingError(f"Error processing file: {str(e)}")
 
     def cleanup_failed_upload(self, playlist_path: str, filename: str):
-        """Nettoie les fichiers en cas d'échec"""
+        """Clean up files in case of failure."""
         try:
             file_path = self.upload_folder / playlist_path / filename
             if file_path.exists():

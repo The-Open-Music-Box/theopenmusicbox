@@ -1,5 +1,3 @@
-# app/src/services/nfc_service.py
-
 from typing import Optional, Dict, Any, List
 from flask_socketio import SocketIO
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel

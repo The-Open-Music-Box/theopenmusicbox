@@ -1,5 +1,3 @@
-# app/src/monitoring/logging/log_colored_formatter.py
-
 import logging
 
 from colorama import Fore, Style

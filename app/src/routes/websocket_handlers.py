@@ -1,5 +1,3 @@
-# app/src/routes/websocket_handlers.py
-
 from flask import request, current_app
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 

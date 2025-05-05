@@ -1,5 +1,3 @@
-# app/src/monitoring/logging/log_base_formatter.py
-
 import re
 from typing import Any, Dict
 from colorama import Fore, Style
