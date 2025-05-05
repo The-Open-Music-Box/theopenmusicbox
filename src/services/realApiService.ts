@@ -273,17 +273,33 @@ class RealApiService {
   }
 
   /**
-   * Control playlist playback (pause, resume, stop, etc)
-   * @param action - Action string (pause, resume, stop, ...)
+   * Control playlist playback (pause, resume, stop, next, previous, etc)
+   * @param action - Action string (pause, resume, stop, next, previous, ...)
    * @returns Promise resolving to server response
    */
   async controlPlaylist(action: string) {
     try {
-      // Match backend: /api/playlist/control/<action>
-      const response = await apiClient.post(`/api/playlist/control/${action}`)
+      console.log(`[API] Sending control action: ${action} to /api/playlists/control/${action}`)
+      // Match backend: /api/playlists/control/{action}
+      const response = await apiClient.post(`/api/playlists/control/${action}`, {})
+      console.log(`[API] Control response:`, response.data)
       return response.data
     } catch (error) {
-      console.error('Error controlling playlist:', error)
+      console.error(`[API] Error controlling playlist with action '${action}':`, error)
+      throw error
+    }
+  }
+
+  /**
+   * Get current playback status from the server
+   * @returns Promise resolving to playback status data
+   */
+  async getPlaybackStatus() {
+    try {
+      const response = await apiClient.get('/api/playlists/playback/status')
+      return response.data
+    } catch (error) {
+      console.error('Error getting playback status:', error)
       throw error
     }
   }
