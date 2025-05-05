@@ -1,4 +1,4 @@
-# app/src/config.py
+# back/app/src/config.py
 
 from pathlib import Path
 from typing import Any
@@ -23,12 +23,12 @@ class Config:
         'UPLOAD_FOLDER': 'uploads',
         'DB_FILE': 'database/app.db',
         'CORS_ALLOWED_ORIGINS': 'http://10.0.0.83:8081;http://10.0.0.10:8081',
-        'USE_RELOADER': True,
+        'USE_RELOADER': False,
         'LOG_LEVEL': 'INFO',
         'LOG_FORMAT': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         'LOG_FILE': 'logs/app.log',
         'APP_MODULE': 'app.main:app_sio',
-        'UVICORN_RELOAD': True,
+        'UVICORN_RELOAD': False,
     }
 
     def __init__(self):
@@ -51,8 +51,6 @@ class Config:
                 config_key="type_conversion",
                 details={"value": value, "expected_type": str(target_type)}
             ) from exc
-
-    # No required settings check needed; all have defaults. Invalid types will be handled in property getters.
 
     def _validate_directories(self) -> None:
         try:
@@ -157,3 +155,6 @@ class Config:
     def uvicorn_reload(self) -> bool:
         """Enable Uvicorn reload (for development)."""
         return self._get('UVICORN_RELOAD', bool)
+
+# Singleton instance for global config access
+config_singleton = Config()

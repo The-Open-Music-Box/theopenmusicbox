@@ -66,6 +66,15 @@ class PlaylistService:
         self.repository.create_playlist(playlist_data)
         return playlist_data
 
+    def delete_playlist(self, playlist_id: str) -> dict:
+        """
+        Supprime une playlist par son ID.
+        """
+        deleted = self.repository.delete_playlist(playlist_id)
+        if not deleted:
+            raise ValueError(f"Playlist with id {playlist_id} not found")
+        return {"id": playlist_id, "deleted": True}
+
 
     def get_all_playlists(self, page: int = 1, page_size: int = 50) -> List[Dict[str, Any]]:
         """
