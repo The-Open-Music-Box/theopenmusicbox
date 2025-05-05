@@ -1,5 +1,3 @@
-# back/app/src/routes/playlist_routes.py
-
 from fastapi import APIRouter, Depends, HTTPException, Body, UploadFile, File, FastAPI
 from pydantic import BaseModel
 from typing import List, Optional, Tuple, Dict, Any

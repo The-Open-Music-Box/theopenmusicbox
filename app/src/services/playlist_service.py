@@ -1,9 +1,5 @@
-# app/src/services/playlist_service.py
-
-import os
 import time
 from pathlib import Path
-from app.src.config import Config
 import threading
 from typing import Dict, List, Optional, Any, Tuple
 from uuid import uuid4
@@ -19,26 +15,26 @@ logger = ImprovedLogger(__name__)
 
 class PlaylistService:
     """
-    Service pour la gestion des playlists avec logique métier.
+    Service for managing playlists with business logic.
 
-    Ce service sert d'intermédiaire entre la couche présentation
-    et la couche d'accès aux données pour les opérations liées aux playlists.
+    This service acts as an intermediary between the presentation layer
+    and the data access layer for playlist-related operations.
     """
 
-    # Extensions de fichiers audio supportées
+    # Supported audio file extensions
     SUPPORTED_AUDIO_EXTENSIONS = {'.mp3', '.ogg', '.wav', '.m4a', '.flac', '.aac'}
 
-    # Timeouts pour la synchronisation (en secondes)
+    # Synchronization timeouts (in seconds)
     SYNC_TOTAL_TIMEOUT = 10.0
     SYNC_FOLDER_TIMEOUT = 1.0
     SYNC_OPERATION_TIMEOUT = 2.0
 
     def __init__(self, config: Config):
         """
-        Initialise le service de playlists.
+        Initialize the playlist service.
 
         Args:
-            config: Configuration de l'application
+            config: Application configuration
         """
         self.config = config
         self.repository = PlaylistRepository(config)
@@ -68,7 +64,7 @@ class PlaylistService:
 
     def delete_playlist(self, playlist_id: str) -> dict:
         """
-        Supprime une playlist par son ID.
+        Delete a playlist by its ID.
         """
         deleted = self.repository.delete_playlist(playlist_id)
         if not deleted:
@@ -78,94 +74,100 @@ class PlaylistService:
 
     def get_all_playlists(self, page: int = 1, page_size: int = 50) -> List[Dict[str, Any]]:
         """
-        Récupère toutes les playlists.
+        Retrieve all playlists.
 
         Returns:
-            Liste de dictionnaires représentant les playlists
+            List of dictionaries representing playlists
         """
         offset = (page - 1) * page_size
         return self.repository.get_all_playlists(limit=page_size, offset=offset)
 
     def get_playlist_by_id(self, playlist_id: str, track_page: int = 1, track_page_size: int = 1000) -> Optional[Dict[str, Any]]:
         """
-        Récupère une playlist par son ID.
+        Retrieve a playlist by its ID.
 
         Args:
-            playlist_id: ID de la playlist
+            playlist_id: Playlist ID
 
         Returns:
-            Dictionnaire représentant la playlist ou None si non trouvée
+            Dictionary representing the playlist or None if not found
         """
         track_offset = (track_page - 1) * track_page_size
         return self.repository.get_playlist_by_id(playlist_id, track_limit=track_page_size, track_offset=track_offset)
 
     def get_playlist_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
         """
-        Récupère une playlist par son tag NFC.
+        Retrieve a playlist by its NFC tag.
 
         Args:
-            nfc_tag_id: ID du tag NFC
+            nfc_tag_id: NFC tag ID
 
         Returns:
-            Dictionnaire représentant la playlist ou None si non trouvée
+            Dictionary representing the playlist or None if not found
         """
         return self.repository.get_playlist_by_nfc_tag(nfc_tag_id)
 
     def associate_nfc_tag(self, playlist_id: str, nfc_tag_id: str) -> bool:
         """
-        Associe un tag NFC à une playlist.
+        Associate an NFC tag with a playlist.
 
         Args:
-            playlist_id: ID de la playlist
-            nfc_tag_id: ID du tag NFC
+            playlist_id: Playlist ID
+            nfc_tag_id: NFC tag ID
 
         Returns:
-            True si l'association a réussi, False sinon
+            True if the association succeeded, False otherwise
         """
         return self.repository.associate_nfc_tag(playlist_id, nfc_tag_id)
 
     def disassociate_nfc_tag(self, playlist_id: str) -> bool:
         """
-        Supprime l'association d'un tag NFC avec une playlist.
+        Remove the association of an NFC tag with a playlist.
 
         Args:
-            playlist_id: ID de la playlist
+            playlist_id: Playlist ID
 
         Returns:
-            True si la dissociation a réussi, False sinon
+            True if the dissociation succeeded, False otherwise
         """
         return self.repository.disassociate_nfc_tag(playlist_id)
 
     def create_playlist_from_folder(self, folder_path: Path, title: Optional[str] = None) -> Optional[str]:
         """
-        Crée une playlist à partir d'un dossier de fichiers audio.
+        Create a playlist from a folder of audio files.
+
+        This scans the specified folder for supported audio files
+        and creates a new playlist entry in the database, with each file as a track.
+        The playlist's relative path is determined with respect to the uploads folder.
 
         Args:
-            folder_path: Chemin vers le dossier
-            title: Titre optionnel pour la playlist (par défaut: nom du dossier)
+            folder_path: Path to the folder
+            title: Optional title for the playlist (default: folder name)
 
         Returns:
-            ID de la playlist créée ou None en cas d'erreur
+            ID of the created playlist or None if an error occurred
         """
         try:
+            # Check if the folder exists and is a directory
             if not folder_path.exists() or not folder_path.is_dir():
                 logger.log(LogLevel.ERROR, f"Folder does not exist: {folder_path}")
                 return None
 
-            # Récupérer les fichiers audio dans le dossier
+            # Retrieve audio files in the folder
             audio_files = [
                 f for f in folder_path.iterdir()
                 if f.is_file() and f.suffix.lower() in self.SUPPORTED_AUDIO_EXTENSIONS
             ]
 
+            # Check if there are any audio files
             if not audio_files:
                 logger.log(LogLevel.WARNING, f"No audio files found in folder: {folder_path}")
                 return None
 
-            # Déterminer le chemin relatif par rapport au dossier d'uploads
+            # Determine the relative path with respect to the parent of the uploads folder
             rel_path = folder_path.relative_to(self.upload_folder.parent)
 
-            # Créer la playlist
+            # Initialize the playlist data
             playlist_data = {
                 'id': str(uuid4()),
                 'type': 'playlist',
@@ -175,7 +177,7 @@ class PlaylistService:
                 'tracks': []
             }
 
-            # Ajouter les pistes
+            # Iterate through the audio files and create tracks
             for i, file_path in enumerate(sorted(audio_files), 1):
                 track = {
                     'number': i,
@@ -188,7 +190,7 @@ class PlaylistService:
                 }
                 playlist_data['tracks'].append(track)
 
-            # Enregistrer la playlist
+            # Create the playlist in the repository
             return self.repository.create_playlist(playlist_data)
 
         except Exception as e:
@@ -197,43 +199,48 @@ class PlaylistService:
 
     def update_playlist_tracks(self, playlist_id: str, folder_path: Path) -> Tuple[bool, Dict[str, int]]:
         """
-        Met à jour les pistes d'une playlist à partir du contenu d'un dossier.
+        Update the tracks of a playlist from the contents of a folder.
+
+        This method compares the current tracks in the playlist with the audio files
+        present in the specified folder. It adds new tracks for new files,
+        removes tracks for missing files, and keeps existing tracks that are still present.
+        The playlist is then updated in the repository.
 
         Args:
-            playlist_id: ID de la playlist
-            folder_path: Chemin vers le dossier
+            playlist_id: Playlist ID
+            folder_path: Path to the folder
 
         Returns:
-            Tuple (succès, statistiques)
+            Tuple (success, statistics)
         """
         stats = {'added': 0, 'removed': 0}
 
         try:
-            # Récupérer la playlist existante
+            # Retrieve the existing playlist
             playlist = self.repository.get_playlist_by_id(playlist_id)
             if not playlist:
                 logger.log(LogLevel.WARNING, f"Playlist not found: {playlist_id}")
                 return False, stats
 
-            # Récupérer les fichiers audio dans le dossier
+            # Retrieve audio files in the folder
             audio_files = [
                 f for f in folder_path.iterdir()
                 if f.is_file() and f.suffix.lower() in self.SUPPORTED_AUDIO_EXTENSIONS
             ]
 
-            # Créer des dictionnaires pour la comparaison
+            # Create dictionaries for comparison
             existing_tracks = {t['filename']: t for t in playlist.get('tracks', [])}
             disk_files_map = {f.name: f for f in audio_files}
 
-            # Identifier les modifications
+            # Identify modifications
             to_remove = set(existing_tracks.keys()) - set(disk_files_map.keys())
             to_add = set(disk_files_map.keys()) - set(existing_tracks.keys())
 
-            # Préparer les nouvelles pistes
+            # Prepare new tracks
             new_tracks = []
             track_number = 1
 
-            # Conserver les pistes existantes qui sont toujours présentes
+            # Keep existing tracks that are still present
             for filename, track in existing_tracks.items():
                 if filename not in to_remove:
                     track_copy = dict(track)
@@ -241,7 +248,7 @@ class PlaylistService:
                     new_tracks.append(track_copy)
                     track_number += 1
 
-            # Ajouter les nouvelles pistes
+            # Add new tracks
             for filename in sorted(to_add):
                 file_path = disk_files_map[filename]
                 new_track = {
@@ -256,7 +263,7 @@ class PlaylistService:
                 new_tracks.append(new_track)
                 track_number += 1
 
-            # Mettre à jour la playlist
+            # Update the playlist
             if self.repository.replace_tracks(playlist_id, new_tracks):
                 stats['added'] = len(to_add)
                 stats['removed'] = len(to_remove)
@@ -271,12 +278,12 @@ class PlaylistService:
 
     def sync_with_filesystem(self) -> Dict[str, int]:
         """
-        Synchronise les playlists en base de données avec le système de fichiers.
+        Synchronize playlists in the database with the filesystem.
 
         Returns:
-            Statistiques de synchronisation
+            Synchronization statistics
         """
-        with self._sync_lock:  # Éviter les synchronisations concurrentes
+        with self._sync_lock:  # Prevent concurrent synchronizations
             start_time = time.time()
             stats = {
                 'playlists_scanned': 0,
@@ -289,22 +296,22 @@ class PlaylistService:
             try:
                 logger.log(LogLevel.INFO, f"Starting playlist synchronization with {self.upload_folder}")
 
-                # 1. Vérifier que le dossier d'uploads existe
+                # 1. Check that the uploads folder exists
                 if not self.upload_folder.exists():
                     self.upload_folder.mkdir(parents=True, exist_ok=True)
                     logger.log(LogLevel.INFO, f"Created upload folder: {self.upload_folder}")
 
-                # 2. Récupérer les playlists existantes
+                # 2. Retrieve existing playlists
                 db_playlists = self.repository.get_all_playlists()
                 db_playlists_by_path = {p.get('path', ''): p for p in db_playlists}
 
-                # 3. Scanner le système de fichiers avec timeout
+                # 3. Scan the filesystem with timeout
                 disk_playlists = self._scan_filesystem_with_timeout()
 
-                # 4. Parcourir les playlists existantes pour les mettre à jour
+                # 4. Iterate through existing playlists to update them
                 self._update_existing_playlists(db_playlists, disk_playlists, stats)
 
-                # 5. Ajouter les nouvelles playlists
+                # 5. Add new playlists
                 if time.time() - start_time < self.SYNC_TOTAL_TIMEOUT:
                     self._add_new_playlists(disk_playlists, db_playlists_by_path, stats)
                 else:
@@ -322,30 +329,30 @@ class PlaylistService:
 
     def _scan_filesystem_with_timeout(self) -> Dict[str, List[Path]]:
         """
-        Scanne le système de fichiers avec une protection contre les timeouts.
+        Scan the filesystem with protection against timeouts.
 
         Returns:
-            Dictionnaire associant les chemins des playlists aux fichiers audio
+            Dictionary mapping playlist paths to audio files
         """
         result = {}
         scan_start = time.time()
 
         try:
             for item in self.upload_folder.iterdir():
-                # Vérifier le timeout global
+                # Check global timeout
                 if time.time() - scan_start > self.SYNC_FOLDER_TIMEOUT:
                     logger.log(LogLevel.WARNING, "Folder scan timeout, processing items scanned so far")
                     break
 
                 if item.is_dir():
-                    # Chemin relatif par rapport au dossier parent du dossier d'uploads
+                    # Relative path with respect to the parent of the uploads folder
                     rel_path = str(item.relative_to(self.upload_folder.parent))
                     audio_files = []
 
                     try:
                         folder_scan_start = time.time()
                         for f in item.iterdir():
-                            # Timeout par dossier
+                            # Timeout per folder
                             if time.time() - folder_scan_start > self.SYNC_OPERATION_TIMEOUT:
                                 logger.log(LogLevel.WARNING, f"Partial scan of {rel_path} due to timeout")
                                 break
@@ -366,12 +373,12 @@ class PlaylistService:
                                   disk_playlists: Dict[str, List[Path]],
                                   stats: Dict[str, int]) -> None:
         """
-        Met à jour les playlists existantes avec les fichiers du disque.
+        Update existing playlists with files from disk.
 
         Args:
-            db_playlists: Liste des playlists en base de données
-            disk_playlists: Dictionnaire des fichiers trouvés sur le disque
-            stats: Dictionnaire des statistiques à mettre à jour
+            db_playlists: List of playlists in the database
+            disk_playlists: Dictionary of files found on disk
+            stats: Dictionary of statistics to update
         """
         start_time = time.time()
 
@@ -383,11 +390,11 @@ class PlaylistService:
             stats['playlists_scanned'] += 1
             path = db_playlist.get('path', '')
 
-            # Si le dossier n'existe plus ou est vide, pas besoin de mettre à jour
+            # If the folder no longer exists or is empty, no need to update
             if path not in disk_playlists:
                 continue
 
-            # Mettre à jour avec les fichiers trouvés
+            # Update with the files found
             disk_files = disk_playlists.get(path, [])
             if disk_files:
                 try:
@@ -403,12 +410,12 @@ class PlaylistService:
                            db_playlists_by_path: Dict[str, Dict[str, Any]],
                            stats: Dict[str, int]) -> None:
         """
-        Ajoute les nouvelles playlists trouvées sur le disque.
+        Add new playlists found on disk.
 
         Args:
-            disk_playlists: Dictionnaire des fichiers trouvés sur le disque
-            db_playlists_by_path: Dictionnaire des playlists existantes par chemin
-            stats: Dictionnaire des statistiques à mettre à jour
+            disk_playlists: Dictionary of files found on disk
+            db_playlists_by_path: Dictionary of existing playlists by path
+            stats: Dictionary of statistics to update
         """
         start_time = time.time()
 
@@ -417,7 +424,7 @@ class PlaylistService:
                 logger.log(LogLevel.WARNING, "New playlists timeout reached, stopping adds")
                 break
 
-            # Si la playlist existe déjà, passer à la suivante
+            # If the playlist already exists, skip to the next
             if path in db_playlists_by_path or not files:
                 continue
 
@@ -430,17 +437,17 @@ class PlaylistService:
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error creating playlist from {path}: {str(e)}")
 
-    # === Méthodes de conversion ===
+    # === Conversion methods ===
 
     def to_model(self, playlist_data: Dict[str, Any]) -> Playlist:
         """
-        Convertit les données de playlist en objet modèle Playlist.
+        Convert playlist data to a Playlist model object.
 
         Args:
-            playlist_data: Données de playlist au format dictionnaire
+            playlist_data: Playlist data as a dictionary
 
         Returns:
-            Objet Playlist
+            Playlist object
         """
         tracks = []
         for track_data in playlist_data.get('tracks', []):
@@ -467,26 +474,30 @@ class PlaylistService:
 
     def from_model(self, playlist: Playlist) -> Dict[str, Any]:
         """
-        Convertit un objet modèle Playlist en dictionnaire.
+        Convert a Playlist model object to a dictionary for storage.
+
+        This function prepares a dictionary representation of the Playlist model,
+        suitable for saving to the database. It determines the playlist's
+        relative path and serializes all tracks.
 
         Args:
-            playlist: Objet Playlist
+            playlist: Playlist object
 
         Returns:
-            Dictionnaire représentant la playlist
+            Dictionary representing the playlist
         """
-        # Déterminer le chemin relatif par rapport au dossier d'uploads
+        # Compute the relative path for the playlist based on the first track's path; fallback to the playlist name if unavailable
         if playlist.tracks and playlist.tracks[0].path:
             folder_path = playlist.tracks[0].path.parent
             try:
                 rel_path = folder_path.relative_to(self.upload_folder.parent)
             except ValueError:
-                # En cas d'échec, utiliser le nom de la playlist comme chemin relatif
+                # If failed, use the playlist name as the relative path
                 rel_path = Path(Config().upload_folder) / playlist.name.lower().replace(' ', '_')
         else:
             rel_path = Path(Config().upload_folder) / playlist.name.lower().replace(' ', '_')
 
-        # Créer le dictionnaire de playlist
+        # Build the playlist dictionary to match the repository format
         playlist_data = {
             'id': playlist.id or str(uuid4()),
             'type': 'playlist',
@@ -497,7 +508,7 @@ class PlaylistService:
             'tracks': []
         }
 
-        # Ajouter les pistes
+        # Add all tracks from the Playlist model to the dictionary
         for track in playlist.tracks:
             track_data = {
                 'number': track.number,
@@ -511,3 +522,54 @@ class PlaylistService:
             playlist_data['tracks'].append(track_data)
 
         return playlist_data
+
+    def play_playlist_with_validation(self, playlist_data: Dict[str, Any], audio) -> bool:
+        """
+        Play a playlist using the audio player, with validation and metadata update.
+        Args:
+            playlist_data: Dictionary containing playlist data to play.
+            audio: Audio player instance.
+        Returns:
+            True if playback started successfully, False otherwise.
+        """
+        try:
+            playlist_obj = self.to_model(playlist_data)
+            if not playlist_obj.tracks:
+                logger.log(LogLevel.WARNING, f"No valid tracks in playlist: {playlist_data.get('title', playlist_data.get('id'))}")
+                return False
+            valid_tracks = [track for track in playlist_obj.tracks if track.path.exists()]
+            if not valid_tracks:
+                logger.log(LogLevel.WARNING, f"No accessible tracks in playlist: {playlist_data.get('title', playlist_data.get('id'))}")
+                return False
+            playlist_obj.tracks = valid_tracks
+            result = audio.set_playlist(playlist_obj)
+            if result:
+                logger.log(LogLevel.INFO, f"Started playlist: {playlist_obj.name} with {len(valid_tracks)} tracks")
+                self.repository.update_playlist(
+                    playlist_data['id'],
+                    {'last_played': time.strftime('%Y-%m-%dT%H:%M:%SZ')}
+                )
+                return True
+            else:
+                logger.log(LogLevel.WARNING, f"Failed to start playlist: {playlist_obj.name}")
+                return False
+        except Exception as e:
+            import traceback
+            logger.log(LogLevel.ERROR, f"Error playing playlist: {str(e)}")
+            logger.log(LogLevel.DEBUG, f"Playlist error details: {traceback.format_exc()}")
+            return False
+
+    def start_playlist(self, playlist_id: str, audio) -> bool:
+        """
+        Start playback of the specified playlist using the provided audio system, with validation.
+        Args:
+            playlist_id: ID of the playlist to play.
+            audio: Audio player instance.
+        Returns:
+            True if playback started successfully, False otherwise.
+        """
+        playlist_data = self.get_playlist_by_id(playlist_id)
+        if not playlist_data:
+            logger.log(LogLevel.WARNING, f"Playlist not found: {playlist_id}")
+            return False
+        return self.play_playlist_with_validation(playlist_data, audio)

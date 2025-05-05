@@ -1,84 +1,78 @@
-# app/src/core/playlist_controller.py
-
 import time
 import threading
-from pathlib import Path
+import traceback
+
 from typing import Optional, Dict, Any
 
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.module.audio_player.audio_player import AudioPlayer
-from app.src.module.audio_player.audio_hardware import AudioPlayerHardware
 from app.src.services.playlist_service import PlaylistService
-from app.src.model.playlist import Playlist
 from app.src.model.track import Track
-from app.src.config import Config
 
 logger = ImprovedLogger(__name__)
 
 class PlaylistController:
     """
-    Contrôleur pour gérer l'interaction entre les tags NFC et la lecture des playlists.
+    Controller to manage the interaction between NFC tags and playlist playback.
 
-    Cette classe fait le lien entre la détection des tags NFC et le système audio pour
-    jouer les playlists associées.
+    This class links NFC tag detection events to the audio system for playing associated playlists.
+    It ensures real-time response to tag scans and handles playback control logic.
     """
 
-    def __init__(self, audio_player: AudioPlayer, playlist_service: PlaylistService, config: Config):
+    def __init__(self, audio_player: AudioPlayer, playlist_service: PlaylistService):
         """
-        Initialise le contrôleur de playlists.
+        Initialize the playlist controller.
 
         Args:
-            audio_player: Interface du lecteur audio
-            playlist_service: Service de gestion des playlists
-            config: Configuration de l'application
+            audio_player (AudioPlayer): Audio player interface instance.
+            playlist_service (PlaylistService): Playlist management service instance.
         """
         self._audio = audio_player
         self._playlist_service = playlist_service
         self._current_tag = None
         self._tag_last_seen = 0
-        self._pause_threshold = 1.0  # secondes
+        self._pause_threshold = 1.0  # seconds before pausing after tag removal
         self._monitor_thread = None
         self._start_tag_monitor()
 
     def handle_tag_scanned(self, tag_uid: str) -> None:
         """
-        Gère un événement de scan de tag NFC.
+        Handle an NFC tag scan event.
 
         Args:
-            tag_uid: Identifiant unique du tag NFC scanné
+            tag_uid (str): Unique identifier of the scanned NFC tag.
         """
         try:
-            # Mettre à jour le timestamp de dernière détection
+            # Update the last seen timestamp for the tag
             self._tag_last_seen = time.time()
 
             if tag_uid != self._current_tag or (hasattr(self._audio, 'is_finished') and self._audio.is_finished()):
-                # Nouveau tag ou la playlist précédente est terminée
+                # New tag detected or previous playlist finished
                 self._current_tag = tag_uid
                 logger.log(LogLevel.INFO, f"Processing tag: {tag_uid}")
                 self._process_new_tag(tag_uid)
             elif not self._audio.is_playing and (not hasattr(self._audio, 'is_finished') or not self._audio.is_finished()):
-                # Même tag, mais lecture en pause - reprendre
+                # Same tag, but playback is paused - resume playback
                 self._audio.resume()
                 logger.log(LogLevel.INFO, f"Resumed playback for tag: {tag_uid}")
 
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error handling tag: {str(e)}")
-            import traceback
             logger.log(LogLevel.DEBUG, f"Tag handling error details: {traceback.format_exc()}")
 
     def _process_new_tag(self, tag_uid: str) -> None:
         """
-        Traite un nouveau tag NFC détecté.
+        Process a newly detected NFC tag.
 
         Args:
-            tag_uid: Identifiant unique du tag NFC
+            tag_uid (str): Unique identifier of the NFC tag.
         """
         try:
-            # Récupérer la playlist associée au tag
+            # Retrieve the playlist associated with the tag
             playlist_data = self._playlist_service.get_playlist_by_nfc_tag(tag_uid)
 
             if playlist_data:
-                # Jouer la playlist
+                # Play the playlist
                 self._play_playlist(playlist_data)
                 logger.log(LogLevel.INFO, f"Playing playlist for tag: {tag_uid}")
             else:
@@ -88,65 +82,29 @@ class PlaylistController:
 
     def _play_playlist(self, playlist_data: Dict[str, Any]) -> None:
         """
-        Joue une playlist.
-
+        Play a playlist using the audio player, with robust validation and metadata update.
         Args:
-            playlist_data: Données de la playlist à jouer
+            playlist_data (Dict[str, Any]): Dictionary containing playlist data to play.
         """
-        try:
-            # Convertir les données en objet modèle Playlist
-            playlist_obj = self._playlist_service.to_model(playlist_data)
+        success = self._playlist_service.play_playlist_with_validation(playlist_data, self._audio)
+        if not success:
+            logger.log(LogLevel.WARNING, f"Failed to start playlist: {playlist_data.get('title', playlist_data.get('id'))}")
 
-            # Vérifier que la playlist contient des pistes valides
-            if not playlist_obj.tracks:
-                logger.log(LogLevel.WARNING, f"No valid tracks in playlist: {playlist_data['title']}")
-                return
-
-            # Filtrer les pistes pour ne garder que celles dont le fichier existe
-            valid_tracks = [track for track in playlist_obj.tracks if track.exists]
-
-            if not valid_tracks:
-                logger.log(LogLevel.WARNING, f"No accessible tracks in playlist: {playlist_data['title']}")
-                return
-
-            # Mettre à jour la liste des pistes avec seulement les pistes valides
-            playlist_obj.tracks = valid_tracks
-
-            # Envoyer la playlist au lecteur audio
-            result = self._audio.set_playlist(playlist_obj)
-
-            if result:
-                logger.log(LogLevel.INFO, f"Started playlist: {playlist_obj.name} with {len(valid_tracks)} tracks")
-
-                # Mettre à jour la date de dernière lecture
-                self._playlist_service.repository.update_playlist(
-                    playlist_data['id'],
-                    {'last_played': time.strftime('%Y-%m-%dT%H:%M:%SZ')}
-                )
-            else:
-                logger.log(LogLevel.WARNING, f"Failed to start playlist: {playlist_obj.name}")
-
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error playing playlist: {str(e)}")
-            import traceback
-            logger.log(LogLevel.DEBUG, f"Playlist error details: {traceback.format_exc()}")
 
     def _start_tag_monitor(self) -> None:
         """
-        Démarre un thread de surveillance pour détecter le retrait des tags NFC.
+        Start a background thread to monitor NFC tag presence and automatically pause playback if the tag is removed.
         """
         def monitor_tags():
             while True:
                 try:
                     if self._current_tag and self._audio and self._audio.is_playing:
-                        # Si le tag n'a pas été vu récemment, mettre en pause
                         if time.time() - self._tag_last_seen > self._pause_threshold:
                             self._audio.pause()
                             logger.log(LogLevel.INFO, f"Paused playback for tag: {self._current_tag} (removed)")
                 except Exception as e:
                     logger.log(LogLevel.ERROR, f"Error in tag monitoring: {str(e)}")
 
-                # Attendre avant la prochaine vérification
                 time.sleep(0.2)
 
         self._monitor_thread = threading.Thread(target=monitor_tags)
@@ -156,17 +114,14 @@ class PlaylistController:
 
     def update_playback_status_callback(self, track: Optional[Track] = None, status: str = 'unknown') -> None:
         """
-        Callback pour les mises à jour de statut de lecture.
+        Callback for playback status updates. Should be called by the audio system when track playback status changes.
 
         Args:
-            track: Piste en cours de lecture
-            status: Statut de lecture (playing, paused, stopped)
+            track (Optional[Track]): The track currently playing.
+            status (str): Playback status. Expected values: 'playing', 'paused', 'stopped', etc.
         """
         if track and track.id and status == 'playing':
-            # Mettre à jour le compteur de lecture
             playlist_id = None
-
-            # Si la piste est dans la playlist actuelle, récupérer l'ID de la playlist
             if self._current_tag:
                 playlist_data = self._playlist_service.get_playlist_by_nfc_tag(self._current_tag)
                 if playlist_data:
