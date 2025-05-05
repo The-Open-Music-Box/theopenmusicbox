@@ -573,3 +573,25 @@ class PlaylistService:
             logger.log(LogLevel.WARNING, f"Playlist not found: {playlist_id}")
             return False
         return self.play_playlist_with_validation(playlist_data, audio)
+
+    def play_track(self, playlist_id: str, track_number: int, audio) -> bool:
+        """
+        Play a specific track from a playlist.
+        Args:
+            playlist_id: ID of the playlist
+            track_number: Track number to play
+            audio: Audio player instance
+        Returns:
+            True if playback started successfully, False otherwise.
+        """
+        playlist_data = self.get_playlist_by_id(playlist_id)
+        if not playlist_data or not playlist_data.get('tracks'):
+            logger.log(LogLevel.WARNING, f'Playlist or tracks not found for id: {playlist_id}')
+            return False
+        track = next((t for t in playlist_data['tracks'] if t['number'] == track_number), None)
+        if not track:
+            logger.log(LogLevel.WARNING, f'Track {track_number} not found in playlist {playlist_id}')
+            return False
+        audio.play_track(track_number)
+        # Optionnel: mettre à jour le play_counter ou autre info
+        return True

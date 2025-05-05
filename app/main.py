@@ -49,6 +49,9 @@ app.application = Application(container.config)
 # Register PlaylistRoutes
 PlaylistRoutes(app).register()
 
+# Register NFCRoutes
+from app.src.routes.nfc_routes import NFCRoutes
+NFCRoutes(app, container.nfc).register()
 
 # Init Socket.IO handlers (async)
 ws_handlers = WebSocketHandlersAsync(sio, app, container.nfc)
