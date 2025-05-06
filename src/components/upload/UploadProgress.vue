@@ -7,7 +7,7 @@
       ></div>
     </div>
     <div class="mt-6 hidden grid-cols-4 text-sm font-medium text-gray-600 sm:grid">
-      <div class="text-indigo-600">{{ $t('upload.copyingFiles') }}</div>
+      <div class="text-indigo-600">{{ t('upload.copyingFiles') }}</div>
     </div>
   </div>
 </template>
@@ -20,9 +20,9 @@
  * The component visually represents the upload progress as a percentage.
  */
 
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 defineProps<{
   /**

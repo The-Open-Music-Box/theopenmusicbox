@@ -32,10 +32,10 @@
  * Supports clickable links for email, phone, etc.
  */
 
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { colors } from '@theme/colors'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 interface ContactDetail {
   /** Type of contact detail (address, phone, email) */

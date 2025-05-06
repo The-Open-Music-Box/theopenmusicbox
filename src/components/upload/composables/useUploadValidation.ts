@@ -1,5 +1,5 @@
 import { ref } from 'vue'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 
 /**
  * UploadValidation Composable
@@ -8,7 +8,7 @@ import { i18n } from '@/i18n'
  * Checks file types, sizes, and other validation rules.
  */
 export function useUploadValidation() {
-  const { t } = i18n
+  const { t } = useI18n()
   const validationErrors = ref<string[]>([])
 
   /**

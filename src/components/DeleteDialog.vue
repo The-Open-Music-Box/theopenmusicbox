@@ -31,13 +31,13 @@
                 </div>
                 <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
                   <DialogTitle as="h3" class="text-base font-semibold leading-6 text-gray-900">
-                    {{ $t('track.delete.title') }}
+                    {{ t('track.delete.title') }}
                   </DialogTitle>
                   <div class="mt-2">
                     <p class="text-sm text-gray-500">
-                      {{ $t('track.delete.confirmation', {
-                        title: track?.title || $t('track.delete.untitled'),
-                        playlist: playlist?.title || $t('track.delete.unnamed')
+                      {{ t('track.delete.confirmation', {
+                        title: track?.title || t('track.delete.untitled'),
+                        playlist: playlist?.title || t('track.delete.unnamed')
                       }) }}
                     </p>
                   </div>
@@ -49,7 +49,7 @@
                   class="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
                   @click="confirmDeletion"
                 >
-                  {{ $t('common.delete') }}
+                  {{ t('common.delete') }}
                 </button>
                 <button
                   type="button"
@@ -57,7 +57,7 @@
                   @click="$emit('close')"
                   ref="cancelButtonRef"
                 >
-                  {{ $t('common.cancel') }}
+                  {{ t('common.cancel') }}
                 </button>
               </div>
             </DialogPanel>
@@ -79,9 +79,9 @@
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 import type { PlayList, Track } from './files/types'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 interface Props {
   /** Whether the dialog is open or closed */

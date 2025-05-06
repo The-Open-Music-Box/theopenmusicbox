@@ -3,6 +3,24 @@
  */
 
 export default {
+  contact: {
+    getInTouch: 'Get in touch',
+    firstName: 'First name',
+    lastName: 'Last name',
+    email: 'Email',
+    phone: 'Phone number',
+    message: 'Message',
+    send: 'Send message',
+    emailValue: 'hi@theopenmusicbox.com',
+    website: 'Website',
+    websiteUrl: 'theopenmusicbox.com',
+    bsky: 'Bluesky',
+    bskyUrl: 'bsky.app/profile/theopenmusicbox.com',
+    facebook: 'Facebook',
+    facebookUrl: 'facebook.com/theopenmusicbox',
+    github: 'GitHub',
+    githubUrl: 'github.com/The-Open-Music-Box/firmware',
+  },
   nfc: {
     NFC_OK: 'NFC reader ready',
     NFC_NOT_AVAILABLE: 'NFC reader not available',
@@ -71,16 +89,7 @@ export default {
     freeSpace: 'Free space',
     lastUpdate: 'Last update',
   },
-  contact: {
-    getInTouch: 'Get in touch',
-    firstName: 'First name',
-    lastName: 'Last name',
-    email: 'Email',
-    phone: 'Phone number',
-    message: 'Message',
-    sendMessage: 'Send message',
-    sending: 'Sending...',
-  },
+
   file: {
     listTitle: 'Audio Files List',
     associateTag: 'Associate tag',

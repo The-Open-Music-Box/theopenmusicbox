@@ -7,10 +7,10 @@
 import { ref } from 'vue'
 import type { PlayList, BaseContent } from '../types'
 import dataService from '../../../services/dataService'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 
 export function useFilesStore() {
-  const { t } = i18n
+  const { t } = useI18n()
   const playlists = ref<PlayList[]>([])
   const isLoading = ref(false)
   const error = ref<string | null>(null)

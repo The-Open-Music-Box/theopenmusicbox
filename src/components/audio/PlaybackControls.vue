@@ -5,7 +5,7 @@
       <button
         type="button"
         class="block"
-        :aria-label="$t('player.previous')"
+        :aria-label="t('player.previous')"
         @click="handlePrevious()"
       >
         <svg width="24" height="24" fill="none">
@@ -28,7 +28,7 @@
       </button>
       <button
         type="button"
-        :aria-label="$t('player.rewind')"
+        :aria-label="t('player.rewind')"
         @click="$emit('rewind')"
       >
         <svg width="24" height="24" fill="none">
@@ -53,7 +53,7 @@
     <button
       type="button"
       class="bg-white text-slate-900 dark:bg-slate-100 dark:text-slate-700 -my-2 mx-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full ring-1 ring-slate-900/5 shadow-md flex items-center justify-center"
-      :aria-label="$t('player.playPause')"
+      :aria-label="t('player.playPause')"
       @click="$emit('togglePlayPause')"
     >
       <svg v-if="isPlaying" width="30" height="32" fill="currentColor">
@@ -68,7 +68,7 @@
     <div class="flex items-center gap-x-0 sm:gap-x-6">
       <button
         type="button"
-        :aria-label="$t('player.skip')"
+        :aria-label="t('player.skip')"
         @click="$emit('skip')"
       >
         <svg width="24" height="24" fill="none">
@@ -91,7 +91,7 @@
       <button
         type="button"
         class="block"
-        :aria-label="$t('player.next')"
+        :aria-label="t('player.next')"
         @click="handleNext()"
       >
         <svg width="24" height="24" fill="none">
@@ -126,9 +126,9 @@
  * - Rewind/skip buttons
  */
 
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 defineProps<{
   /** Whether audio is currently playing */

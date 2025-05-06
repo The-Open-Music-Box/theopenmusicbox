@@ -12,8 +12,8 @@
         'disabled:opacity-50 disabled:cursor-not-allowed'
       ]"
     >
-      <span v-if="loading">{{ $t('contact.sending') }}</span>
-      <span v-else>{{ $t('contact.sendMessage') }}</span>
+      <span v-if="loading">{{ t('contact.sending') }}</span>
+      <span v-else>{{ t('contact.sendMessage') }}</span>
     </button>
   </div>
 </template>
@@ -26,10 +26,10 @@
  * Shows different text depending on loading state.
  */
 
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { colors } from '@theme/colors'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 defineProps<{
   /** Whether the form is currently submitting */

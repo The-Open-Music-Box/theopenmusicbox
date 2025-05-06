@@ -3,6 +3,24 @@
  */
 
 export default {
+  contact: {
+    getInTouch: 'Contactez-nous',
+    firstName: 'Prénom',
+    lastName: 'Nom',
+    email: 'Email',
+    phone: 'Numéro de téléphone',
+    message: 'Message',
+    send: 'Envoyer',
+    emailValue: 'hi@theopenmusicbox.com',
+    website: 'Site web',
+    websiteUrl: 'theopenmusicbox.com',
+    bsky: 'Bluesky',
+    bskyUrl: 'bsky.app/profile/theopenmusicbox.com',
+    facebook: 'Facebook',
+    facebookUrl: 'facebook.com/theopenmusicbox',
+    github: 'GitHub',
+    githubUrl: 'github.com/The-Open-Music-Box/firmware',
+  },
   nfc: {
     NFC_OK: 'Lecteur NFC prêt',
     NFC_NOT_AVAILABLE: 'Lecteur NFC non disponible',
@@ -70,16 +88,7 @@ export default {
     freeSpace: 'Espace libre',
     lastUpdate: 'Dernière mise à jour',
   },
-  contact: {
-    getInTouch: 'Contactez-nous',
-    firstName: 'Prénom',
-    lastName: 'Nom',
-    email: 'Email',
-    phone: 'Numéro de téléphone',
-    message: 'Message',
-    sendMessage: 'Envoyer le message',
-    sending: 'Envoi en cours...',
-  },
+
   file: {
     listTitle: 'Liste des fichiers audio',
     associateTag: 'Associer un tag',

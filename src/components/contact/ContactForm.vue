@@ -23,9 +23,9 @@
 import { ref, reactive } from 'vue'
 import FormField from './FormField.vue'
 import SubmitButton from './SubmitButton.vue'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 interface ContactFormInput {
   id: string;  // Changed from keyof FormData to string

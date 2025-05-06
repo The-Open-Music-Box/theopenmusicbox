@@ -50,7 +50,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import socketService from '@/services/socketService'
 import axios from 'axios'
 
@@ -63,7 +63,7 @@ const emit = defineEmits(['close', 'success'])
 const state = ref<'idle' | 'waiting' | 'success' | 'already_linked' | 'error' | 'hardware_error' | 'cancelled' | 'nfc_unavailable'>('idle')
 const errorMsg = ref<string | null>(null)
 
-const t = i18n.t
+const { t } = useI18n()
 
 // Socket.IO event handlers
 function setupSocketHandlers() {

@@ -9,11 +9,11 @@
         'focus-visible:outline-' + colors.primary.main,
       ]"
     >
-      {{ $t('file.associateTag') }}
+      {{ t('file.associateTag') }}
     </button>
     <Menu as="div" class="relative flex-none">
       <MenuButton :class="[colors.text.secondary, '-m-2.5 block p-2.5 hover:' + colors.text.primary]">
-        <span class="sr-only">{{ $t('file.openOptions') }}</span>
+        <span class="sr-only">{{ t('file.openOptions') }}</span>
         <EllipsisVerticalIcon class="h-5 w-5" aria-hidden="true" />
       </MenuButton>
       <MenuItems>
@@ -21,7 +21,7 @@
           <button @click="handleDelete"
             :class="[active ? 'bg-gray-50' : '', 'block w-full text-left px-3 py-1 text-sm leading-6 ' + colors.text.primary]"
           >
-            {{ $t('common.delete') }}<span class="sr-only">, {{ file.name }}</span>
+            {{ t('common.delete') }}<span class="sr-only">, {{ file.name }}</span>
           </button>
         </MenuItem>
       </MenuItems>
@@ -41,10 +41,10 @@ import { Menu, MenuButton, MenuItem, MenuItems } from '@headlessui/vue'
 import { EllipsisVerticalIcon } from '@heroicons/vue/20/solid'
 import type { LegacyAudioFile } from './types'
 import { useFileDialog } from './composables/useFileDialog'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { colors } from '@theme/colors'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 const props = defineProps<{
   /** The file to provide actions for */

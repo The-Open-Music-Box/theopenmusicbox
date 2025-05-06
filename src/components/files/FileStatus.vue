@@ -1,6 +1,6 @@
 <template>
   <p :class="[STATUS_CLASSES[status], 'rounded-md whitespace-nowrap mt-0.5 px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset']">
-    {{ $t(`file.status.${status}`) }}
+    {{ t(`file.status.${status}`) }}
   </p>
 </template>
 
@@ -13,9 +13,9 @@
  */
 
 import { FileStatus, STATUS_CLASSES } from './types'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 defineProps<{
   /** The status of the file */

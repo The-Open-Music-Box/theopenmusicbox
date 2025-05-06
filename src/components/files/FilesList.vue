@@ -16,7 +16,7 @@
         <div>
           <h3 :class="[colors.text.white, 'text-lg font-medium']">{{ playlist.title }}</h3>
           <p class="text-sm text-gray-400">
-            {{ playlist.tracks.length }} {{ $t('file.tracks') }} • {{ $t('file.lastPlayed') }}: {{ new Date(playlist.last_played).toLocaleDateString() }}
+            {{ playlist.tracks.length }} {{ t('file.openOptions') }} • {{ t('file.listTitle') }}: {{ new Date(playlist.last_played).toLocaleDateString() }}
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -27,7 +27,7 @@
               'ml-1 p-2 rounded-full focus:outline-none focus:ring-2',
               playlist.nfc_tag_id ? 'bg-green-500 hover:bg-green-600 focus:ring-green-400' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-400'
             ]"
-            :title="playlist.nfc_tag_id ? ($t('common.nfcLinkedTooltip') || 'Tag NFC associé à cette playlist') : ($t('common.linkNfc') || 'Associer un tag NFC')"
+            :title="playlist.nfc_tag_id ? t('common.nfcLinkedTooltip') || 'Tag NFC associé à cette playlist' : t('common.linkNfc') || 'Associer un tag NFC'"
             type="button"
           >
             <svg v-if="playlist.nfc_tag_id" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -82,7 +82,7 @@
               <span :class="[colors.secondary.main]">{{ formatDuration(track.duration) }}</span>
               <button @click.stop="$emit('deleteTrack', { playlistId: playlist.id, trackNumber: track.number })"
                       class="text-gray-400 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100">
-                <span class="sr-only">{{ $t('common.delete') }}</span>
+                <span class="sr-only">{{ t('common.delete') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                         d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -107,11 +107,11 @@
 
 import { ref } from 'vue'
 import type { PlayList, Track } from '../files/types'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { colors } from '@theme/colors'
 import NfcAssociateDialog from './NfcAssociateDialog.vue'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 defineProps<{
   playlists: PlayList[];

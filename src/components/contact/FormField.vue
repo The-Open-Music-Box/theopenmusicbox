@@ -1,7 +1,7 @@
 <template>
   <div :class="[field.colSpan === 2 ? 'sm:col-span-2' : '']">
     <label :for="field.id" :class="[colors.text.primary, 'block text-sm font-semibold leading-6']">
-      {{ $t(`contact.${field.id}`) }}
+      {{ t(`contact.${field.id}`) }}
     </label>
     <div class="mt-2.5">
       <textarea
@@ -35,16 +35,16 @@
  * Handles user input events and applies consistent styling.
  */
 
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { colors } from '@theme/colors'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 interface Field {
   /** Unique identifier for the field */
   id: string;
   /** Label text for the field */
-  label: string;
+  label: string; // Not used for translation, translation uses id
   /** Input type (text, email, textarea, etc.) */
   type: string;
   /** HTML autocomplete attribute */

@@ -2,7 +2,7 @@
   <div class="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">
     <BackgroundDecoration />
     <h2 :class="[colors.text.primary, 'text-3xl font-bold tracking-tight']">
-      {{ $t('contact.getInTouch') }}
+      {{ t('contact.getInTouch') }}
     </h2>
     <p :class="[colors.text.secondary, 'mt-6 text-lg leading-8']">
       {{ description }}
@@ -19,11 +19,10 @@
  * Includes background decorations and detailed contact options.
  */
 import BackgroundDecoration from './BackgroundDecoration.vue'
+import { useI18n } from 'vue-i18n'
+const { t } = useI18n()
 import ContactDetails from './ContactDetails.vue'
-import { i18n } from '@/i18n'
 import { colors } from '@theme/colors'
-
-const { t: $t } = i18n
 
 /**
  * Descriptive text for contact section

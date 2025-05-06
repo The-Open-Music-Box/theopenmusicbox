@@ -3,7 +3,7 @@
     <!-- General Information -->
     <div>
       <h3 class="text-base font-semibold leading-6 text-gray-900">
-        {{ $t('stats.generalInfo') }}
+        {{ t('stats.generalInfo') }}
       </h3>
       <dl class="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-3">
         <div
@@ -12,7 +12,7 @@
           class="overflow-hidden rounded-lg bg-white px-4 py-5 shadow sm:p-6"
         >
           <dt class="truncate text-sm font-medium text-gray-500">
-            {{ $t(`stats.${item.name}`) }}
+            {{ t(`stats.${item.name}`) }}
           </dt>
           <dd class="mt-1 text-3xl font-semibold tracking-tight text-gray-900">
             {{ item.stat }}
@@ -25,7 +25,7 @@
     <div>
       <div class="flex items-center justify-between">
         <h3 class="text-base font-semibold leading-6 text-gray-900">
-          {{ $t('stats.systemStatus') }}
+          {{ t('stats.systemStatus') }}
         </h3>
         <span
           :class="[
@@ -61,13 +61,13 @@
           </div>
           <div class="p-4">
             <p class="text-xs text-gray-500">
-              {{ $t('stats.lastUpdate') }}: {{ formatTimestamp(component.timestamp) }}
+              {{ t('stats.lastUpdate') }}: {{ formatTimestamp(component.timestamp) }}
             </p>
           </div>
         </div>
       </div>
       <div v-else class="mt-5 text-center text-gray-500">
-        {{ $t('stats.noComponents') }}
+        {{ t('stats.noComponents') }}
       </div>
     </div>
   </div>
@@ -82,10 +82,10 @@
  */
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import dataService from '../services/dataService'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { colors } from '@theme/colors'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 const stats = ref([
   { name: 'battery', stat: '71%' },

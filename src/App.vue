@@ -9,14 +9,14 @@
       :class="[colors.error.background, colors.error.border, colors.error.text, 'px-4 py-3 rounded relative']"
       role="alert"
     >
-      <strong class="font-bold">{{ $t('common.socketError') }}</strong>
-      <span class="block sm:inline"> {{ $t('common.fallbackToMock') }}</span>
+      <strong class="font-bold">{{ t('common.socketError') }}</strong>
+      <span class="block sm:inline"> {{ t('common.fallbackToMock') }}</span>
     </div>
     <button
       @click="sendMessage"
       :class="[colors.primary.main, 'mt-4 px-4 py-2 text-white rounded hover:' + colors.primary.hover]"
     >
-      {{ $t('common.sendMessage') }}
+      {{ t('common.sendMessage') }}
     </button>
   </div>
 </template>
@@ -30,10 +30,10 @@
  */
 import HeaderNavigation from './components/HeaderNavigation.vue'
 import { onMounted, onUnmounted, ref, getCurrentInstance } from 'vue'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { colors } from '@/theme/colors'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 const { proxy } = getCurrentInstance()
 const socketError = ref(false)
 

@@ -1,7 +1,7 @@
 <template>
   <div>
     <!-- Loading and error states -->
-    <div v-if="isLoading" :class="[colors.text.secondary, 'py-4']">{{ $t('common.loading') }}</div>
+    <div v-if="isLoading" :class="[colors.text.secondary, 'py-4']">{{ t('common.loading') }}</div>
     <div v-if="error" :class="[colors.error.main, 'py-2']">{{ error }}</div>
 
     <template v-if="!isLoading && !error">
@@ -37,10 +37,10 @@ import FilesListHeader from './FilesListHeader.vue'
 import FilesList from './FilesList.vue'
 import DeleteDialog from '../DeleteDialog.vue'
 import type { PlayList, Track } from '../files/types'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 import { colors } from '@theme/colors'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 const props = defineProps<{
   /** Currently selected track, if any */

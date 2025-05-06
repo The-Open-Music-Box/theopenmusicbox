@@ -22,7 +22,7 @@
                   ]"
                   :aria-current="item.current ? 'page' : undefined"
                 >
-                  {{ $t(`navigation.${item.key}`) }}
+                  {{ t(`navigation.${item.key}`) }}
                 </router-link>
               </div>
             </div>
@@ -55,7 +55,7 @@
           ]"
           :aria-current="item.current ? 'page' : undefined"
         >
-          {{ $t(`navigation.${item.key}`) }}
+          {{ t(`navigation.${item.key}`) }}
         </router-link>
       </div>
     </DisclosurePanel>
@@ -72,9 +72,9 @@
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { Bars3Icon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { ref } from 'vue'
-import { i18n } from '@/i18n'
+import { useI18n } from 'vue-i18n'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 // Navigation items configuration
 const navigation = ref([
