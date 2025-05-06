@@ -81,7 +81,7 @@ const navigation = ref([
   { name: 'Home', key: 'home', href: '/', current: true },
   { name: 'About', key: 'about', href: '/about', current: false },
   { name: 'Contact', key: 'contact', href: '/contact', current: false },
-  { name: 'Upload', key: 'upload', href: '/upload', current: false },
+  { name: 'Settings', key: 'settings', href: '/settings', current: false },
 ])
 </script>
 

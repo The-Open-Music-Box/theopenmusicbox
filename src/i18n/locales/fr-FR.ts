@@ -3,6 +3,20 @@
  */
 
 export default {
+  navigation: {
+    home: 'Accueil',
+    about: 'À propos',
+    contact: 'Contact',
+    settings: 'Réglages',
+  },
+  settings: {
+    title: 'Réglages',
+    language: 'Langue',
+    locales: {
+      'en-US': 'Anglais',
+      'fr-FR': 'Français',
+    },
+  },
   contact: {
     getInTouch: 'Contactez-nous',
     firstName: 'Prénom',
@@ -73,13 +87,7 @@ export default {
     skip: 'Avancer de 10 secondes',
     playPause: 'Lecture/Pause',
   },
-  navigation: {
-    home: 'Accueil',
-    about: 'À propos',
-    contact: 'Contact',
-    upload: 'Téléverser',
-    library: 'Bibliothèque',
-  },
+
   stats: {
     generalInfo: 'Informations Générales',
     systemStatus: 'État du Système',

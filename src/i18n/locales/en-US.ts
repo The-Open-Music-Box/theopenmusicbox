@@ -3,6 +3,20 @@
  */
 
 export default {
+  navigation: {
+    home: 'Home',
+    about: 'About',
+    contact: 'Contact',
+    settings: 'Settings',
+  },
+  settings: {
+    title: 'Settings',
+    language: 'Language',
+    locales: {
+      'en-US': 'English',
+      'fr-FR': 'French',
+    },
+  },
   contact: {
     getInTouch: 'Get in touch',
     firstName: 'First name',
@@ -74,13 +88,7 @@ export default {
     skip: 'Skip 10 seconds',
     playPause: 'Play/Pause',
   },
-  navigation: {
-    home: 'Home',
-    about: 'About',
-    contact: 'Contact',
-    upload: 'Upload',
-    library: 'Library',
-  },
+
   stats: {
     generalInfo: 'General Information',
     systemStatus: 'System Status',
