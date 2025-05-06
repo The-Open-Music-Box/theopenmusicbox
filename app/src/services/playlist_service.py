@@ -177,15 +177,19 @@ class PlaylistService:
                 'tracks': []
             }
 
-            # Iterate through the audio files and create tracks
+            # Use UploadService to extract metadata for each audio file
+            from app.src.services.upload_service import UploadService
+            upload_service = UploadService(str(self.upload_folder))
+
             for i, file_path in enumerate(sorted(audio_files), 1):
+                metadata = upload_service._extract_metadata(file_path)
                 track = {
                     'number': i,
-                    'title': file_path.stem,
+                    'title': metadata.get('title', file_path.stem),
                     'filename': file_path.name,
-                    'duration': '',
-                    'artist': 'Unknown',
-                    'album': 'Unknown',
+                    'duration': metadata.get('duration', 0),
+                    'artist': metadata.get('artist', 'Unknown'),
+                    'album': metadata.get('album', 'Unknown'),
                     'play_counter': 0
                 }
                 playlist_data['tracks'].append(track)
