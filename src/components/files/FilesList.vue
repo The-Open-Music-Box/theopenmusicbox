@@ -16,7 +16,7 @@
         <div>
           <h3 :class="[colors.text.white, 'text-lg font-medium']">{{ playlist.title }}</h3>
           <p class="text-sm text-gray-400">
-            {{ playlist.tracks.length }} {{ t('file.openOptions') }} • {{ t('file.listTitle') }}: {{ new Date(playlist.last_played).toLocaleDateString() }}
+            {{ playlist.tracks.length }} tracks • Total Duration: {{ formatTotalDuration(playlist.tracks) }} • Last Played: {{ playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Never' }}
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -160,5 +160,29 @@ function formatDuration(duration: string): string {
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
   return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+}
+
+/**
+ * Computes and formats the total duration of all tracks in a playlist.
+ * @param {Track[]} tracks
+ * @returns {string} Formatted total duration (e.g., 1h12m or MM:SS)
+ */
+function formatTotalDuration(tracks: Track[]): string {
+  if (!tracks || tracks.length === 0) return '00:00'
+  let totalSeconds = 0
+  for (const track of tracks) {
+    // Accept both string and number durations
+    const sec = typeof track.duration === 'number' ? track.duration : parseInt(track.duration)
+    if (!isNaN(sec) && sec > 0) totalSeconds += sec
+  }
+  if (totalSeconds === 0) return '00:00'
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+  if (hours > 0) {
+    return `${hours}h${minutes.toString().padStart(2, '0')}m`
+  } else {
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  }
 }
 </script>
