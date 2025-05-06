@@ -29,8 +29,12 @@
         <button class="btn-secondary mt-2 w-full" @click="handleCancel">Annuler</button>
       </div>
       <div v-else-if="state === 'hardware_error'">
-        <p class="text-red-600 font-medium">Erreur matérielle avec le lecteur NFC : {{ errorMsg || 'Veuillez vérifier la connexion du lecteur NFC.' }}</p>
+        <p class="text-red-600 font-medium">Erreur matérielle avec le lecteur NFC : {{ t('nfc.' + (errorMsg || 'NFC_NOT_AVAILABLE')) }}</p>
         <button class="btn-secondary mt-4 w-full" @click="handleCancel">Fermer</button>
+      </div>
+      <div v-else-if="state === 'nfc_unavailable'">
+        <p class="text-red-600 font-medium">{{ t('nfc.' + (errorMsg || 'NFC_NOT_AVAILABLE')) }}</p>
+        <button class="btn-secondary mt-4 w-full" @click="handleClose">Fermer</button>
       </div>
       <div v-else-if="state === 'error'">
         <p class="text-red-600 font-medium">Erreur lors de l'association du tag NFC.</p>
@@ -46,6 +50,7 @@
 
 <script setup lang="ts">
 import { ref, watch, onUnmounted } from 'vue'
+import { i18n } from '@/i18n'
 import socketService from '@/services/socketService'
 import axios from 'axios'
 
@@ -55,8 +60,10 @@ const props = defineProps<{
 }>()
 const emit = defineEmits(['close', 'success'])
 
-const state = ref<'idle' | 'waiting' | 'success' | 'already_linked' | 'error' | 'hardware_error' | 'cancelled'>('idle')
+const state = ref<'idle' | 'waiting' | 'success' | 'already_linked' | 'error' | 'hardware_error' | 'cancelled' | 'nfc_unavailable'>('idle')
 const errorMsg = ref<string | null>(null)
+
+const t = i18n.t
 
 // Socket.IO event handlers
 function setupSocketHandlers() {
@@ -74,8 +81,22 @@ function cleanupSocketHandlers() {
   socketService.off('nfc_cancelled')
 }
 
-watch(() => props.open, (newVal) => {
+watch(() => props.open, async (newVal) => {
   if (newVal) {
+    // Vérifie le statut NFC au chargement du popup
+    try {
+      const res = await axios.get('/health')
+      if (res.data?.nfc && res.data.nfc.available === false) {
+        state.value = 'nfc_unavailable'
+        errorMsg.value = res.data.nfc.code
+        return
+      }
+    } catch (e) {
+      // Si l'appel health échoue, fallback sur erreur hardware
+      state.value = 'hardware_error'
+      errorMsg.value = 'NFC_NOT_AVAILABLE'
+      return
+    }
     state.value = 'idle'
     setupSocketHandlers()
   } else {

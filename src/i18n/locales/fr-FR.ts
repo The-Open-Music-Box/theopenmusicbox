@@ -3,6 +3,10 @@
  */
 
 export default {
+  nfc: {
+    NFC_OK: 'Lecteur NFC prêt',
+    NFC_NOT_AVAILABLE: 'Lecteur NFC non disponible',
+  },
   common: {
     link: 'Lier',
     loading: 'Chargement...',

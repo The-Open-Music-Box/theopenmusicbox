@@ -3,6 +3,10 @@
  */
 
 export default {
+  nfc: {
+    NFC_OK: 'NFC reader ready',
+    NFC_NOT_AVAILABLE: 'NFC reader not available',
+  },
   welcome: 'Welcome',
   common: {
     link: 'Link',
