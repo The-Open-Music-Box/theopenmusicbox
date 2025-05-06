@@ -21,6 +21,17 @@ class ContainerAsync:
         self._playlist_service = PlaylistService(config)
         self._audio = get_audio_player(self._playback_subject)
 
+        # --- NFC handler initialization ---
+        try:
+            from app.src.module.nfc.nfc_factory import get_nfc_handler
+            from gevent.lock import Semaphore
+            bus_lock = Semaphore()
+            self._nfc = get_nfc_handler(bus_lock)
+            logger.log(LogLevel.INFO, f"NFC handler initialized: {type(self._nfc).__name__}")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Could not initialize NFC handler: {e}")
+            self._nfc = None
+
     @property
     def config(self):
         return self._config

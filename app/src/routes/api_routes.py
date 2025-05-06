@@ -27,7 +27,7 @@ class APIRoutes:
 
         # Initialisation des routes
         self.web_routes = WebRoutes(app)
-        self.nfc_routes = NFCRoutes(app, nfc_service)
+        self.nfc_routes = NFCRoutes(app, socketio, nfc_service)
         self.youtube_routes = YouTubeRoutes(app, socketio)
         self.websocket_handlers = WebSocketHandlersAsync(socketio, app, nfc_service)
         self.playlist_routes = PlaylistRoutes(app)

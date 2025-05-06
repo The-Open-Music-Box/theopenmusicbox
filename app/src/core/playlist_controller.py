@@ -43,6 +43,7 @@ class PlaylistController:
             tag_uid (str): Unique identifier of the scanned NFC tag.
         """
         try:
+            logger.log(LogLevel.INFO, f"[NFC] Tag detected: {tag_uid}")
             # Update the last seen timestamp for the tag
             self._tag_last_seen = time.time()
 

@@ -11,8 +11,9 @@ def get_nfc_service(request: Request) -> NFCService:
     return request.app.container.nfc
 
 class NFCRoutes:
-    def __init__(self, app, nfc_service: NFCService):
+    def __init__(self, app, socketio, nfc_service: NFCService):
         self.app = app
+        self.socketio = socketio
         self.nfc_service = nfc_service
         self.router = APIRouter(prefix="/api/nfc", tags=["nfc"])
         self._register_routes()
@@ -21,60 +22,75 @@ class NFCRoutes:
         self.app.include_router(self.router)
 
     def _register_routes(self):
-        @self.router.post("/associate/initiate")
-        async def initiate_nfc_association(request: Request, nfc_service: NFCService = Depends(get_nfc_service)):
-            """Initiate NFC association for a playlist (activate NFC reader)"""
+        @self.router.post("/observe")
+        async def observe_nfc(request: Request, config=Depends(get_config), nfc_service: NFCService = Depends(get_nfc_service)):
+            """Start NFC observation for a playlist (wait for tag)"""
             try:
                 data = await request.json()
-                playlist_id = data.get('playlist_id') if data else None
+                playlist_id = data.get('playlist_id')
                 if not playlist_id:
                     return JSONResponse({'error': 'playlist_id is required'}, status_code=400)
-                started = nfc_service.start_association_mode(playlist_id)
-                if not started:
-                    return JSONResponse({'error': 'NFC association already in progress'}, status_code=409)
-                return JSONResponse({'status': 'association_initiated', 'playlist_id': playlist_id}, status_code=200)
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error initiating NFC association: {str(e)}")
-                return JSONResponse({'error': str(e)}, status_code=500)
-
-        @self.router.post("/associate/complete")
-        async def complete_nfc_association(request: Request, nfc_service: NFCService = Depends(get_nfc_service)):
-            """Complete association after tag scan (called by NFC service or frontend when tag is read)"""
-            try:
-                data = await request.json()
-                playlist_id = data.get('playlist_id') if data else None
-                tag_id = data.get('nfc_tag') if data else None
-                if not playlist_id or not tag_id:
-                    return JSONResponse({'error': 'playlist_id and nfc_tag are required'}, status_code=400)
-                result = nfc_service.complete_association(playlist_id, tag_id)
-                if result == 'already_associated':
-                    return JSONResponse({'error': 'NFC tag already associated'}, status_code=409)
-                if result == 'playlist_not_found':
+                playlist_service = PlaylistService(config)
+                playlist = playlist_service.get_playlist_by_id(playlist_id)
+                if not playlist:
                     return JSONResponse({'error': 'Playlist not found'}, status_code=404)
-                if result == 'success':
-                    return JSONResponse({'status': 'association_complete', 'playlist_id': playlist_id, 'nfc_tag': tag_id}, status_code=200)
-                return JSONResponse({'error': 'Failed to associate tag'}, status_code=500)
+                nfc_service.start_nfc_reader()  # Association playlist/tag à gérer dans la logique métier
+                # Notifie le front via Socket.IO
+                await self.socketio.emit('nfc_waiting', {'playlist_id': playlist_id})
+                return JSONResponse({'status': 'waiting_for_tag', 'playlist_id': playlist_id}, status_code=200)
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error completing NFC association: {str(e)}")
+                logger.log(LogLevel.ERROR, f"Error starting NFC observation: {str(e)}")
                 return JSONResponse({'error': str(e)}, status_code=500)
 
-        @self.router.post("/disassociate")
-        async def disassociate_nfc_tag(request: Request, nfc_service: NFCService = Depends(get_nfc_service)):
-            """Disassociate an NFC tag from a playlist"""
+        @self.router.post("/link")
+        async def link_nfc_tag(request: Request, config=Depends(get_config), nfc_service: NFCService = Depends(get_nfc_service)):
+            """Associate an NFC tag to a playlist (with override option)"""
             try:
                 data = await request.json()
-                playlist_id = data.get('playlist_id') if data else None
-                tag_id = data.get('nfc_tag') if data else None
+                playlist_id = data.get('playlist_id')
+                tag_id = data.get('tag_id')
+                override = data.get('override', False)
                 if not playlist_id or not tag_id:
-                    return JSONResponse({'error': 'playlist_id and nfc_tag are required'}, status_code=400)
-                result = nfc_service.disassociate_tag(playlist_id, tag_id)
-                if result == 'not_associated':
-                    return JSONResponse({'error': 'Tag not associated with playlist'}, status_code=404)
-                if result == 'success':
-                    return JSONResponse({'status': 'disassociated', 'playlist_id': playlist_id, 'nfc_tag': tag_id}, status_code=200)
-                return JSONResponse({'error': 'Failed to disassociate tag'}, status_code=500)
+                    return JSONResponse({'error': 'playlist_id and tag_id are required'}, status_code=400)
+                playlist_service = PlaylistService(config)
+                # Vérifie si le tag est déjà associé à une playlist
+                existing_playlist = playlist_service.get_playlist_by_nfc_tag(tag_id)
+                if existing_playlist:
+                    if existing_playlist['id'] == playlist_id:
+                        await self.socketio.emit('nfc_link_success', {'playlist_id': playlist_id, 'tag_id': tag_id})
+                        return JSONResponse({'status': 'already_linked', 'playlist_id': playlist_id, 'tag_id': tag_id}, status_code=200)
+                    if not override:
+                        await self.socketio.emit('nfc_tag_already_linked', {
+                            'tag_id': tag_id,
+                            'playlist_id': existing_playlist['id'],
+                            'playlist_title': existing_playlist.get('title', '')
+                        })
+                        return JSONResponse({'error': 'Tag already associated', 'playlist_id': existing_playlist['id'], 'playlist_title': existing_playlist.get('title', '')}, status_code=409)
+                    # Override demandé : désassocier puis associer atomiquement
+                    playlist_service.disassociate_nfc_tag(existing_playlist['id'])
+                # Associe le tag à la nouvelle playlist
+                success = playlist_service.associate_nfc_tag(playlist_id, tag_id)
+                if success:
+                    await self.socketio.emit('nfc_link_success', {'playlist_id': playlist_id, 'tag_id': tag_id})
+                    return JSONResponse({'status': 'association_complete', 'playlist_id': playlist_id, 'tag_id': tag_id}, status_code=200)
+                else:
+                    await self.socketio.emit('nfc_link_error', {'error': 'Failed to associate tag'})
+                    return JSONResponse({'error': 'Failed to associate tag'}, status_code=500)
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"NFC tag dissociation error: {str(e)}")
+                logger.log(LogLevel.ERROR, f"Error associating NFC tag: {str(e)}")
+                await self.socketio.emit('nfc_link_error', {'error': str(e)})
+                return JSONResponse({'error': str(e)}, status_code=500)
+
+        @self.router.post("/cancel")
+        async def cancel_nfc_observation(request: Request, nfc_service: NFCService = Depends(get_nfc_service)):
+            """Cancel NFC observation (by user or timeout)"""
+            try:
+                nfc_service.stop_listening()
+                await self.socketio.emit('nfc_cancelled', {})
+                return JSONResponse({'status': 'cancelled'}, status_code=200)
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error cancelling NFC observation: {str(e)}")
+                await self.socketio.emit('nfc_link_error', {'error': str(e)})
                 return JSONResponse({'error': str(e)}, status_code=500)
 
         @self.router.get("/status")
@@ -98,9 +114,7 @@ class NFCRoutes:
                 playlist = playlist_service.get_playlist_by_id(playlist_id)
                 if not playlist:
                     return JSONResponse({'status': 'error', 'message': 'Playlist not found'}, status_code=404)
-                playlists = playlist_service.get_all_playlists()
-                nfc_service.load_mapping(playlists)
-                nfc_service.start_listening(playlist_id)
+                nfc_service.start_nfc_reader()  # Association playlist/tag à gérer dans la logique métier
                 return JSONResponse({'status': 'success', 'message': 'NFC listening started'}, status_code=200)
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error starting NFC listening: {str(e)}")

@@ -46,12 +46,22 @@ container = ContainerAsync(env_config)
 app.container = container
 app.application = Application(container.config)
 
+# --- NFC tag event subscription ---
+if container.nfc is not None:
+    def on_tag(tag_data):
+        try:
+            app.application._handle_tag_scanned(tag_data)
+        except Exception as e:
+            import traceback
+            print(f"[NFC] Error routing tag event: {e}\n{traceback.format_exc()}")
+    container.nfc.tag_subject.subscribe(on_tag)
+
 # Register PlaylistRoutes
 PlaylistRoutes(app).register()
 
 # Register NFCRoutes
 from app.src.routes.nfc_routes import NFCRoutes
-NFCRoutes(app, container.nfc).register()
+NFCRoutes(app, sio, container.nfc).register()
 
 # Init Socket.IO handlers (async)
 ws_handlers = WebSocketHandlersAsync(sio, app, container.nfc)

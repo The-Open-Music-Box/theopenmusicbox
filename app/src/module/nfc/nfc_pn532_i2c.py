@@ -1,6 +1,7 @@
 from typing import Optional
 from gevent import sleep
-from gevent import spawn, Event
+from gevent import spawn
+from gevent.event import Event
 spawn_n = spawn
 from gevent.lock import Semaphore
 import board
