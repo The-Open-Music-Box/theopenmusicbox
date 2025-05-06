@@ -7,17 +7,14 @@
 import axios, { AxiosError, InternalAxiosRequestConfig, AxiosResponse, AxiosProgressEvent } from 'axios'
 
 const apiBaseUrl = process.env.VUE_APP_API_URL;
-const apiPort = process.env.VUE_APP_SRVE_PORT;
-
-const fullApiUrl = `${apiBaseUrl}:${apiPort}`;
-console.log('Full API URL with port:', fullApiUrl);
+console.log('API base URL:', apiBaseUrl);
 
 /**
  * Configured axios instance for making API requests
  * Includes base URL, timeout settings, and default headers
  */
 const apiClient = axios.create({
-  baseURL: fullApiUrl,
+  baseURL: apiBaseUrl,
   timeout: 60000,
   headers: {
     Accept: 'application/json',
@@ -546,7 +543,7 @@ class RealApiService {
    * @returns URL string for downloading the file
    */
   downloadFileUrl(fileId: number): string {
-    return `${fullApiUrl}/api/files/${fileId}/download`;
+    return `${apiBaseUrl}/api/files/${fileId}/download`;
   }
 
 

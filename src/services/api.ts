@@ -7,13 +7,12 @@ import axios, { AxiosProgressEvent, AxiosRequestConfig } from 'axios'
 import config from '../config'
 
 const apiUrl = process.env.VUE_APP_API_URL;
-const apiPort = process.env.VUE_APP_SRVE_PORT;
 
 /**
  * Axios instance configured with base URL, timeout and credentials settings
  */
 const apiClient = axios.create({
-  baseURL: `${apiUrl}:${apiPort}`,
+  baseURL: apiUrl,
   timeout: config.api.timeout,
   withCredentials: config.api.withCredentials,
   headers: {

@@ -20,13 +20,22 @@
           </p>
         </div>
         <div class="flex items-center gap-2">
-        <button
-            @click.stop="onPlaylistAction(playlist.id)"
-            class="ml-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded shadow focus:outline-none focus:ring-2 focus:ring-blue-400"
+
+          <button
+            @click.stop="openNfcDialog(playlist.id)"
+            :class="[
+              'ml-1 p-2 rounded-full focus:outline-none focus:ring-2',
+              playlist.nfc_tag_id ? 'bg-green-500 hover:bg-green-600 focus:ring-green-400' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-400'
+            ]"
+            :title="playlist.nfc_tag_id ? ($t('common.nfcLinkedTooltip') || 'Tag NFC associé à cette playlist') : ($t('common.linkNfc') || 'Associer un tag NFC')"
             type="button"
-            :title="$t('common.linkNfcTooltip') || 'Associate an NFC tag with a selected playlist for quick access.'"
           >
-            {{$t('common.link') || 'Link'}}
+            <svg v-if="playlist.nfc_tag_id" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+            <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17V7a5 5 0 00-10 0v10a5 5 0 0010 0zm-5 2a2 2 0 002-2H9a2 2 0 002 2z" />
+            </svg>
           </button>
           <span class="text-gray-400">
             <svg
@@ -84,32 +93,13 @@
         </div>
       </transition>
     </div>
-  </div>
-  <!-- NFC Link Dialog -->
-  <div v-if="showNfcDialog" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-    <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-      <h2 class="text-lg font-semibold mb-4 text-gray-900 flex items-center">
-        <svg class="w-5 h-5 mr-2 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m4 4h1a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v7a2 2 0 002 2h1" /></svg>
-        {{ $t('common.linkNfcTitle') || 'Associate NFC Tag' }}
-      </h2>
-      <div v-if="!nfcLinked && !nfcError" class="flex flex-col items-center">
-        <span class="mb-2 text-gray-700">{{$t('common.awaitingNfc') || 'Awaiting NFC tag...'}} </span>
-        <svg class="animate-spin h-8 w-8 text-blue-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-        </svg>
-      </div>
-      <div v-if="nfcLinked" class="flex flex-col items-center">
-        <span class="mb-2 text-green-700 font-semibold">{{$t('common.nfcLinkedMsg') || 'NFC tag successfully linked to playlist!'}} </span>
-        <svg class="h-8 w-8 text-green-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
-      </div>
-      <div v-if="nfcError" class="flex flex-col items-center">
-        <span class="mb-2 text-red-700 font-semibold">{{$t('common.nfcLinkError') || 'Failed to link NFC tag.'}} </span>
-      </div>
-      <div class="flex justify-end space-x-2 mt-6">
-        <button @click="closeNfcDialog" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">{{ $t('common.close') || 'Close' }}</button>
-      </div>
-    </div>
+    <!-- NFC Association Dialog -->
+    <NfcAssociateDialog
+      :open="showNfcDialog"
+      :playlistId="selectedPlaylistId"
+      @success="$emit('refreshPlaylists')"
+      @close="showNfcDialog = false"
+    />
   </div>
 </template>
 
@@ -119,7 +109,7 @@ import { ref } from 'vue'
 import type { PlayList, Track } from '../files/types'
 import { i18n } from '@/i18n'
 import { colors } from '@theme/colors'
-import socketService from '@/services/socketService'
+import NfcAssociateDialog from './NfcAssociateDialog.vue'
 
 const { t: $t } = i18n
 
@@ -129,54 +119,19 @@ defineProps<{
   selectedTrack?: Track | null;
 }>()
 
-defineEmits<{
-  (e: 'deleteTrack', data: { playlistId: string, trackNumber: number }): void;
-  (e: 'select-track', data: { track: Track, playlist: PlayList }): void;
-}>()
 
 const openPlaylists = ref<string[]>([])
 
 // NFC dialog state and logic
 const showNfcDialog = ref(false)
 const selectedPlaylistId = ref<string | null>(null)
-const nfcLinked = ref(false)
-const nfcError = ref(false)
-// Use ReturnType<typeof window["io"]> if available, otherwise fallback to 'any'.
-// socketService will be used for all NFC socket actions
 
-function onPlaylistAction(id: string) {
-  console.log('[FilesList] Link button clicked for playlist:', id)
+function openNfcDialog(id: string) {
   selectedPlaylistId.value = id
   showNfcDialog.value = true
-  nfcLinked.value = false
-  nfcError.value = false
-  startNfcAssociation(id)
 }
 
-function closeNfcDialog() {
-  console.log('[FilesList] NFC dialog closed')
-  showNfcDialog.value = false
-  selectedPlaylistId.value = null
-  nfcLinked.value = false
-  nfcError.value = false
-  // Nettoie les listeners NFC
-  socketService.off('nfc_linked')
-  socketService.off('nfc_error')
-}
 
-function startNfcAssociation(playlistId: string) {
-  console.log('[FilesList] Starting NFC association for playlist:', playlistId)
-  // Utilise socketService pour la communication NFC
-  socketService.emit('start_nfc_link', { playlist_id: playlistId })
-  socketService.on('nfc_linked', () => {
-    console.log('[FilesList] NFC tag successfully linked to playlist:', playlistId)
-    nfcLinked.value = true;
-  })
-  socketService.on('nfc_error', (err: unknown) => {
-    console.error('[FilesList] NFC link error:', err)
-    nfcError.value = true;
-  })
-}
 
 
 

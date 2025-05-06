@@ -11,6 +11,7 @@
         :selectedTrack="selectedTrack"
         @deleteTrack="handleDeleteTrack"
         @select-track="handleSelectTrack"
+        @refreshPlaylists="loadPlaylists"
       />
       <DeleteDialog
         :open="showDeleteDialog"

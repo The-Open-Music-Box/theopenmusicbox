@@ -57,6 +57,7 @@ export interface PlayList extends BaseContent {
   last_played: number; // Unix timestamp in milliseconds
   tracks: Track[];
   created_at?: string;
+  nfc_tag_id?: string; // NFC tag association (optionnel)
 }
 
 /**

@@ -16,9 +16,10 @@ class RealSocketService {
    */
   constructor() {
     const serverUrl = process.env.VUE_APP_API_URL;
-    const serverPort = process.env.VUE_APP_SRVE_PORT;
-
-    const socketUrl = `${serverUrl}:${serverPort}`;
+    const socketUrl = serverUrl ?? '';
+    if (!socketUrl) {
+      throw new Error('VUE_APP_API_URL is not defined: cannot connect to socket server');
+    }
     console.log('Connecting to socket server at:', socketUrl);
 
     this.socket = io(socketUrl, {
