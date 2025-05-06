@@ -23,7 +23,11 @@ app = FastAPI(lifespan=lifespan)
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    nfc_status = {
+        "available": app.container.nfc is not None,
+        "code": "NFC_OK" if app.container.nfc is not None else "NFC_NOT_AVAILABLE"
+    }
+    return {"status": "ok", "nfc": nfc_status}
 
 
 # CORS
