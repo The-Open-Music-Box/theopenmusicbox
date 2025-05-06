@@ -7,11 +7,11 @@
     </div>
 
     <!-- Playlists list -->
-    <div v-for="playlist in playlists" :key="playlist.id" class="bg-gray-800 rounded-lg overflow-hidden">
+    <div v-for="playlist in playlists" :key="playlist.id" :class="[`bg-${colors.background.main}`, `border border-${colors.border.main}`, 'rounded-lg overflow-hidden shadow-sm']">
       <!-- Playlist header (always visible) -->
       <div
         @click="togglePlaylist(playlist.id)"
-        class="px-4 py-3 cursor-pointer hover:bg-gray-700 transition-colors flex justify-between items-center"
+        :class="[`px-4 py-3 cursor-pointer transition-colors flex justify-between items-center`, `hover:bg-${colors.background.light}`]"
       >
         <div>
           <h3 :class="[colors.text.white, 'text-lg font-medium']">{{ playlist.title }}</h3>
@@ -61,10 +61,10 @@
         leave-from-class="max-h-[1000px] opacity-100"
         leave-to-class="max-h-0 opacity-0"
       >
-        <div v-show="openPlaylists.includes(playlist.id)" class="divide-y divide-gray-700 overflow-hidden">
+        <div v-show="openPlaylists.includes(playlist.id)" :class="[`divide-y divide-${colors.border.main}`, 'overflow-hidden']">
           <div v-for="track in playlist.tracks" :key="track.number"
                @click="$emit('select-track', { track, playlist })"
-               class="px-4 py-3 flex items-center justify-between hover:bg-gray-700 cursor-pointer group">
+               :class="['px-4 py-3 flex items-center justify-between cursor-pointer group', `hover:bg-${colors.background.light}`]">
             <div class="flex items-center space-x-3">
               <div class="w-8 flex items-center justify-center">
                 <span v-if="selectedTrack?.number !== track.number" :class="[colors.secondary.main]">{{ track.number }}</span>
@@ -74,7 +74,6 @@
               </div>
               <div>
                 <p :class="[colors.text.white, 'font-medium']">{{ track.title }}</p>
-                <p class="text-sm text-gray-400">{{ track.filename }}</p>
               </div>
             </div>
 
@@ -104,11 +103,11 @@
 </template>
 
 <script setup lang="ts">
+import { colors } from '@/theme/colors'
 
 import { ref } from 'vue'
 import type { PlayList, Track } from '../files/types'
 import { useI18n } from 'vue-i18n'
-import { colors } from '@theme/colors'
 import NfcAssociateDialog from './NfcAssociateDialog.vue'
 
 const { t } = useI18n()

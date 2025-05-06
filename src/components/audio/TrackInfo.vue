@@ -1,16 +1,17 @@
 <template>
   <div class="flex flex-col items-center space-y-2">
-    <h2 class="text-xl font-semibold text-gray-900 dark:text-white">
+    <h2 :class="['text-xl font-semibold', colors.text.primary]">
       {{ track?.title || t('audio.noTrackSelected') }}
     </h2>
     <!-- Nom de fichier masqué -->
-    <div class="flex items-center space-x-4 text-sm text-gray-500 dark:text-gray-400">
+    <div :class="['flex items-center space-x-4 text-sm', colors.text.secondary]">
       <span>{{ t('audio.duration') }}: {{ track ? formatDuration(track.duration) : '00:00' }}</span>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import { colors } from '@/theme/colors'
 /**
  * TrackInfo Component
  *

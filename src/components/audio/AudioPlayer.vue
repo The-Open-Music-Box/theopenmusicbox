@@ -1,13 +1,13 @@
 <template>
   <div class="w-full max-w-xl mx-auto">
-    <div class="bg-white border-slate-100 dark:bg-slate-800 dark:border-slate-500 border-b rounded-t-xl p-4 pb-6 sm:p-10 sm:pb-8 lg:p-6 xl:p-10 xl:pb-8 space-y-6 sm:space-y-8 lg:space-y-6 xl:space-y-8 items-center">
+    <div :class="[`bg-${colors.background.main}`, `border-${colors.border.main}`, 'border-b rounded-t-xl p-4 pb-6 sm:p-10 sm:pb-8 lg:p-6 xl:p-10 xl:pb-8 space-y-6 sm:space-y-8 lg:space-y-6 xl:space-y-8 items-center']">
       <TrackInfo :track="currentTrack || undefined" />
       <ProgressBar
         :currentTime="currentTime"
         :duration="duration"
       />
     </div>
-    <div class="bg-slate-50 text-slate-500 dark:bg-slate-600 dark:text-slate-200 rounded-b-xl flex items-center justify-center w-full">
+    <div :class="[`bg-${colors.background.light}`, `text-${colors.text.secondary}`, 'rounded-b-xl flex items-center justify-center w-full']">
       <div class="w-full max-w-[380px] mx-auto flex justify-center">
         <PlaybackControls
           :isPlaying="isPlaying"
@@ -23,6 +23,7 @@
 </template>
 
 <script setup lang="ts">
+import { colors } from '@/theme/colors'
 /**
  * AudioPlayer Component
  *

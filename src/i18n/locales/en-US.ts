@@ -18,6 +18,7 @@ export default {
     },
   },
   contact: {
+    welcomeMsg: "We are happy to see you here, and would love to hear from you! Don’t hesitate to join us or reach out on our social networks.",
     getInTouch: 'Get in touch',
     firstName: 'First name',
     lastName: 'Last name',

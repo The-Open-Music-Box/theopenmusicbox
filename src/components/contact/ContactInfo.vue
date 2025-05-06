@@ -1,6 +1,8 @@
 <template>
-  <div class="mx-auto max-w-xl lg:mx-0 lg:max-w-lg">
-    <BackgroundDecoration />
+  <div class="flex justify-center items-center min-h-[60vh] py-8">
+  <div class="w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-lg p-8 relative">
+    <BackgroundDecoration class="absolute inset-0 pointer-events-none z-0" />
+    
     <h2 :class="[colors.text.primary, 'text-3xl font-bold tracking-tight']">
       {{ t('contact.getInTouch') }}
     </h2>
@@ -9,6 +11,8 @@
     </p>
     <ContactDetails :details="contactDetails" />
   </div>
+    </div>
+</div>
 </template>
 
 <script setup lang="ts">

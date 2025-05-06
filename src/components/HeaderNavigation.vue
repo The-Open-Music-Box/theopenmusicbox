@@ -1,5 +1,5 @@
 <template>
-  <Disclosure as="nav" class="bg-gray-800" v-slot="{ open }">
+  <Disclosure as="nav" :class="`bg-${colors.background.main}`" v-slot="{ open }">
     <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
       <div class="border-b border-gray-700">
         <div class="flex h-16 items-center justify-between px-4 sm:px-0">
@@ -15,9 +15,11 @@
                   :key="item.name"
                   :to="item.href"
                   :class="[
-                    item.current
-                      ? 'bg-gray-900 text-white'
-                      : 'text-gray-300 hover:bg-gray-700 hover:text-white',
+                    item.current && item.key === 'home'
+                      ? 'bg-gray-100 text-gray-900'
+                      : item.current
+                        ? `bg-${colors.primary.main} text-${colors.text.white}`
+                        : `text-${colors.text.primary} hover:bg-${colors.primary.light} hover:text-${colors.text.primary}`,
                     'rounded-md px-3 py-2 text-sm font-medium',
                   ]"
                   :aria-current="item.current ? 'page' : undefined"
@@ -70,6 +72,7 @@
  * Provides responsive navigation menu with mobile support.
  */
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
+import { colors } from '@/theme/colors'
 import { Bars3Icon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'

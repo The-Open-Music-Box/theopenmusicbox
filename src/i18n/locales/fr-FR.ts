@@ -18,6 +18,7 @@ export default {
     },
   },
   contact: {
+    welcomeMsg: "Nous sommes ravis de vous accueillir ici et serions heureux d'avoir de vos nouvelles ! N'hésitez pas à nous rejoindre ou à nous écrire sur nos réseaux sociaux.",
     getInTouch: 'Contactez-nous',
     firstName: 'Prénom',
     lastName: 'Nom',
