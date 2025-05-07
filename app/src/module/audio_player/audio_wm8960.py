@@ -41,10 +41,34 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Failed to initialize audio system: {str(e)}")
             raise AppError.hardware_error(
-    message=f"Audio initialization failed: {str(e)}",
-    component="audio",
-    operation="init"
-)
+                message=f"Audio initialization failed: {str(e)}",
+                component="audio",
+                operation="init"
+            )
+    
+    @property
+    def is_playing(self):
+        """Check if the player is currently playing audio.
+        
+        Returns:
+            bool: True if audio is playing, False otherwise.
+        """
+        return self._is_playing
+        
+    def is_finished(self):
+        """Check if the current playlist has finished playing.
+        
+        Returns:
+            bool: True if the playlist has finished, False otherwise.
+        """
+        if self._playlist is None or self._current_track is None:
+            return True
+            
+        # Si nous sommes à la dernière piste et qu'elle est terminée
+        if pygame.mixer.music.get_busy() == 0 and self._current_track.number == len(self._playlist.tracks):
+            return True
+            
+        return False
 
     def play_track(self, track_number: int) -> bool:
         """Play a specific track from the playlist"""
@@ -262,10 +286,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         """(Private) Return current volume (not part of Protocol)"""
         return self._volume
 
-    @property
-    def is_playing(self) -> bool:
-        """Return True if currently playing (not part of Protocol)"""
-        return self._is_playing
+    # Propriété is_playing déjà définie plus haut - cette duplication est supprimée
 
     def _setup_event_handler(self):
         """Set up event handler"""
@@ -310,9 +331,25 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             return
 
         try:
+            # On vérifie si la lecture est active via pygame
             busy = pygame.mixer.music.get_busy()
-            elapsed = time.time() - self._stream_start_time
+            
+            # Si l'état interne indique 'playing' mais pygame dit que c'est arrêté, alors c'est une erreur
+            if self._is_playing and not busy and pygame.mixer.get_init():
+                logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] Audio state mismatch: _is_playing=True but pygame says it's not busy")
+                # Ne pas envoyer de mise à jour dans ce cas pour éviter les timecodes contradictoires
+                return
+                
+            # Calcul du temps écoulé depuis le début de la lecture
+            elapsed = time.time() - self._stream_start_time if self._stream_start_time > 0 else 0
             total = self._get_track_duration(self._current_track.path)
+            
+            # Éviter les valeurs négatives ou supérieures à la durée totale
+            if elapsed < 0:
+                elapsed = 0
+            if total > 0 and elapsed > total:
+                elapsed = total
+            
             track_info = {
                 'number': self._current_track.number,
                 'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
@@ -321,16 +358,23 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             }
             playlist_info = self._playlist.to_dict() if self._playlist and hasattr(self._playlist, 'to_dict') else None
 
-            # Publish progress information without logging details
-            self._playback_subject.notify_track_progress(
-                elapsed=elapsed,
-                total=total,
-                track_number=track_info.get('number'),
-                track_info=track_info,
-                playlist_info=playlist_info,
-                is_playing=self._is_playing
-            )
-            logger.log(LogLevel.INFO, f"[UPDATE_PROGRESS] notify_track_progress called (elapsed={elapsed:.2f} / {total:.2f})")
+            # N'envoyer la mise à jour que si nous sommes en mode lecture
+            # pour éviter les conflits de timecode multiples
+            if self._is_playing:
+                self._playback_subject.notify_track_progress(
+                    elapsed=elapsed,
+                    total=total,
+                    track_number=track_info.get('number'),
+                    track_info=track_info,
+                    playlist_info=playlist_info,
+                    is_playing=self._is_playing
+                )
+                
+                # Ne pas logger toutes les mises à jour pour éviter de surcharger les logs
+                # Logger uniquement toutes les 10 secondes ou à des moments clés
+                if int(elapsed) % 10 == 0 or int(elapsed) == 0 or int(elapsed) == int(total):
+                    logger.log(LogLevel.INFO, f"[UPDATE_PROGRESS] notify_track_progress called (elapsed={elapsed:.2f} / {total:.2f})")
+            
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error updating progress: {str(e)}")
 

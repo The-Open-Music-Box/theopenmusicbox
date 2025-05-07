@@ -22,12 +22,9 @@ class ContainerAsync:
         self._playback_subject = PlaybackSubject()
         self._playlist_service = PlaylistService(config)
         self._audio = get_audio_player(self._playback_subject)
-
-        # --- NFC handler initialization ---
-    # Cette initialisation sera effectuée de manière asynchrone 
-    # dans initialize_async() car elle utilise des coroutines
-        self._nfc_handler = None
-        self._nfc_service = NFCService(None)  # SocketIO will be set later
+        self._init_socketio = None  # Will be set before async initialization
+        
+        # NFC service will be properly initialized in initialize_async()
 
     @property
     def config(self):
@@ -40,6 +37,10 @@ class ContainerAsync:
     @property
     def nfc(self):
         return self._nfc_service
+        
+    def set_init_socketio(self, socketio):
+        """Store the Socket.IO reference for initialization"""
+        self._init_socketio = socketio
         
     def set_socketio(self, socketio):
         """Update the NFCService with the Socket.IO instance"""
@@ -65,19 +66,27 @@ class ContainerAsync:
             from app.src.module.nfc.nfc_factory import get_nfc_handler
             import asyncio
             
-            # Créer un lock asyncio pour le bus I2C
+            # Create a lock asyncio for the I2C bus
             bus_lock = asyncio.Lock()
             
-            # Obtenir le handler NFC via la factory
+            # Get the NFC handler via the factory
             self._nfc_handler = await get_nfc_handler(bus_lock)
             
-            # Créer le service NFC avec le handler
-            self._nfc_service = NFCService(None, self._nfc_handler)  # SocketIO will be set later
+            # Create the NFC service with the handler and with playlist controller
+            # It will be linked with the playlist controller in Application._setup_nfc
+            self._nfc_service = NFCService(
+                socketio=None,  # Will be set by main.py's set_socketio call
+                nfc_handler=self._nfc_handler
+            )
             
-            # Démarrer le reader NFC
+            # Start the NFC reader
             await self._nfc_handler.start_nfc_reader()
             
-            logger.log(LogLevel.INFO, f"NFC handler initialized and started: {type(self._nfc_handler).__name__}")
+            # Load playlists into the NFC service
+            playlists = self._playlist_service.get_all_playlists(page=1, page_size=1000)
+            self._nfc_service.load_mapping(playlists)
+            
+            logger.log(LogLevel.INFO, f"NFC handler and service fully initialized: {type(self._nfc_handler).__name__}")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Could not initialize NFC handler: {e}")
             import traceback

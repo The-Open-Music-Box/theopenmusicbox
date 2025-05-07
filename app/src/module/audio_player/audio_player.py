@@ -107,4 +107,29 @@ class AudioPlayer(Generic[T]):
         Returns True if the track was played successfully, False otherwise.
         """
         return self._hardware.play_track(track_number)
+        
+    @property
+    def is_playing(self) -> bool:
+        """
+        Check if the player is currently playing audio.
+        Delegates to the hardware implementation.
+        Returns True if audio is playing, False otherwise.
+        """
+        if hasattr(self._hardware, 'is_playing'):
+            return self._hardware.is_playing
+        elif hasattr(self._hardware, '_is_playing'):
+            return self._hardware._is_playing
+        return False
+        
+    def is_finished(self) -> bool:
+        """
+        Check if the current playlist has finished playing.
+        Delegates to the hardware implementation if available.
+        Returns True if the playlist has finished, False otherwise.
+        """
+        if hasattr(self._hardware, 'is_finished'):
+            return self._hardware.is_finished()
+        elif hasattr(self._hardware, '_is_finished') and callable(self._hardware._is_finished):
+            return self._hardware._is_finished()
+        return False
 

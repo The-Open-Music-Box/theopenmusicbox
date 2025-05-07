@@ -1,4 +1,4 @@
-from flask import request, current_app
+from flask import request
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
@@ -25,36 +25,100 @@ class WebSocketHandlers:
                     self.app.container.playback_subject.progress_stream.subscribe(handle_track_progress)
                 else:
                     logger.log(LogLevel.WARNING, "No playback subject available for subscription")
-            except Exception as e:
+            except (RuntimeError, ConnectionError, TimeoutError) as e:
                 logger.log(LogLevel.ERROR, f"Error setting up progress subscription: {str(e)}")
 
     def register(self):
         @self.socketio.on('start_nfc_link')
-        def handle_start_nfc_link(data):
+        async def handle_start_nfc_link(data):
             sid = request.sid
             playlist_id = data.get('playlist_id') if data else None
+            
+            # Validate playlist_id
             if not playlist_id:
-                self.socketio.emit('nfc_error', {'message': 'playlist_id missing'}, room=sid)
+                await self.socketio.emit('nfc_error', {
+                    'message': 'playlist_id missing',
+                    'type': 'error'
+                }, room=sid)
                 return
+                
+            # Check if already listening
             try:
                 if self.nfc_service.is_listening():
-                    self.socketio.emit('nfc_error', {'message': 'NFC already listening'}, room=sid)
+                    await self.socketio.emit('nfc_error', {
+                        'message': 'NFC already listening for another request',
+                        'type': 'error'
+                    }, room=sid)
                     return
-                # Start listening for NFC tag for the playlist
-                self.nfc_service.start_listening(playlist_id)
-                self.socketio.emit('nfc_status', {'status': 'waiting'}, room=sid)
-                # Patch: Register a callback for tag detection (mock or real)
-                # For demo, simulate immediate tag detection
-                # In real use, NFCService should call this when tag is detected
-                def on_tag_detected():
-                    self.socketio.emit('nfc_linked', {'playlist_id': playlist_id}, room=sid)
-                # You must wire this to your NFCService logic, e.g.:
-                # self.nfc_service.set_tag_detected_callback(on_tag_detected)
-                # For now, simulate after a short delay
-                import threading
-                threading.Timer(2.0, on_tag_detected).start()
-            except Exception as e:
-                self.socketio.emit('nfc_error', {'message': str(e)}, room=sid)
+                    
+                # Start listening for NFC tag with the sid for directing callbacks
+                await self.nfc_service.start_listening(playlist_id, sid)
+                
+                # Initial status update
+                await self.socketio.emit('nfc_status', {
+                    'type': 'nfc_status',
+                    'status': 'waiting',
+                    'message': 'Waiting for NFC tag...',
+                    'playlist_id': playlist_id
+                }, room=sid)
+                
+            except (RuntimeError, ConnectionError, TimeoutError) as e:
+                logger.log(LogLevel.ERROR, f"Error in start_nfc_link: {str(e)}")
+                await self.socketio.emit('nfc_error', {
+                    'message': str(e),
+                    'type': 'error'
+                }, room=sid)
+                
+        @self.socketio.on('stop_nfc_link')
+        async def handle_stop_nfc_link():
+            sid = request.sid
+            try:
+                if self.nfc_service.is_listening():
+                    await self.nfc_service.stop_listening()
+                    await self.socketio.emit('nfc_status', {
+                        'type': 'nfc_status',
+                        'status': 'stopped',
+                        'message': 'NFC tag association stopped by user'
+                    }, room=sid)
+                else:
+                    await self.socketio.emit('nfc_status', {
+                        'type': 'nfc_status',
+                        'status': 'not_listening',
+                        'message': 'No active NFC tag association to stop'
+                    }, room=sid)
+            except (RuntimeError, ConnectionError, TimeoutError) as e:
+                logger.log(LogLevel.ERROR, f"Error in stop_nfc_link: {str(e)}")
+                await self.socketio.emit('nfc_error', {
+                    'message': str(e),
+                    'type': 'error'
+                }, room=sid)
+                
+        @self.socketio.on('override_nfc_tag')
+        async def handle_override_tag():
+            sid = request.sid
+            try:
+                if not self.nfc_service.is_listening():
+                    await self.socketio.emit('nfc_error', {
+                        'message': 'Not in NFC association mode',
+                        'type': 'error'
+                    }, room=sid)
+                    return
+                    
+                # Set override mode to true and process last tag again
+                await self.nfc_service.set_override_mode(True)
+                
+                await self.socketio.emit('nfc_status', {
+                    'type': 'nfc_status',
+                    'status': 'override_mode',
+                    'message': 'Override mode enabled. Processing tag...'
+                }, room=sid)
+                
+            except (RuntimeError, ConnectionError, TimeoutError) as e:
+                logger.log(LogLevel.ERROR, f"Error in override_nfc_tag: {str(e)}")
+                await self.socketio.emit('nfc_error', {
+                    'message': str(e),
+                    'type': 'error'
+                }, room=sid)
 
         @self.socketio.on('connect')
         def handle_connect():

@@ -4,10 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.src.config import config_singleton
 from app.src.core.container_async import ContainerAsync
 from app.src.core.application import Application
-from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
 from app.src.routes.playlist_routes import PlaylistRoutes
-from app.src.routes.nfc_routes import NFCRoutes
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+
+# NFCRoutes and WebSocketHandlersAsync imported inside lifespan to avoid circular references
 
 logger = ImprovedLogger(__name__)
 
@@ -22,35 +22,48 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(fastapi_app):
     try:
-        # Initialisation asynchrone des ressources
+        # Async resource initialization
         await container.initialize_async()
-        fastapi_app.container = container  # Assigner le conteneur à l'app
+        fastapi_app.container = container  # Assign container to app
         
-        # Créer et initialiser l'application de manière asynchrone
+        # Create and initialize the application asynchronously
         app_instance = Application(container.config)
         fastapi_app.application = await app_instance.initialize_async()
     
-        # Setup Socket.IO for the NFC service
+        # Now that container.nfc is initialized, set up the WebSocket handlers and routes
         if container.nfc is not None:
+            # Setup Socket.IO for the NFC service
             container.set_socketio(sio)  # Pass socketio to NFCService
-    
-        # --- NFC tag event subscription ---
-        if container.nfc is not None:
+            
+            # Register NFCRoutes after NFC service is initialized
+            from app.src.routes.nfc_routes import NFCRoutes
+            NFCRoutes(fastapi_app, sio, container.nfc).register()
+            
+            # Initialize WebSocket handlers with the fully initialized NFC service
+            from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
+            ws_handlers = WebSocketHandlersAsync(sio, fastapi_app, container.nfc)
+            ws_handlers.register()
+            
+            # Set up NFC tag event subscription
             def on_tag(tag_data):
                 try:
-                    fastapi_app.application.handle_tag_scanned(tag_data)  # Utiliser la méthode publique
+                    fastapi_app.application.handle_tag_scanned(tag_data)  # Use public method
                 except ValueError as e:
                     import traceback
                     logger.log(LogLevel.ERROR, f"[NFC] Error routing tag event: {e}\n{traceback.format_exc()}")
             container.nfc.tag_subject.subscribe(on_tag)
+            
+            logger.log(LogLevel.INFO, "NFC service, routes, and WebSocket handlers initialized successfully")
+        else:
+            logger.log(LogLevel.WARNING, "No NFC service available - WebSocket handlers initialized without NFC support")
         
-        yield  # Attendre la fin de l'application
+        yield  # Wait for application to finish
     except Exception as e:
         import traceback
         print(f"Error during startup: {e}\n{traceback.format_exc()}")
         raise
     finally:
-        # Nettoyage quand l'application s'arrête
+        # Cleanup when application stops
         await container.cleanup_async()
 
 # FastAPI app
@@ -80,15 +93,9 @@ app.add_middleware(
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=cors_origins)
 app_sio = socketio.ASGIApp(sio, other_asgi_app=app)
 
-# L'initialisation NFC est maintenant gérée dans le lifespan asynchrone
-
-# Register PlaylistRoutes
+# Register PlaylistRoutes - these don't depend on async initialization
 PlaylistRoutes(app).register()
 
-# Register NFCRoutes
-NFCRoutes(app, sio, container.nfc).register()  # container.nfc now returns NFCService with NFCHandler injected
-
-# Init Socket.IO handlers (async)
-ws_handlers = WebSocketHandlersAsync(sio, app, container.nfc)
-ws_handlers.register()
+# Set the SocketIO reference on the container for use in lifespan
+container.set_init_socketio(sio)
 

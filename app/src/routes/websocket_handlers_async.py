@@ -104,19 +104,80 @@ class WebSocketHandlersAsync:
         async def handle_start_nfc_link(sid, data):
             playlist_id = data.get('playlist_id') if data else None
             if not playlist_id:
-                await self.sio.emit('nfc_error', {'message': 'playlist_id missing'}, room=sid)
+                await self.sio.emit('nfc_error', {
+                    'type': 'error',
+                    'message': 'playlist_id missing'
+                }, room=sid)
                 return
+                
+            logger.log(LogLevel.INFO, f"[SOCKET.IO] start_nfc_link received for playlist: {playlist_id}")
+            
             try:
                 if self.nfc_service.is_listening():
-                    await self.sio.emit('nfc_error', {'message': 'NFC already listening'}, room=sid)
+                    await self.sio.emit('nfc_error', {
+                        'type': 'error',
+                        'message': 'NFC already in association mode for another request'
+                    }, room=sid)
                     return
-                self.nfc_service.start_listening(playlist_id)
-                await self.sio.emit('nfc_status', {'status': 'waiting'}, room=sid)
-                # Simulate NFC detection (replace with real callback in prod)
-                import asyncio
-                async def on_tag_detected():
-                    await asyncio.sleep(2)
-                    await self.sio.emit('nfc_linked', {'playlist_id': playlist_id}, room=sid)
-                self.sio.start_background_task(on_tag_detected)
+                    
+                # Start the association process
+                await self.nfc_service.start_listening(playlist_id, sid)
+                logger.log(LogLevel.INFO, f"[SOCKET.IO] NFC association mode started for playlist: {playlist_id}")
+                
+                # No need to send status here, the NFC service will emit appropriate events
+                
             except Exception as e:
-                await self.sio.emit('nfc_error', {'message': str(e)}, room=sid)
+                logger.log(LogLevel.ERROR, f"[SOCKET.IO] Error in start_nfc_link: {str(e)}")
+                await self.sio.emit('nfc_error', {
+                    'type': 'error',
+                    'message': str(e)
+                }, room=sid)
+                
+        @self.sio.on('stop_nfc_link')
+        async def handle_stop_nfc_link(sid, data):
+            logger.log(LogLevel.INFO, f"[SOCKET.IO] stop_nfc_link received from client: {sid}")
+            
+            try:
+                if not self.nfc_service.is_listening():
+                    await self.sio.emit('nfc_status', {
+                        'type': 'nfc_status',
+                        'status': 'not_listening',
+                        'message': 'No active NFC association to stop'
+                    }, room=sid)
+                    return
+                    
+                # Stop the association process
+                await self.nfc_service.stop_listening()
+                logger.log(LogLevel.INFO, f"[SOCKET.IO] NFC association stopped by client: {sid}")
+                
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"[SOCKET.IO] Error in stop_nfc_link: {str(e)}")
+                await self.sio.emit('nfc_error', {
+                    'type': 'error',
+                    'message': str(e)
+                }, room=sid)
+                
+        @self.sio.on('override_nfc_tag')
+        async def handle_override_tag(sid):
+            logger.log(LogLevel.INFO, f"[SOCKET.IO] override_nfc_tag received from client: {sid}")
+            
+            try:
+                if not self.nfc_service.is_listening():
+                    await self.sio.emit('nfc_error', {
+                        'type': 'error',
+                        'message': 'Not in NFC association mode'
+                    }, room=sid)
+                    return
+                    
+                # Enable override mode and process last tag again
+                await self.nfc_service.set_override_mode(True)
+                logger.log(LogLevel.INFO, f"[SOCKET.IO] Override mode enabled for client: {sid}")
+                
+                # NFC service will emit appropriate status updates as it processes the override
+                
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"[SOCKET.IO] Error in override_nfc_tag: {str(e)}")
+                await self.sio.emit('nfc_error', {
+                    'type': 'error',
+                    'message': str(e)
+                }, room=sid)
