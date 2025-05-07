@@ -23,6 +23,9 @@ class Application:
             config: Configuration object
         """
         self._config = config
+        self._nfc_service = None
+        self._nfc_handler = None
+        self._nfc_lock = None
 
         # Initialize playlist service with configuration
         self._playlists = PlaylistService(self._config)
@@ -36,12 +39,18 @@ class Application:
             self._playlists
         )
 
-        # Set up peripherals (async-compatible)
-        self._setup_led()
-        self._setup_nfc()
+        # Audio setup (non-async)
         self._setup_audio()
 
         logger.log(LogLevel.INFO, "Application initialized successfully")
+        
+    async def initialize_async(self):
+        """
+        Asynchronous initialization - to be called from lifespan context
+        """
+        # Initialize NFC asynchronously
+        await self._setup_nfc()
+        return self
 
     def _sync_playlists(self):
         """
@@ -106,13 +115,29 @@ class Application:
             logger.log(LogLevel.ERROR, f"Playlist synchronization setup failed: {str(e)}")
             logger.log(LogLevel.DEBUG, f"Sync error details: {traceback.format_exc()}")
 
-    def _setup_led(self):
-        """Set up and initialize LED display."""
-        logger.log(LogLevel.INFO, "Skipping LED setup: no DI container in async mode.")
-
-    def _setup_nfc(self):
-        """Set up and initialize NFC reader."""
-        logger.log(LogLevel.INFO, "Skipping NFC setup: no DI container in async mode.")
+    async def _setup_nfc(self):
+        """Set up and initialize NFC reader using asyncio."""
+        try:
+            from app.src.module.nfc.nfc_factory import get_nfc_handler
+            from app.src.services.nfc_service import NFCService
+            
+            # Créer le lock pour le bus I2C
+            self._nfc_lock = asyncio.Lock()
+            
+            # Instancier le handler via la factory asynchrone
+            self._nfc_handler = await get_nfc_handler(self._nfc_lock)
+            
+            # Instancier le service NFC avec le handler
+            self._nfc_service = NFCService(None, self._nfc_handler)  # SocketIO sera défini plus tard
+            
+            # Démarrer le reader NFC
+            await self._nfc_handler.start_nfc_reader()
+            
+            logger.log(LogLevel.INFO, "NFC reader initialized and started successfully")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Failed to initialize NFC: {e}")
+            import traceback
+            logger.log(LogLevel.DEBUG, f"NFC setup error details: {traceback.format_exc()}")
 
     def _handle_tag_scanned(self, tag):
         """

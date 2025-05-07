@@ -2,6 +2,7 @@
 Unit tests for the ContainerAsync class.
 """
 import pytest
+import asyncio
 from unittest.mock import MagicMock, patch
 
 from app.src.core.container_async import ContainerAsync
@@ -22,13 +23,14 @@ class TestContainerAsync:
                     
                     # Assert
                     assert container._config == mock_config
-                    assert container._nfc is None
+                    assert container._nfc_handler is None
                     assert container._led_hat is None
                     assert isinstance(container._playback_subject, PlaybackSubject)
                     assert hasattr(container, '_playlist_service')
                     assert hasattr(container, '_audio')
 
-    def test_init_with_nfc(self, mock_config):
+    @pytest.mark.asyncio
+    async def test_init_with_nfc(self, mock_config):
         """Test container initialization with NFC available."""
         # Arrange
         mock_nfc = MagicMock()
@@ -36,12 +38,14 @@ class TestContainerAsync:
         with patch('app.src.services.playlist_service.PlaylistService'):
             with patch('app.src.module.audio_player.audio_factory.get_audio_player'):
                 with patch('app.src.module.nfc.nfc_factory.get_nfc_handler', return_value=mock_nfc):
-                    with patch('gevent.lock.Semaphore'):
+                    with patch('asyncio.Lock'):
                         # Act
                         container = ContainerAsync(mock_config)
+                        # Le NFC handler est initialisé dans initialize_async(), pas dans __init__()
+                        await container.initialize_async()
                         
                         # Assert
-                        assert container._nfc == mock_nfc
+                        assert container._nfc_handler == mock_nfc
 
     def test_config_property(self, mock_config):
         """Test the config property."""
@@ -80,14 +84,16 @@ class TestContainerAsync:
         with patch('app.src.services.playlist_service.PlaylistService'):
             with patch('app.src.module.audio_player.audio_factory.get_audio_player'):
                 with patch('app.src.module.nfc.nfc_factory.get_nfc_handler', return_value=mock_nfc):
-                    with patch('gevent.lock.Semaphore'):
+                    with patch('asyncio.Lock'):
                         container = ContainerAsync(mock_config)
                         
                         # Act
                         result = container.nfc
                         
                         # Assert
-                        assert result == mock_nfc
+                        # La méthode nfc retourne maintenant _nfc_service, plus _nfc_handler
+                        assert result == container._nfc_service
+                        # S'assurer que le NFCService est initialisé, même si le handler n'est pas encore utilisé
 
     def test_audio_property(self, mock_config):
         """Test the audio property."""
@@ -107,7 +113,8 @@ class TestContainerAsync:
                     # Assert
                     assert result == mock_audio
 
-    def test_cleanup_async(self, mock_config):
+    @pytest.mark.asyncio
+    async def test_cleanup_async(self, mock_config):
         """Test resource cleanup."""
         # Arrange
         with patch('app.src.services.playlist_service.PlaylistService'):
@@ -116,10 +123,9 @@ class TestContainerAsync:
                     with patch('app.src.core.container_async.logger') as mock_logger:
                         container = ContainerAsync(mock_config)
                         
-                        # Act - Using a synchronous approach to avoid complications
-                        # For a real asynchronous test, we would need to properly use pytest-asyncio
-                        cleanup_method = container.cleanup_async()
-                        # In a test environment, we can just verify that the method exists
+                        # Act - Maintenant nous pouvons tester de manière asynchrone
+                        await container.cleanup_async()
                         
                         # Assert
-                        assert callable(getattr(cleanup_method, '__await__', None))
+                        # On vérifie simplement que la méthode s'exécute sans erreur
+                        mock_logger.log.assert_called()

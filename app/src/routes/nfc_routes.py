@@ -24,23 +24,26 @@ class NFCRoutes:
     def _register_routes(self):
         @self.router.post("/observe")
         async def observe_nfc(request: Request, config=Depends(get_config), nfc_service: NFCService = Depends(get_nfc_service)):
-            """Start NFC observation for a playlist (wait for tag)"""
             try:
-                data = await request.json()
-                playlist_id = data.get('playlist_id')
-                if not playlist_id:
-                    return JSONResponse({'error': 'playlist_id is required'}, status_code=400)
-                playlist_service = PlaylistService(config)
-                playlist = playlist_service.get_playlist_by_id(playlist_id)
-                if not playlist:
-                    return JSONResponse({'error': 'Playlist not found'}, status_code=404)
-                nfc_service.start_nfc_reader()  # Association playlist/tag à gérer dans la logique métier
-                # Notifie le front via Socket.IO
-                await self.socketio.emit('nfc_waiting', {'playlist_id': playlist_id})
-                return JSONResponse({'status': 'waiting_for_tag', 'playlist_id': playlist_id}, status_code=200)
+                # We depend on the NFC service to be initialized with a handler
+                if not nfc_service or not hasattr(nfc_service, "_nfc_handler") or not nfc_service._nfc_handler:
+                    logger.log(LogLevel.WARNING, "NFC reader not available")
+                    return JSONResponse(status_code=503, content={"error": "NFC reader not available"})
+                
+                # Utiliser la méthode start_observe du service NFC
+                # Elle initialisera le lecteur NFC et mettra le service en mode observation
+                result = await nfc_service.start_observe(playlist_id=None)
+                
+                if result.get("status") == "ok":
+                    logger.log(LogLevel.INFO, "NFC hardware reader started in observation mode")
+                    return {"status": "ok"}
+                else:
+                    logger.log(LogLevel.ERROR, f"Failed to start NFC observation: {result.get('message', 'Unknown error')}")
+                    return JSONResponse(status_code=500, content={"error": result.get('message', 'Unknown error')})
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error starting NFC observation: {str(e)}")
-                return JSONResponse({'error': str(e)}, status_code=500)
+                logger.log(LogLevel.ERROR, f"Failed to start NFC observation: {e}")
+                return JSONResponse(status_code=500, content={"error": f"Failed to start NFC observation: {str(e)}"})
+
 
         @self.router.post("/link")
         async def link_nfc_tag(request: Request, config=Depends(get_config), nfc_service: NFCService = Depends(get_nfc_service)):
@@ -85,7 +88,8 @@ class NFCRoutes:
         async def cancel_nfc_observation(request: Request, nfc_service: NFCService = Depends(get_nfc_service)):
             """Cancel NFC observation (by user or timeout)"""
             try:
-                nfc_service.stop_listening()
+                # Utiliser la méthode asynchrone stop_listening
+                await nfc_service.stop_listening()
                 await self.socketio.emit('nfc_cancelled', {})
                 return JSONResponse({'status': 'cancelled'}, status_code=200)
             except Exception as e:
@@ -114,7 +118,8 @@ class NFCRoutes:
                 playlist = playlist_service.get_playlist_by_id(playlist_id)
                 if not playlist:
                     return JSONResponse({'status': 'error', 'message': 'Playlist not found'}, status_code=404)
-                nfc_service.start_nfc_reader()  # Association playlist/tag à gérer dans la logique métier
+                # Utiliser la méthode asynchrone start_nfc_reader
+                await nfc_service.start_nfc_reader()
                 return JSONResponse({'status': 'success', 'message': 'NFC listening started'}, status_code=200)
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error starting NFC listening: {str(e)}")
@@ -125,7 +130,8 @@ class NFCRoutes:
         async def stop_nfc_listening(nfc_service: NFCService = Depends(get_nfc_service)):
             """Stop current NFC listening"""
             try:
-                nfc_service.stop_listening()
+                # Utiliser la méthode asynchrone stop_listening
+                await nfc_service.stop_listening()
                 return JSONResponse({'status': 'success', 'message': 'NFC listening stopped'}, status_code=200)
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error stopping NFC listening: {str(e)}")
@@ -140,7 +146,8 @@ class NFCRoutes:
                 if not data or 'tag_id' not in data:
                     return JSONResponse({'status': 'error', 'message': 'tag_id missing'}, status_code=400)
                 tag_id = data['tag_id']
-                success = nfc_service.handle_tag_detected(tag_id)
+                # Utiliser la méthode asynchrone handle_tag_detected
+                success = await nfc_service.handle_tag_detected(tag_id)
                 if success:
                     return JSONResponse({'status': 'success', 'message': f'Tag {tag_id} processed successfully'}, status_code=200)
                 else:
