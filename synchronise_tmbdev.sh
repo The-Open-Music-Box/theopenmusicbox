@@ -65,6 +65,9 @@ create_exclude_file() {
   echo "node_modules" >> "$exclude_file"
   echo ".DS_Store" >> "$exclude_file"
   echo "logs/" >> "$exclude_file"
+  echo "*.db" >> "$exclude_file"
+  echo "*.sqlite" >> "$exclude_file"
+  echo "*.sqlite3" >> "$exclude_file"
   echo "$exclude_file"
 }
 
