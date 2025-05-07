@@ -36,7 +36,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         """Initialize the audio system using Pygame"""
         try:
             # Initialize only the mixer module, not the entire pygame
-            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024, devicename='wm8960')
+            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
             logger.log(LogLevel.INFO, "✓ Audio system initialized with WM8960")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Failed to initialize audio system: {str(e)}")
