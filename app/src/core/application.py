@@ -1,6 +1,7 @@
 import time
 import threading
 import traceback
+import asyncio
 from pathlib import Path
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.services.playlist_service import PlaylistService
@@ -176,7 +177,25 @@ class Application:
         """
         logger.log(LogLevel.ERROR, f"Audio error: {error}")
 
-    def cleanup(self):
+    async def run(self):
+        """
+        Start and run the application asynchronously.
+        """
+        try:
+            logger.log(LogLevel.INFO, "Starting application")
+            # Start the playlist controller
+            if hasattr(self._playlist_controller, 'start'):
+                await self._playlist_controller.start()
+            # Keep the application running
+            while True:
+                await asyncio.sleep(1)
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error running application: {e}")
+            logger.log(LogLevel.DEBUG, f"Runtime error details: {traceback.format_exc()}")
+        finally:
+            await self.cleanup()
+
+    async def cleanup(self):
         """
         Clean up all resources before application shutdown.
         """
@@ -184,8 +203,7 @@ class Application:
         try:
             # Additional cleanup specific to Application
             if hasattr(self, '_playlist_controller') and hasattr(self._playlist_controller, 'cleanup'):
-                self._playlist_controller.cleanup()
-
+                await self._playlist_controller.cleanup()
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during application cleanup: {e}")
             logger.log(LogLevel.DEBUG, f"Cleanup error details: {traceback.format_exc()}")

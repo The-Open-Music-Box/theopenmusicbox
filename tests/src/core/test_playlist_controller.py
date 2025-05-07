@@ -1,174 +1,223 @@
-# tests/src/core/test_playlist_controller.py
-
-import unittest
-from unittest.mock import Mock, patch, MagicMock
+"""
+Unit tests for the PlaylistController class.
+"""
+import pytest
+from unittest.mock import MagicMock, patch
 import time
-import json
-from pathlib import Path
 
 from app.src.core.playlist_controller import PlaylistController
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.model.playlist import Playlist
-from app.src.model.track import Track
 
-class TestPlaylistController(unittest.TestCase):
-    def setUp(self):
-        # Créer les mocks pour les dépendances
-        self.audio_player_mock = Mock()
-        self.audio_player_mock.is_playing = False
-        self.audio_player_mock.is_finished = Mock(return_value=False)
 
-        self.playlist_service_mock = Mock()
+class TestPlaylistController:
+    """Tests for the PlaylistController class."""
 
-        # Configuration simulée
-        self.config_mock = Mock()
-        self.config_mock.upload_folder = "/tmp/uploads"
+    def test_init(self, mock_audio_player, mock_playlist_service):
+        """Test the controller initialization."""
+        # Act
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        
+        # Assert
+        assert controller._audio == mock_audio_player
+        assert controller._playlist_service == mock_playlist_service
+        assert controller._current_tag is None
+        assert controller._tag_last_seen == 0
+        assert controller._pause_threshold > 0
+        assert controller._monitor_thread is not None
 
-        # Créer le contrôleur avec des mocks
-        self.controller = PlaylistController(
-            self.audio_player_mock,
-            self.playlist_service_mock,
-            self.config_mock
+    def test_handle_tag_scanned_new_tag(self, mock_audio_player, mock_playlist_service):
+        """Test handling of a new NFC tag."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_tag_uid = "01:02:03:04"
+        
+        # Act
+        controller.handle_tag_scanned(test_tag_uid)
+        
+        # Assert
+        assert controller._current_tag == test_tag_uid
+        mock_playlist_service.get_playlist_by_nfc_tag.assert_called_once_with(test_tag_uid)
+        mock_playlist_service.play_playlist_with_validation.assert_called_once()
+
+    def test_handle_tag_scanned_same_tag_paused(self, mock_audio_player, mock_playlist_service):
+        """Test resuming playback for an already scanned tag that was paused."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_tag_uid = "01:02:03:04"
+        
+        # Simulate first scan
+        controller.handle_tag_scanned(test_tag_uid)
+        
+        # Reset mocks for clean test
+        mock_playlist_service.get_playlist_by_nfc_tag.reset_mock()
+        mock_playlist_service.play_playlist_with_validation.reset_mock()
+        
+        # Set as paused
+        mock_audio_player.is_playing = False
+        
+        # Act - scan same tag again
+        controller.handle_tag_scanned(test_tag_uid)
+        
+        # Assert
+        mock_audio_player.resume.assert_called_once()
+        assert not mock_playlist_service.play_playlist_with_validation.called
+
+    def test_handle_tag_scanned_finished_playlist(self, mock_audio_player, mock_playlist_service):
+        """Test resuming with the same tag when the playlist has finished."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_tag_uid = "01:02:03:04"
+        
+        # Simulate first scan
+        controller.handle_tag_scanned(test_tag_uid)
+        
+        # Reset mocks
+        mock_playlist_service.get_playlist_by_nfc_tag.reset_mock()
+        mock_playlist_service.play_playlist_with_validation.reset_mock()
+        
+        # Set as finished
+        mock_audio_player.is_finished.return_value = True
+        
+        # Act - scan same tag again
+        controller.handle_tag_scanned(test_tag_uid)
+        
+        # Assert
+        mock_playlist_service.get_playlist_by_nfc_tag.assert_called_once_with(test_tag_uid)
+        mock_playlist_service.play_playlist_with_validation.assert_called_once()
+
+    def test_handle_tag_scanned_exception(self, mock_audio_player, mock_playlist_service):
+        """Test exception handling when scanning a tag."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_tag_uid = "01:02:03:04"
+        
+        # Set up the mock to raise an exception
+        mock_playlist_service.get_playlist_by_nfc_tag.side_effect = Exception("Test exception")
+        
+        # Act - This should not raise an exception
+        controller.handle_tag_scanned(test_tag_uid)
+        
+        # Assert - The exception should have been caught internally
+        assert controller._current_tag == test_tag_uid  # This should still be set
+
+    def test_process_new_tag_found(self, mock_audio_player, mock_playlist_service):
+        """Test processing a new tag with a found playlist."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_tag_uid = "01:02:03:04"
+        test_playlist = {"id": "test_id", "title": "Test Playlist"}
+        mock_playlist_service.get_playlist_by_nfc_tag.return_value = test_playlist
+        
+        # Act
+        controller._process_new_tag(test_tag_uid)
+        
+        # Assert
+        mock_playlist_service.get_playlist_by_nfc_tag.assert_called_once_with(test_tag_uid)
+        mock_playlist_service.play_playlist_with_validation.assert_called_once_with(test_playlist, mock_audio_player)
+
+    def test_process_new_tag_not_found(self, mock_audio_player, mock_playlist_service):
+        """Test processing a new tag without an associated playlist."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_tag_uid = "01:02:03:04"
+        mock_playlist_service.get_playlist_by_nfc_tag.return_value = None
+        
+        # Act
+        controller._process_new_tag(test_tag_uid)
+        
+        # Assert
+        mock_playlist_service.get_playlist_by_nfc_tag.assert_called_once_with(test_tag_uid)
+        assert not mock_playlist_service.play_playlist_with_validation.called
+
+    def test_play_playlist_success(self, mock_audio_player, mock_playlist_service):
+        """Test successful playlist playback."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_playlist = {"id": "test_id", "title": "Test Playlist"}
+        mock_playlist_service.play_playlist_with_validation.return_value = True
+        
+        # Act
+        controller._play_playlist(test_playlist)
+        
+        # Assert
+        mock_playlist_service.play_playlist_with_validation.assert_called_once_with(test_playlist, mock_audio_player)
+
+    def test_play_playlist_failure(self, mock_audio_player, mock_playlist_service):
+        """Test failed playlist playback."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_playlist = {"id": "test_id", "title": "Test Playlist"}
+        mock_playlist_service.play_playlist_with_validation.return_value = False
+        
+        # Act - This should not raise an exception
+        controller._play_playlist(test_playlist)
+        
+        # Assert
+        mock_playlist_service.play_playlist_with_validation.assert_called_once_with(test_playlist, mock_audio_player)
+
+    @patch('time.sleep', return_value=None)  # Patch sleep to speed up test
+    def test_start_tag_monitor(self, mock_sleep, mock_audio_player, mock_playlist_service):
+        """Test starting the tag monitoring thread."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        
+        # Act - Thread is started in __init__, so just check it's there
+        
+        # Assert
+        assert controller._monitor_thread is not None
+        assert controller._monitor_thread.daemon is True
+        assert controller._monitor_thread.is_alive()
+
+    def test_update_playback_status_callback(self, mock_audio_player, mock_playlist_service, mock_track):
+        """Test updating the playback counter when status changes."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        test_tag_uid = "01:02:03:04"
+        controller._current_tag = test_tag_uid
+        
+        # Configure mock repository for update_track_counter
+        mock_repository = MagicMock()
+        mock_playlist_service.repository = mock_repository
+        
+        # Act
+        controller.update_playback_status_callback(mock_track, "playing")
+        
+        # Assert
+        mock_playlist_service.get_playlist_by_nfc_tag.assert_called_once_with(test_tag_uid)
+        mock_repository.update_track_counter.assert_called_once_with(
+            mock_playlist_service.get_playlist_by_nfc_tag.return_value["id"], 
+            mock_track.number
         )
 
-        # Sample playlist data pour les tests
-        self.sample_tag = "ABCD1234"
-        self.sample_playlist_data = {
-            "id": "playlist1",
-            "title": "Test Playlist",
-            "path": "playlist_folder",
-            "nfc_tag": self.sample_tag,
-            "tracks": [
-                {
-                    "number": 1,
-                    "title": "Track 1",
-                    "filename": "track1.mp3"
-                },
-                {
-                    "number": 2,
-                    "title": "Track 2",
-                    "filename": "track2.mp3"
-                }
-            ]
-        }
+    def test_update_playback_status_callback_no_tag(self, mock_audio_player, mock_playlist_service, mock_track):
+        """Test that nothing happens if there is no current tag."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        controller._current_tag = None
+        
+        # Configure mock repository for update_track_counter
+        mock_repository = MagicMock()
+        mock_playlist_service.repository = mock_repository
+        
+        # Act
+        controller.update_playback_status_callback(mock_track, "playing")
+        
+        # Assert
+        assert not mock_playlist_service.get_playlist_by_nfc_tag.called
+        assert not mock_repository.update_track_counter.called
 
-        # Préparer le mock pour le service de playlist
-        self.playlist_service_mock.get_playlist_by_nfc_tag.return_value = self.sample_playlist_data
-
-        # Créer un modèle Playlist pour le mock
-        self.model_playlist = Playlist(name="Test Playlist")
-        track1 = Track(number=1, title="Track 1", filename="track1.mp3", path=Path("/tmp/uploads/playlist_folder/track1.mp3"))
-        track2 = Track(number=2, title="Track 2", filename="track2.mp3", path=Path("/tmp/uploads/playlist_folder/track2.mp3"))
-        self.model_playlist.tracks = [track1, track2]
-
-        # Configurer to_model pour retourner le modèle Playlist
-        self.playlist_service_mock.to_model.return_value = self.model_playlist
-
-        # Patch les méthodes Path.exists
-        patcher = patch("pathlib.Path.exists")
-        self.mock_exists = patcher.start()
-        self.mock_exists.return_value = True
-        self.addCleanup(patcher.stop)
-
-        # Mock repository
-        self.playlist_service_mock.repository = Mock()
-
-    def test_handle_tag_scanned_new_tag(self):
-        """Test la détection d'un nouveau tag NFC"""
-        # Configurer le comportement du audio_player pour un nouveau tag
-        self.audio_player_mock.set_playlist.return_value = True
-
-        # Appeler la méthode à tester
-        self.controller.handle_tag_scanned(self.sample_tag)
-
-        # Vérifier que les bonnes méthodes ont été appelées
-        self.playlist_service_mock.get_playlist_by_nfc_tag.assert_called_once_with(self.sample_tag)
-        self.playlist_service_mock.to_model.assert_called_once_with(self.sample_playlist_data)
-        self.audio_player_mock.set_playlist.assert_called_once()
-        self.playlist_service_mock.repository.update_playlist.assert_called_once()
-
-    def test_handle_tag_scanned_resume_playback(self):
-        """Test la reprise de lecture avec le même tag"""
-        # Configurer l'état initial pour simuler un tag déjà vu
-        self.controller._current_tag = self.sample_tag
-        self.audio_player_mock.is_playing = False
-
-        # Appeler la méthode à tester
-        self.controller.handle_tag_scanned(self.sample_tag)
-
-        # Vérifier que la lecture a repris
-        self.audio_player_mock.resume.assert_called_once()
-        # Vérifier que _process_new_tag n'a pas été appelé
-        self.playlist_service_mock.get_playlist_by_nfc_tag.assert_not_called()
-
-    def test_handle_tag_scanned_no_playlist(self):
-        """Test la détection d'un tag sans playlist associée"""
-        # Configurer le service pour retourner None (aucune playlist)
-        self.playlist_service_mock.get_playlist_by_nfc_tag.return_value = None
-
-        # Appeler la méthode à tester
-        self.controller.handle_tag_scanned("UNKNOWN_TAG")
-
-        # Vérifier que l'audio player n'a pas été appelé
-        self.audio_player_mock.set_playlist.assert_not_called()
-
-    def test_handle_tag_scanned_with_exception(self):
-        """Test la gestion d'erreur dans handle_tag_scanned"""
-        # Forcer une exception lors de la récupération de la playlist
-        self.playlist_service_mock.get_playlist_by_nfc_tag.side_effect = Exception("Test error")
-
-        # Vérifier que l'exception est capturée et ne remonte pas
-        try:
-            self.controller.handle_tag_scanned(self.sample_tag)
-        except Exception:
-            self.fail("handle_tag_scanned ne devrait pas lever d'exception")
-
-    def test_play_playlist_with_no_valid_tracks(self):
-        """Test la lecture d'une playlist sans pistes valides"""
-        # Configurer le mock pour simuler des fichiers inexistants
-        self.mock_exists.return_value = False
-
-        # Appeler la méthode à tester
-        self.controller.handle_tag_scanned(self.sample_tag)
-
-        # Vérifier que set_playlist n'a pas été appelé
-        self.audio_player_mock.set_playlist.assert_not_called()
-
-    def test_tag_monitor_pause_on_tag_removal(self):
-        """Test la mise en pause automatique quand un tag est retiré"""
-
-
-    def test_update_playback_status_callback(self):
-        """Test la mise à jour du compteur de lecture"""
-        # Créer un mock de piste en cours
-        track = Mock()
-        track.id = "track1"
-        track.number = 1
-
-        # Configurer le contrôleur avec un tag actif
-        self.controller._current_tag = self.sample_tag
-
-        # Appeler la méthode à tester
-        self.controller.update_playback_status_callback(track, "playing")
-
-        # Vérifier que le compteur a été mis à jour
-        self.playlist_service_mock.repository.update_track_counter.assert_called_once_with(
-            self.sample_playlist_data["id"], 1
-        )
-
-    def test_handle_finished_playlist(self):
-        """Test la gestion d'une playlist terminée"""
-        # Configurer le contrôleur avec un tag actif
-        self.controller._current_tag = self.sample_tag
-
-        # Indiquer que la playlist est terminée
-        self.audio_player_mock.is_finished.return_value = True
-
-        # Appeler la méthode à tester avec le même tag
-        self.controller.handle_tag_scanned(self.sample_tag)
-
-        # Vérifier que _process_new_tag a été appelé malgré le même tag
-        self.playlist_service_mock.get_playlist_by_nfc_tag.assert_called_once_with(self.sample_tag)
-
-if __name__ == '__main__':
-    unittest.main()
+    def test_update_playback_status_callback_not_playing(self, mock_audio_player, mock_playlist_service, mock_track):
+        """Test que rien ne se passe si le statut n'est pas 'playing'."""
+        # Arrange
+        controller = PlaylistController(mock_audio_player, mock_playlist_service)
+        controller._current_tag = "01:02:03:04"
+        
+        # Configure mock repository for update_track_counter
+        mock_repository = MagicMock()
+        mock_playlist_service.repository = mock_repository
+        
+        # Act
+        controller.update_playback_status_callback(mock_track, "paused")
+        
+        # Assert
+        assert not mock_playlist_service.get_playlist_by_nfc_tag.called
+        assert not mock_repository.update_track_counter.called
