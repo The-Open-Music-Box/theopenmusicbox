@@ -7,6 +7,38 @@ import sys
 import os
 import subprocess
 from pathlib import Path
+import site
+
+# Check if we're already in a virtual environment
+def is_venv_active():
+    return hasattr(sys, 'real_prefix') or (hasattr(sys, 'base_prefix') and sys.base_prefix != sys.prefix)
+
+# Activate the venv if not already active
+if not is_venv_active():
+    print("[TheMusicBox] Activating virtual environment...")
+    venv_path = Path(__file__).resolve().parent / 'venv'
+    
+    if not venv_path.exists():
+        print(f"[TheMusicBox] Error: Virtual environment not found at {venv_path}")
+        print("[TheMusicBox] Please create a virtual environment with 'python -m venv venv' in the back folder")
+        sys.exit(1)
+    
+    # Platform-specific activation paths
+    if sys.platform == 'win32':
+        activate_script = venv_path / 'Scripts' / 'python.exe'
+    else:  # macOS and Linux
+        activate_script = venv_path / 'bin' / 'python'
+    
+    if not activate_script.exists():
+        print(f"[TheMusicBox] Error: Python interpreter not found at {activate_script}")
+        sys.exit(1)
+        
+    print(f"[TheMusicBox] Using Python from: {activate_script}")
+    
+    # Re-execute the current script with the venv's Python
+    os.execl(str(activate_script), str(activate_script), *sys.argv)
+    # The script will restart from this point with the venv Python
+
 
 # Ensure app directory is in path
 sys.path.append(str(Path(__file__).resolve().parent))

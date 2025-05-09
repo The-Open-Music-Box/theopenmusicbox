@@ -1,8 +1,6 @@
 [pytest]
-testpaths = tests
+testpaths = app/tests
 pythonpath = .
-markers =
-    asyncio: mark a test as an asyncio coroutine
 filterwarnings =
     ignore:datetime.datetime.utcfromtimestamp\(\) is deprecated:DeprecationWarning:rx.internal.constants
     ignore:datetime.datetime.utcnow\(\) is deprecated:DeprecationWarning:rx.internal.basic

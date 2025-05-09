@@ -171,9 +171,11 @@ python start_test.py --cov
    - The server will auto-reload when files are changed
 
 2. **Testing**:
-   - Run tests with `start_test.py`
-   - Add new tests for new functionality
-   - Ensure all tests pass before deployment
+   - All tests are now centralized under `/back/tests/`.
+   - Run tests with `start_test.py` from the project root.
+   - Add new tests in the `/back/tests/` structure, mirroring the application modules.
+   - Ensure all tests pass before deployment.
+   - Legacy test files in `/back/app/tests/` and the migration script have been removed for maintainability.
 
 3. **Production Deployment**:
    - Use `start_app.py` to run in production mode with real hardware

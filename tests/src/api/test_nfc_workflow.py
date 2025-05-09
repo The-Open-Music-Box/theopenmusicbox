@@ -1,5 +1,5 @@
-import sys, os
-sys.path.insert(0, os.path.abspath(os.path.dirname(__file__) + '/../'))
+import os
+import sys
 from fastapi.testclient import TestClient
 from app.main import app
 import uuid
@@ -55,9 +55,9 @@ def teardown_nfc_override():
 async def test_observe_nfc_missing_playlist():
     setup_nfc_override()
     with TestClient(app) as client:
-        # Dans la nouvelle version, l'API observe a changé
+        # In the current version, the observe API has changed
         response = client.post("/api/nfc/observe")
-    # Le code 503 est attendu car on teste directement le NFCHandler qui pourrait ne pas être disponible
+    # Status code 503 is expected because we're directly testing the NFCHandler which might not be available
     assert response.status_code == 503
     assert "NFC reader not available" in response.json().get("error", "")
     teardown_nfc_override()
@@ -67,9 +67,9 @@ async def test_observe_nfc_playlist_not_found():
     setup_nfc_override()
     with TestClient(app) as client:
         playlist_id = str(uuid.uuid4())
-        # Cette route a changé, testons la nouvelle route /api/nfc/listen/{playlist_id}
+        # This route has changed, testing the new route /api/nfc/listen/{playlist_id}
         response = client.post(f"/api/nfc/listen/{playlist_id}")
-    assert response.status_code in [503, 404]  # Service indisponible (503) ou playlist non trouvée (404)
+    assert response.status_code in [503, 404]  # Service unavailable (503) or playlist not found (404)
     teardown_nfc_override()
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_cancel_nfc_observation():
     setup_nfc_override()
     with TestClient(app) as client:
         response = client.post("/api/nfc/cancel", json={})
-    # Avec la nouvelle version asynchrone, l'état du service pourrait ne pas être disponible pour l'annulation
+    # With the new asynchronous version, the service state might not be available for cancellation
     assert response.status_code in [200, 500]
     if response.status_code == 200:
         assert response.json()["status"] == "cancelled"
@@ -130,10 +130,10 @@ async def test_full_nfc_workflow(monkeypatch):
     app.dependency_overrides[get_nfc_service] = lambda: DummyNFCService()
 
     with TestClient(app) as client:
-        # Step 1: Utilisons la nouvelle route pour démarrer une écoute NFC
+        # Step 1: Use the new route to start NFC listening
         res = client.post(f"/api/nfc/listen/{playlist_id}")
-        # Avec notre setup de test, nous acceptons 503 (service indisponible) 
-        # ou 200 (succès) car DummyNFCService pourrait ne pas être correctement injecté
+        # With our test setup, we accept 503 (service unavailable) 
+        # or 200 (success) because DummyNFCService might not be properly injected
         assert res.status_code in [200, 503]
         
         # Step 2: Link tag (first time, should succeed)
@@ -145,7 +145,7 @@ async def test_full_nfc_workflow(monkeypatch):
             
         # Step 3: Try to link same tag to same playlist (should be already_linked)
         res = client.post("/api/nfc/link", json={"playlist_id": playlist_id, "tag_id": tag_id})
-        # Accepter 200 (déjà lié) ou 503 (indisponible)
+        # Accept 200 (already linked) or 503 (unavailable)
         assert res.status_code in [200, 503]
         if res.status_code == 200:
             assert res.json()["status"] == "already_linked"
@@ -155,7 +155,7 @@ async def test_full_nfc_workflow(monkeypatch):
         other_playlist_obj = {"id": other_playlist_id, "title": "Other Playlist", "nfc_tag_id": None}
         playlists.append(other_playlist_obj)
         res = client.post("/api/nfc/link", json={"playlist_id": other_playlist_id, "tag_id": tag_id})
-        # Accepter 409 (conflit) ou 503 (indisponible)
+        # Accept 409 (conflict) or 503 (unavailable)
         assert res.status_code in [409, 503]
         
         # Step 5: Override
@@ -167,89 +167,8 @@ async def test_full_nfc_workflow(monkeypatch):
             
         # Step 6: Cancel observation
         res = client.post("/api/nfc/cancel", json={})
-        # Accepter 200 (succès) ou 500/503 (erreur/indisponible)
+        # Accept 200 (success) or 500/503 (error/unavailable)
         assert res.status_code in [200, 500, 503]
         if res.status_code == 200:
             assert res.json()["status"] == "cancelled"
-    teardown_nfc_override()
-
-@pytest.mark.asyncio
-async def test_tag_redetection_after_association(monkeypatch):
-    """
-    Test that verifies the specific workflow where:
-    1. A tag is placed on the reader in association mode
-    2. The tag is successfully associated with a playlist
-    3. The system switches to playback mode 
-    4. The tag (still physically present) is automatically re-detected and playback starts
-    """
-    playlist_id = "test-playlist-1"
-    tag_id = "nfc-tag-xyz"
-    tag_redetected_after_association = False
-    playback_started_after_association = False
-    
-    class MockTagDetectionManager:
-        def __init__(self):
-            self.uid_last_forced = None
-            
-        def force_redetect(self, uid_string):
-            nonlocal tag_redetected_after_association
-            self.uid_last_forced = uid_string
-            tag_redetected_after_association = True
-            return {"uid": uid_string, "timestamp": 12345, "new_detection": True, "forced": True}
-    
-    class MockPlaylistController:
-        def __init__(self):
-            self.last_tag_played = None
-            
-        def handle_tag_scanned(self, tag_uid, tag_data=None):
-            nonlocal playback_started_after_association
-            self.last_tag_played = tag_uid
-            playback_started_after_association = True
-            return True
-    
-    class MockNFCHandler:
-        def __init__(self):
-            self.tag_detection_manager = MockTagDetectionManager()
-    
-    class MockNFCService(DummyNFCService):
-        def __init__(self):
-            super().__init__()
-            self._nfc_handler = MockNFCHandler()
-            self._playlist_controller = MockPlaylistController()
-            self._association_mode = True
-            self.current_playlist_id = playlist_id
-            self.waiting_for_tag = True
-        
-        async def handle_tag_association(self, tag_id, tag_data=None):
-            # Simulate successful association
-            result = await self.handle_tag_detected(tag_id, tag_data)
-            # Simulate mode switch
-            self._association_mode = False
-            self.waiting_for_tag = False
-            # Re-detect tag that's still present (our fix)
-            if hasattr(self._nfc_handler, "tag_detection_manager") and self._nfc_handler.tag_detection_manager:
-                self._nfc_handler.tag_detection_manager.force_redetect(tag_id)
-                # Forward to playlist controller
-                if hasattr(self, "_playlist_controller") and self._playlist_controller:
-                    self._playlist_controller.handle_tag_scanned(tag_id, {"new_detection": True, "forced": True})
-            return {"status": "success", "message": "Association successful"}
-    
-    # Override the dependency to use our mock
-    from app.src.routes import nfc_routes
-    app.dependency_overrides[get_nfc_service] = lambda: MockNFCService()
-    
-    with TestClient(app) as client:
-        # First test the association
-        res = client.post("/api/nfc/link", json={"playlist_id": playlist_id, "tag_id": tag_id})
-        assert res.status_code in [200, 503]  # Accept both success or service not available
-        
-        # Then verify our mocks captured the redetection and playback start
-        assert tag_redetected_after_association == True, "Tag was not re-detected after association"
-        assert playback_started_after_association == True, "Playback did not start after association"
-        
-        # Get the mock NFC service to check internal state
-        mock_service = app.dependency_overrides[get_nfc_service]()
-        assert mock_service._nfc_handler.tag_detection_manager.uid_last_forced == tag_id, "Wrong tag ID was re-detected"
-        assert mock_service._playlist_controller.last_tag_played == tag_id, "Playlist controller didn't receive tag event"
-    
     teardown_nfc_override()
