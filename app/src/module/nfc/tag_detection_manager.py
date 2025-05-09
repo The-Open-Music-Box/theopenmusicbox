@@ -121,6 +121,39 @@ class TagDetectionManager:
             # self._last_tag reste inchangé pour permettre la comparaison lors d'une réapparition
 
     
+    def force_redetect(self, uid_string: str) -> Optional[Dict[str, Any]]:
+        """
+        Force re-detection of a tag that's already present on the reader.
+        
+        This is used to force the system to re-process a tag that's still 
+        physically present after a mode change (e.g., from association to playback).
+        
+        Args:
+            uid_string: The UID string of the tag to re-detect
+            
+        Returns:
+            Tag data dictionary that was emitted
+        """
+        logger.log(LogLevel.INFO, f"Forcing re-detection of tag: {uid_string}")
+        
+        current_time = time.time()
+        tag_data = {
+            'uid': uid_string,
+            'timestamp': current_time,
+            'new_detection': True,  # Critical flag to ensure the tag is processed as new
+            'forced': True  # Flag to indicate this was a forced re-detection
+        }
+        
+        # Emit the tag data event
+        self._tag_subject.on_next(tag_data)
+        
+        # Update internal state to reflect the re-detection
+        self._last_tag = uid_string
+        self._last_read_time = current_time
+        self._tag_present = True
+        
+        return tag_data
+        
     @property
     def tag_subject(self) -> Subject:
         """

@@ -340,6 +340,23 @@ class NFCService:
                 await self._stop_scan_status_updates()
                 
                 logger.log(LogLevel.INFO, "Association successful, returning to playback mode")
+                
+                # Store the tag ID before switching modes, so we can force re-detection
+                detected_tag_id = tag_id
+                
+                # Force re-detection of the tag if it's still present on the reader
+                # This will trigger a new tag detection event which will start playback
+                if self._nfc_handler and hasattr(self._nfc_handler, "tag_detection_manager"):
+                    try:
+                        # Small delay to ensure mode transition is complete
+                        await asyncio.sleep(0.3)
+                        
+                        # Force re-detection of the tag that was just associated
+                        logger.log(LogLevel.INFO, f"Forcing re-detection of tag {detected_tag_id} after association")
+                        self._nfc_handler.tag_detection_manager.force_redetect(detected_tag_id)
+                    except Exception as e:
+                        ErrorHandler.log_error(e, "Error forcing tag re-detection after association")
+                
                 return True
                 
         return False
