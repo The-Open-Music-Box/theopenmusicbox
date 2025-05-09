@@ -4,8 +4,8 @@ from .nfc_hardware import NFCHardware
 T = TypeVar('T', bound=NFCHardware)
 
 class NFCHandler(Generic[T]):
-    """Gestionnaire NFC qui abstrait le matériel sous-jacent (MockNFC ou PN532I2CNFC).
-    Cette classe s'assure que tous les accès au matériel passent par les bonnes interfaces.
+    """NFC handler that abstracts the underlying hardware (MockNFC or PN532I2CNFC).
+    This class ensures that all hardware access goes through the proper interfaces.
     """
     def __init__(self, hardware: T):
         """Initialise le handler avec le matériel spécifié.
@@ -50,8 +50,18 @@ class NFCHandler(Generic[T]):
             raise NotImplementedError("Underlying hardware does not support write_tag().")
 
     async def cleanup(self) -> None:
-        """Nettoie les ressources du matériel de manière asynchrone."""
+        """Clean up hardware resources asynchronously."""
         if hasattr(self._hardware, "cleanup"):
             await self._hardware.cleanup()
         else:
             raise NotImplementedError("Underlying hardware does not support cleanup().")
+            
+    def is_running(self) -> bool:
+        """Check if the NFC reader is currently running.
+        
+        Returns:
+            True if the reader is running, False otherwise
+        """
+        if hasattr(self._hardware, "_running"):
+            return self._hardware._running
+        return False
