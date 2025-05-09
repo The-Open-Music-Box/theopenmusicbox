@@ -22,6 +22,10 @@ class AudioPlayer(Generic[T]):
 
     Delegates all playback operations to the underlying hardware implementation (real or mock).
     This class is the ONLY entry point for audio playback in the backend and should be used by all controllers, routes, and services.
+
+    State detection:
+    - Use `is_playing` and `is_paused` for all playback state checks.
+    - Do not rely on private attributes for playback state.
     
     Business Logic:
     - Ensures architectural consistency and prevents direct hardware access from business logic layers.
@@ -131,5 +135,15 @@ class AudioPlayer(Generic[T]):
             return self._hardware.is_finished()
         elif hasattr(self._hardware, '_is_finished') and callable(self._hardware._is_finished):
             return self._hardware._is_finished()
+        return False
+
+    @property
+    def is_paused(self) -> bool:
+        """
+        Return True if the player is paused (not playing, but a track is loaded).
+        Delegates to the hardware implementation if available.
+        """
+        if hasattr(self._hardware, 'is_paused'):
+            return self._hardware.is_paused
         return False
 

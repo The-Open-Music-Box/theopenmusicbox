@@ -16,10 +16,12 @@ from typing import Protocol
 class AudioPlayerHardware(Protocol):
     """
     Protocol for audio player hardware implementations.
-
-    This interface defines the contract for all audio player backends (real or mock).
+    Implementations must provide public properties `is_playing` and `is_paused` to fully describe playback state. No private or protected member access should be used for state detection.
     All methods here must be implemented by any concrete audio player class.
     Used by the AudioPlayer wrapper to ensure consistent and safe audio control.
+
+    State detection:
+    - All implementations must provide an `is_paused` property for robust playback state checks.
     """
     def play(self, track: str) -> None:
         """
@@ -82,6 +84,13 @@ class AudioPlayerHardware(Protocol):
         Return to the previous track in the current playlist.
         """
         pass
+
+    @property
+    def is_paused(self) -> bool:
+        """
+        Return True if the player is paused (not playing, but a track is loaded).
+        """
+        ...
 
     def play_track(self, track_number: int) -> bool:
         """

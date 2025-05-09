@@ -25,11 +25,15 @@ logger = ImprovedLogger(__name__)
 
 class MockAudioPlayer(AudioPlayerHardware):
     """
-    Mock implementation of AudioPlayerHardware for development and testing.
-
-    Simulates playback, playlist management, and observer notification without requiring real audio hardware.
-    Used by the AudioPlayer wrapper when running in a non-hardware environment (e.g., macOS).
+    MockAudioPlayer simulates audio playback for testing purposes. Playback state is exposed through public properties `is_playing` and `is_paused` for consistency with hardware implementations.
     """
+    @property
+    def is_paused(self) -> bool:
+        """
+        Return True if the player is paused (not playing, but a track is loaded).
+        """
+        return not self._is_playing and self._current_track is not None
+
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
         """
         Initialize the mock audio player.
