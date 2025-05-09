@@ -1,6 +1,6 @@
 import pygame
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional, Union, Any, Tuple
 import time
 import threading
 import os
@@ -18,9 +18,15 @@ from app.src.model.playlist import Playlist
 logger = ImprovedLogger(__name__)
 
 class AudioPlayerWM8960(AudioPlayerHardware):
+    """
+    AudioPlayerWM8960 implements the audio player hardware interface for the WM8960 codec. Playback state is managed and exposed through public properties `is_playing` and `is_paused`.
+    """
+
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
         super().__init__(playback_subject)
-        self._playback_subject = playback_subject  # Ensure attribute is always set
+        # TODO: remove optional
+        self._playback_subject = playback_subject
+        # TODO: set to nil at init
         self._is_playing = False
         self._playlist = None
         self._current_track = None
@@ -29,15 +35,26 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         self._volume = 100
         self._stream_start_time = 0
         self._audio_cache = {}
-        self._initialize_audio_system()
-        self._setup_event_handler()
+        # TODO: improve
+        self._paused_position = 0
+        self._pause_time = 0
 
-    def _initialize_audio_system(self):
-        """Initialize the audio system using Pygame"""
         try:
-            # Initialize only the mixer module, not the entire pygame
+            # Disable unnecessary components to avoid XDG_RUNTIME_DIR errors
+            os.environ['SDL_VIDEODRIVER'] = 'dummy'  # Disable video mode
+            os.environ['SDL_AUDIODRIVER'] = 'alsa'   # Force ALSA for Raspberry Pi
+
+            # Initialize only the required pygame subsystems
+            pygame.init()  # Minimal initialization
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
-            logger.log(LogLevel.INFO, "✓ Audio system initialized with WM8960")
+
+            # Explicitly disable the display module
+            pygame.display.quit()
+
+            logger.log(LogLevel.INFO, "✓ Audio system initialized with WM8960 (audio-only)")
+
+            # Set up the event handler
+            self._setup_event_handler()
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Failed to initialize audio system: {str(e)}")
             raise AppError.hardware_error(
@@ -45,30 +62,22 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                 component="audio",
                 operation="init"
             )
-    
+
+    @property
+    def is_paused(self) -> bool:
+        """
+        Return True if the player is paused (not playing, but a track is loaded).
+        """
+        return not self._is_playing and self._current_track is not None
+
     @property
     def is_playing(self):
         """Check if the player is currently playing audio.
-        
+
         Returns:
             bool: True if audio is playing, False otherwise.
         """
         return self._is_playing
-        
-    def is_finished(self):
-        """Check if the current playlist has finished playing.
-        
-        Returns:
-            bool: True if the playlist has finished, False otherwise.
-        """
-        if self._playlist is None or self._current_track is None:
-            return True
-            
-        # Si nous sommes à la dernière piste et qu'elle est terminée
-        if pygame.mixer.music.get_busy() == 0 and self._current_track.number == len(self._playlist.tracks):
-            return True
-            
-        return False
 
     def play_track(self, track_number: int) -> bool:
         """Play a specific track from the playlist"""
@@ -149,26 +158,309 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             })
 
     def pause(self) -> None:
-        """Pause playback"""
+        """Pause playback and preserve current position"""
         if self._is_playing:
             try:
+                # Save the current position before pausing
+                current_time = time.time()
+                elapsed_since_start = current_time - self._stream_start_time
+
+                # Ensure the position is positive and valid
+                if elapsed_since_start < 0:
+                    elapsed_since_start = 0
+
+                # Store the exact position for resuming
+                self._paused_position = elapsed_since_start
+                logger.log(LogLevel.DEBUG, f"Pause: memorized exact position: {self._paused_position:.2f}s")
+
+                # Pause pygame
                 pygame.mixer.music.pause()
+
+                # Update state
                 self._is_playing = False
+                self._pause_time = current_time  # Record when pause was requested
+
+                # Notify the interface
                 self._notify_playback_status('paused')
                 logger.log(LogLevel.INFO, "Playback paused")
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error pausing: {str(e)}")
 
     def resume(self) -> None:
-        """Resume playback"""
-        if not self._is_playing:
+        """Resume playback with fallback to reloading if unpause fails silently
+
+        This method handles resuming playback after a pause. It includes:
+        1. Using the exact position stored during pause
+        2. A complete check of the Pygame state
+        3. Several fallback mechanisms in case of failure
+        """
+        # Only attempt to resume if not already playing and a track is defined
+        if not self._is_playing and self._current_track:
+            # STATE STORAGE - Keep safe references for restoration
+            saved_track = self._current_track
+
+            # POSITION DE REPRISE - Utiliser la position exacte mémorisée lors de la pause
+            if hasattr(self, '_paused_position') and self._paused_position > 0:
+                # Use the exact position stored during pause
+                last_pos = self._paused_position
+                logger.log(LogLevel.INFO, f"Resuming from stored position: {last_pos:.2f}s")
+            else:
+                # Fallback to traditional calculation - should not normally be used anymore
+                last_pos = 0
+                if self._stream_start_time > 0:
+                    current_time = time.time()
+                    elapsed = current_time - self._stream_start_time
+                    if elapsed > 0:
+                        # Limit the position to the track duration to avoid overflows
+                        track_duration = self._get_track_duration(saved_track.path)
+                        last_pos = min(elapsed, track_duration - 1) if track_duration > 0 else elapsed
+                        logger.log(LogLevel.INFO, f"Calculated resume position (fallback): {last_pos:.2f}s")
+
+                        # Check if the position is too close to the end
+                        if track_duration > 0 and last_pos > track_duration - 5:
+                            logger.log(LogLevel.INFO, f"Position too close to end, restarting track")
+                            last_pos = 0
+                    else:
+                        last_pos = 0
+
+            # Initialiser le flag de succès
+            success = False
+
+            # ENVIRONMENT CHECK - Ensure Pygame is ready
+            # Explicitly disable video components to avoid XDG_RUNTIME_DIR errors
+            os.environ['SDL_VIDEODRIVER'] = 'dummy'
+            os.environ['SDL_AUDIODRIVER'] = 'alsa'
+
+            # Fully reinitialize if necessary
+            if not pygame.get_init() or not pygame.mixer.get_init():
+                logger.log(LogLevel.WARNING, "Pygame not fully initialized before resume, reinitializing...")
+                try:
+                    # Clean and complete shutdown
+                    pygame.mixer.quit()
+                    pygame.quit()
+                    time.sleep(0.1)  # Wait for resources to be released
+
+                    # Complete reinitialization
+                    pygame.init()
+                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                    pygame.display.quit()  # Disable display module
+
+                    logger.log(LogLevel.INFO, "Pygame successfully reinitialized for audio-only operation")
+                except Exception as e:
+                    logger.log(LogLevel.ERROR, f"Error during complete Pygame reinitialization: {str(e)}")
+                    # Wait a bit longer and try again
+                    time.sleep(0.2)
+                    try:
+                        pygame.init()
+                        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                    except Exception as e2:
+                        logger.log(LogLevel.ERROR, f"Fatal error reinitializing Pygame: {str(e2)}")
+                        # Cannot continue if Pygame cannot be initialized
+                        return
+
+            # STANDARD RESUME ATTEMPT - first try unpause()
             try:
-                pygame.mixer.music.unpause()
-                self._is_playing = True
-                self._notify_playback_status('playing')
-                logger.log(LogLevel.INFO, "Playback resumed")
+                # Check that we have a loaded sound before attempting to resume
+                if pygame.mixer.music.get_busy() or pygame.mixer.music.get_pos() >= 0:
+                    # First attempt: standard resume
+                    pygame.mixer.music.unpause()
+                    self._is_playing = True
+
+                    # Wait briefly and check if resume worked
+                    pygame.time.delay(50)  # 50ms should be enough to detect problems
+
+                    # Force the mixer to process events
+                    pygame.event.pump()
+
+                    # Check that playback actually resumed
+                    if pygame.mixer.music.get_busy():
+                        success = True
+                        # Update stream_start_time to account for pause
+                        self._stream_start_time = time.time() - last_pos
+                        self._notify_playback_status('playing')
+                        logger.log(LogLevel.INFO, f"Resume succeeded at position {last_pos:.2f}s")
+                    else:
+                        logger.log(LogLevel.WARNING, "Standard resume failed silently, falling back to reload")
+                        success = False
+                else:
+                    logger.log(LogLevel.WARNING, "No sound loaded or pending, cannot resume directly")
+                    success = False
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error resuming: {str(e)}")
+                logger.log(LogLevel.ERROR, f"Error during resume: {str(e)}")
+                success = False
+
+            # FALLBACK - If direct resume fails, reload and seek position
+            if not success:
+                try:
+                    # Ensure state variables are intact
+                    if not self._current_track:
+                        self._current_track = saved_track
+
+                    # Reload from the calculated position
+                    if last_pos > 0:
+                        logger.log(LogLevel.INFO, f"Forced reload: Resuming at position {last_pos:.2f}s")
+                        # Use the dedicated method for loading from a position
+                        result = self.play_current_from_position(last_pos)
+                        if not result:
+                            logger.log(LogLevel.WARNING, "Unable to resume from exact position, restarting track")
+                            self.play_track(self._current_track.number)
+                    else:
+                        # Simply restart the track if we don't have a valid position
+                        logger.log(LogLevel.INFO, f"Forced reload: Restarting track {self._current_track.number}")
+                        self.play_track(self._current_track.number)
+                except Exception as e:
+                    logger.log(LogLevel.ERROR, f"Error in resume fallback mechanism: {str(e)}")
+                    try:
+                        # Last resort - simply try to play from the beginning
+                        logger.log(LogLevel.WARNING, "Last resort: attempt to play from beginning")
+                        self.play_track(self._current_track.number)
+                    except Exception as fallback_error:
+                        logger.log(LogLevel.ERROR, f"Complete resume failure: {str(fallback_error)}")
+                        self._is_playing = False
+                        self._notify_playback_status('stopped')
+
+    def play_current_from_position(self, position_seconds: float) -> bool:
+        """Play the current track from a specific position with robust error handling
+
+        Args:
+            position_seconds: Position in seconds to start playback from
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if not self._current_track or not self._playlist:
+            logger.log(LogLevel.WARNING, "No current track to resume")
+            return False
+
+        # IMPORTANT: Save state references before any reinitialization
+        saved_track = self._current_track
+        saved_playlist = self._playlist
+        current_track_number = saved_track.number
+
+        try:
+            # Make sure we have a valid position
+            total_duration = self._get_track_duration(saved_track.path)
+            if position_seconds < 0:
+                position_seconds = 0
+            if position_seconds > total_duration:
+                position_seconds = 0  # Start from beginning if position is beyond duration
+
+            # Stop any current playback first to clear internal state
+            try:
+                pygame.mixer.music.stop()
+            except Exception as e:
+                logger.log(LogLevel.WARNING, f"Error stopping playback: {str(e)}")
+
+            # To avoid video system errors, use only the audio driver
+            os.environ['SDL_VIDEODRIVER'] = 'dummy'
+            os.environ['SDL_AUDIODRIVER'] = 'alsa'
+
+            # Reset pygame completely if needed (helps on Raspberry Pi)
+            if not pygame.mixer.get_init() or not pygame.get_init():
+                logger.log(LogLevel.WARNING, "Pygame not fully initialized, reinitializing...")
+                try:
+                    pygame.mixer.quit()
+                except Exception as e:
+                    logger.log(LogLevel.WARNING, f"Error quitting mixer: {str(e)}")
+
+                try:
+                    pygame.quit()
+                except Exception as e:
+                    logger.log(LogLevel.WARNING, f"Error quitting pygame: {str(e)}")
+
+                # Complete reinitialization of pygame in audio-only mode
+                try:
+                    # Re-initialize base components
+                    pygame.init()
+                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                    # Disable the display module to avoid errors
+                    pygame.display.quit()
+                    logger.log(LogLevel.INFO, "Pygame successfully reinitialized in audio-only mode")
+                except Exception as init_error:
+                    logger.log(LogLevel.ERROR, f"Failed to reinitialize pygame: {str(init_error)}")
+                    # Wait a bit before retrying
+                    time.sleep(0.2)
+                    pygame.init()
+                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                    pygame.display.quit()
+
+            # IMPORTANT: Ensure the file exists and use the correct path
+            file_path = str(saved_track.path)
+
+            # Make sure we haven't lost playlist state
+            # If attributes have been reset, restore them
+            if not self._current_track or not self._playlist:
+                self._current_track = saved_track
+                self._playlist = saved_playlist
+                logger.log(LogLevel.INFO, "Restored playlist state after reinitialization")
+
+            # Try loading with retry mechanism
+            load_attempts = 0
+            max_attempts = 3  # Increase number of attempts
+            while load_attempts < max_attempts:
+                try:
+                    pygame.mixer.music.load(file_path)
+                    break
+                except Exception as load_error:
+                    load_attempts += 1
+                    if load_attempts >= max_attempts:
+                        logger.log(LogLevel.ERROR, f"Final load attempt failed: {load_error}.")
+                        if saved_track and saved_track.path and os.path.exists(saved_track.path):
+                            logger.log(LogLevel.INFO, f"Track exists at path: {saved_track.path}")
+                        else:
+                            logger.log(LogLevel.ERROR, f"Track file not found: {saved_track.path}")
+                        raise load_error
+                    logger.log(LogLevel.WARNING, f"Load attempt {load_attempts} failed: {load_error}. Retrying...")
+                    # Brief delay before retry
+                    time.sleep(0.1)  # Longer wait to let the system stabilize
+                    # Reinitialize pygame if needed between attempts
+                    if load_attempts == 2:
+                        pygame.mixer.quit()
+                        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+
+            # Start playback with explicit position
+            logger.log(LogLevel.INFO, f"Starting playback from position {position_seconds:.2f}s")
+            pygame.mixer.music.play(start=position_seconds)
+
+            # Verify playback started properly with additional retries
+            pygame.time.delay(100)  # Plus long pour laisser le temps de démarrer
+
+            start_attempts = 0
+            max_start_attempts = 2
+            while not pygame.mixer.music.get_busy() and start_attempts < max_start_attempts:
+                start_attempts += 1
+                logger.log(LogLevel.WARNING, f"Start attempt {start_attempts} failed. Retrying...")
+                # Retry with different approach
+                if start_attempts == 1:
+                    # Try standard play with position
+                    pygame.mixer.music.play(start=position_seconds)
+                else:
+                    # Last resort: try from beginning
+                    pygame.mixer.music.play()
+                pygame.time.delay(100)
+
+            # Update internal state but only if playback actually started
+            if pygame.mixer.music.get_busy():
+                self._stream_start_time = time.time() - position_seconds  # Adjust start time
+                self._is_playing = True
+
+            # Only notify status change if we're actually playing
+            if self._is_playing:
+                self._notify_playback_status('playing')
+                logger.log(LogLevel.INFO, f"Successfully resumed track from position {position_seconds:.2f}s: {self._current_track.title}")
+                return True
+            else:
+                logger.log(LogLevel.ERROR, "Failed to resume playback after multiple attempts")
+                return False
+
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error playing from position: {str(e)}")
+            # Last resort attempt: try to completely restart playback from beginning
+            try:
+                self.play_track(self._current_track.number)
+                return self._is_playing
+            except:
+                return False
 
     def stop(self, clear_playlist: bool = True) -> None:
         """Stop playback"""
@@ -286,8 +578,6 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         """(Private) Return current volume (not part of Protocol)"""
         return self._volume
 
-    # Propriété is_playing déjà définie plus haut - cette duplication est supprimée
-
     def _setup_event_handler(self):
         """Set up event handler"""
         self._start_progress_thread()
@@ -331,25 +621,25 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             return
 
         try:
-            # On vérifie si la lecture est active via pygame
+            # Check if playback is active via pygame
             busy = pygame.mixer.music.get_busy()
-            
-            # Si l'état interne indique 'playing' mais pygame dit que c'est arrêté, alors c'est une erreur
+
+            # If internal state indicates 'playing' but pygame says it's stopped, this is an error
             if self._is_playing and not busy and pygame.mixer.get_init():
                 logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] Audio state mismatch: _is_playing=True but pygame says it's not busy")
-                # Ne pas envoyer de mise à jour dans ce cas pour éviter les timecodes contradictoires
+                # Do not send update in this case to avoid conflicting timecodes
                 return
-                
-            # Calcul du temps écoulé depuis le début de la lecture
+
+            # Calculate time elapsed since playback started
             elapsed = time.time() - self._stream_start_time if self._stream_start_time > 0 else 0
             total = self._get_track_duration(self._current_track.path)
-            
-            # Éviter les valeurs négatives ou supérieures à la durée totale
+
+            # Avoid negative values or values greater than total duration
             if elapsed < 0:
                 elapsed = 0
             if total > 0 and elapsed > total:
                 elapsed = total
-            
+
             track_info = {
                 'number': self._current_track.number,
                 'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
@@ -358,8 +648,8 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             }
             playlist_info = self._playlist.to_dict() if self._playlist and hasattr(self._playlist, 'to_dict') else None
 
-            # N'envoyer la mise à jour que si nous sommes en mode lecture
-            # pour éviter les conflits de timecode multiples
+            # Only send the update if we are in playback mode
+            # to avoid conflicting timecodes
             if self._is_playing:
                 self._playback_subject.notify_track_progress(
                     elapsed=elapsed,
@@ -369,12 +659,12 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                     playlist_info=playlist_info,
                     is_playing=self._is_playing
                 )
-                
-                # Ne pas logger toutes les mises à jour pour éviter de surcharger les logs
-                # Logger uniquement toutes les 10 secondes ou à des moments clés
+
+                # Do not log every update to avoid log overload
+                # Log only every 10 seconds or at key moments
                 if int(elapsed) % 10 == 0 or int(elapsed) == 0 or int(elapsed) == int(total):
                     logger.log(LogLevel.INFO, f"[UPDATE_PROGRESS] notify_track_progress called (elapsed={elapsed:.2f} / {total:.2f})")
-            
+
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error updating progress: {str(e)}")
 
