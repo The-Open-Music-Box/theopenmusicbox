@@ -52,6 +52,12 @@ class WebSocketHandlersAsync:
         @self.sio.event
         async def disconnect(sid):
             logger.log(LogLevel.INFO, f"Client disconnected: {sid}")
+            # If the disconnecting client was in association mode, stop NFC listening
+            if self.nfc_service and self.nfc_service.is_listening():
+                # Only stop if the association was started by this sid
+                if getattr(self.nfc_service, '_sid', None) == sid:
+                    logger.log(LogLevel.INFO, f"[SOCKET.IO] Stopping NFC association mode for disconnected client: {sid}")
+                    await self.nfc_service.stop_listening()
 
         @self.sio.on('set_playlist')
         async def handle_set_playlist(sid, data):
@@ -160,24 +166,29 @@ class WebSocketHandlersAsync:
         @self.sio.on('override_nfc_tag')
         async def handle_override_tag(sid):
             logger.log(LogLevel.INFO, f"[SOCKET.IO] override_nfc_tag received from client: {sid}")
-            
             try:
-                if not self.nfc_service.is_listening():
+                if not self.nfc_service or not self.nfc_service.is_listening():
                     await self.sio.emit('nfc_error', {
                         'type': 'error',
                         'message': 'Not in NFC association mode'
                     }, room=sid)
                     return
-                    
-                # Enable override mode and process last tag again
+
+                # Enable override mode for the NFC association
                 await self.nfc_service.set_override_mode(True)
                 logger.log(LogLevel.INFO, f"[SOCKET.IO] Override mode enabled for client: {sid}")
-                
-                # NFC service will emit appropriate status updates as it processes the override
-                
+
+                # Optionally, you may want to re-process the last detected tag if needed
+                # If you want to force immediate re-association, trigger it here
+                # Example (pseudo):
+                # if self.nfc_service._last_tag_info:
+                #     await self.nfc_service.handle_tag_association(self.nfc_service._last_tag_info['uid'], self.nfc_service._last_tag_info)
+                # The NFC service should emit appropriate status updates as it processes the override
+
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"[SOCKET.IO] Error in override_nfc_tag: {str(e)}")
                 await self.sio.emit('nfc_error', {
                     'type': 'error',
                     'message': str(e)
                 }, room=sid)
+

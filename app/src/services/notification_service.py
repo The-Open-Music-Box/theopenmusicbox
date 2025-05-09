@@ -1,6 +1,7 @@
 from typing import Dict, Any
 import threading
 import asyncio
+import time
 from rx.subject import Subject
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
@@ -17,7 +18,6 @@ class DownloadNotifier:
             'status': status,
             **data
         })
-        # await asyncio.sleep(0)  # Optionnel en async, peut être retiré si inutile
 
 class PlaybackEvent:
     def __init__(self, event_type: str, data: Dict[str, Any]):
@@ -25,7 +25,7 @@ class PlaybackEvent:
         self.data = data
 
 class PlaybackSubject:
-    # Instance statique globale pour référence directe
+    # Global static instance for direct reference
     _instance = None
     _lock = threading.Lock()
     _socketio = None
@@ -42,13 +42,14 @@ class PlaybackSubject:
             return cls._instance
 
     def __init__(self):
-        # RxPy subjects - maintenus pour compatibilité arrière
-        # La communication directe Socket.IO est désormais la méthode principale
+         # RxPy subjects - kept for backward compatibility with legacy components
+        # Direct Socket.IO communication is now the primary method
         self._status_subject = Subject()
         self._progress_subject = Subject()
         self._last_status_event = None
         self._last_progress_event = None
-        # Enregistrer cette instance comme instance statique si c'est la première
+        self._last_progress_emit_time = 0  # Used to throttle progress event emission frequency
+        # Register this instance as the global static instance if it is the first one
         with PlaybackSubject._lock:
             if PlaybackSubject._instance is None:
                 PlaybackSubject._instance = self
@@ -79,13 +80,13 @@ class PlaybackSubject:
             event = PlaybackEvent('status', event_data)
             self._last_status_event = event
 
-            # 1. Maintenir la compatibilité avec RxPy (pour les composants existants)
+            # 1. Maintain RxPy compatibility for legacy components
             self._status_subject.on_next(event)
 
-            # 2. Méthode principale: Émettre directement via Socket.IO (plus fiable)
+            # 2. Main method: emit directly via Socket.IO (preferred)
             if PlaybackSubject._socketio:
                 try:
-                    # Émission via Socket.IO en créant une tâche asyncio
+                    # Emit via Socket.IO by creating an asyncio task
                     self._emit_socketio_event('playback_status', event_data)
                 except Exception as e:
                     logger.log(LogLevel.ERROR, f"[PlaybackSubject] Error emitting Socket.IO event: {e}")
@@ -114,13 +115,13 @@ class PlaybackSubject:
             event = PlaybackEvent('progress', event_data)
             self._last_progress_event = event
 
-            # 1. Maintenir la compatibilité avec RxPy (pour les composants existants)
+            # 1. Maintain RxPy compatibility for legacy components
             self._progress_subject.on_next(event)
 
-            # 2. Méthode principale: Émettre directement via Socket.IO (plus fiable)
+            # 2. Main method: emit directly via Socket.IO (preferred)
             if PlaybackSubject._socketio:
                 try:
-                    # Émission via Socket.IO en créant une tâche asyncio
+                    # Emit via Socket.IO by creating an asyncio task
                     self._emit_socketio_event('track_progress', event_data)
                 except Exception as e:
                     logger.log(LogLevel.ERROR, f"[PlaybackSubject] Error emitting Socket.IO event: {e}")
@@ -135,57 +136,62 @@ class PlaybackSubject:
 
     def _emit_socketio_event(self, event_name, event_data):
         """
-        Émet un événement Socket.IO de manière asynchrone sans bloquer.
-        Crée une tâche asyncio pour gérer l'émission de l'événement.
-        Gère les émissions depuis des threads secondaires sans boucle asyncio.
+        Emit a Socket.IO event in an optimized way to avoid thread conflicts.
+        This is a simplified and robust version that minimizes new asyncio loop creation.
         """
         if not PlaybackSubject._socketio:
             return
 
-        # Identifier le thread actuel
-        current_thread = threading.current_thread()
-        thread_name = current_thread.name
+        # Identify the current thread for logging
+        thread_name = threading.current_thread().name
 
-        # Dict pour stocker une référence aux données à traiter
-        event_to_emit = {
-            "name": event_name,
-            "data": event_data
-        }
+        # Check if this event should be sent (to reduce network overhead)
+        if event_name == 'track_progress' and 'current_time' in event_data:
+            # Only send progress updates at most every 250ms
+            current_time = time.time()
+            last_progress_time = getattr(self, '_last_progress_emit_time', 0)
+            if current_time - last_progress_time < 0.25:  # 250ms throttle
+                return  # Ignore overly frequent updates
+            self._last_progress_emit_time = current_time
 
-        # Méthode auxiliaire pour l'émission asynchrone
-        async def async_emit():
-            try:
-                await PlaybackSubject._socketio.emit(event_to_emit["name"], event_to_emit["data"])
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"[PlaybackSubject] Async Socket.IO emit failed: {e}")
-
-        # Gérer selon si thread principal ou secondaire
+        # Simplified approach to reduce concurrency issues
         try:
+            # Try to get the current event loop and use it if available
             try:
-                # Essayer d'obtenir la boucle courante (peut échouer dans thread secondaire)
-                loop = asyncio.get_event_loop()
-                if loop.is_running():
-                    # Si dans une boucle asyncio en cours d'exécution, créer simplement la tâche
-                    loop.create_task(async_emit())
-                else:
-                    # Boucle existante mais pas active (rare)
-                    loop.run_until_complete(async_emit())
-            except RuntimeError as e:
-                # Pas de boucle d'événements dans ce thread, on en crée une nouvelle
+                loop = asyncio.get_running_loop()
+                # Use create_task, which is safer than directly awaiting
+                async def _emit():
+                    try:
+                        await PlaybackSubject._socketio.emit(event_name, event_data)
+                    except Exception as e:
+                        logger.log(LogLevel.ERROR, f"[Socket.IO] Emit failed: {e}")
+                loop.create_task(_emit())
+                return
+            except RuntimeError:
+                # No active asyncio event loop in this thread (likely a secondary thread)
+                pass
+
+            # If here, we are in a secondary thread without an active loop
+            # Create a dedicated event loop and cache it globally for reuse
+            # This avoids constantly creating new event loops
+            if not hasattr(PlaybackSubject, '_thread_local_loops'):
+                PlaybackSubject._thread_local_loops = {}
+
+            thread_id = threading.get_ident()
+            if thread_id not in PlaybackSubject._thread_local_loops:
                 new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                try:
-                    # Exécuter l'émission avec la nouvelle boucle
-                    new_loop.run_until_complete(async_emit())
-                finally:
-                    # Fermer proprement la boucle
-                    new_loop.close()
-                    asyncio.set_event_loop(None)
+                PlaybackSubject._thread_local_loops[thread_id] = new_loop
+                logger.log(LogLevel.DEBUG, f"Created new event loop for thread {thread_id}")
+
+            loop = PlaybackSubject._thread_local_loops[thread_id]
+
+            # Function to synchronously emit the event
+            async def _emit_async():
+                await PlaybackSubject._socketio.emit(event_name, event_data)
+
+            # Synchronously emit the event using the existing loop
+            loop.run_until_complete(_emit_async())
+
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"[PlaybackSubject] Failed to emit Socket.IO event: {e}")
-            # Contournement: essayer une émission non-async en dernier recours
-            try:
-                # Essayer une émission synchrone (non recommandé mais peut fonctionner)
-                PlaybackSubject._socketio.emit(event_name, event_data, callback=None)
-            except Exception as fallback_error:
-                logger.log(LogLevel.ERROR, f"[PlaybackSubject] Even sync emit failed: {fallback_error}")
+            logger.log(LogLevel.ERROR, f"[Socket.IO] Emit error ({thread_name}): {e}")
+            # Do not attempt further retries - this avoids error cascades

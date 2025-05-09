@@ -47,7 +47,13 @@ async def lifespan(fastapi_app):
             # Set up NFC tag event subscription
             def on_tag(tag_data):
                 try:
-                    fastapi_app.application.handle_tag_scanned(tag_data)  # Use public method
+                    if isinstance(tag_data, dict) and tag_data.get('absence'):
+                        fastapi_app.application._playlist_controller.handle_tag_absence()
+                    else:
+                        if isinstance(tag_data, dict) and 'uid' in tag_data:
+                            fastapi_app.application._playlist_controller.handle_tag_scanned(tag_data['uid'], tag_data)
+                        else:
+                            fastapi_app.application._playlist_controller.handle_tag_scanned(tag_data)  # Call method on controller
                 except ValueError as e:
                     import traceback
                     logger.log(LogLevel.ERROR, f"[NFC] Error routing tag event: {e}\n{traceback.format_exc()}")

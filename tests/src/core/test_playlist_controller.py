@@ -22,7 +22,9 @@ class TestPlaylistController:
         assert controller._current_tag is None
         assert controller._tag_last_seen == 0
         assert controller._pause_threshold > 0
-        assert controller._monitor_thread is not None
+        # No monitor thread/task is started by default
+        assert controller._monitor_task is None
+
 
     def test_handle_tag_scanned_new_tag(self, mock_audio_player, mock_playlist_service):
         """Test handling of a new NFC tag."""
@@ -155,17 +157,19 @@ class TestPlaylistController:
         mock_playlist_service.play_playlist_with_validation.assert_called_once_with(test_playlist, mock_audio_player)
 
     @patch('time.sleep', return_value=None)  # Patch sleep to speed up test
-    def test_start_tag_monitor(self, mock_sleep, mock_audio_player, mock_playlist_service):
-        """Test starting the tag monitoring thread."""
+    @pytest.mark.asyncio
+    async def test_start_tag_monitor(self, mock_sleep, mock_audio_player, mock_playlist_service):
+        """Test starting the tag monitoring task."""
         # Arrange
         controller = PlaylistController(mock_audio_player, mock_playlist_service)
         
-        # Act - Thread is started in __init__, so just check it's there
+        # Act - Start monitoring explicitly
+        await controller.start_monitoring()
         
         # Assert
-        assert controller._monitor_thread is not None
-        assert controller._monitor_thread.daemon is True
-        assert controller._monitor_thread.is_alive()
+        assert controller._monitor_task is not None
+        assert controller._monitor_task.done() is False
+
 
     def test_update_playback_status_callback(self, mock_audio_player, mock_playlist_service, mock_track):
         """Test updating the playback counter when status changes."""
