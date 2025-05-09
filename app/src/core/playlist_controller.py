@@ -96,56 +96,73 @@ class PlaylistController:
         Handle a tag scan event strictly according to architecture use cases (A-E).
         See README_ARCHITECTURE.md for detailed expected behaviors.
         """
-        current_time = time.time()
-        self._tag_presence_time = current_time
-        self._tag_last_seen = current_time
-
-        # Ignore scan if in association mode, manual override, duplicate scan, or audio unavailable
-        if self._should_ignore_tag_scan(tag_uid, tag_data):
-            return
-
-        playlist_data = self._playlist_service.get_playlist_by_nfc_tag(tag_uid)
-        has_playlist = playlist_data is not None
-        playlist_name = playlist_data.get('title', 'Unknown') if has_playlist else 'None'
-        logger.log(LogLevel.INFO, f"[NFC] Tag detected: {tag_uid} (Playlist: {playlist_name})")
-        logger.log(LogLevel.DEBUG, f"Current tag: {self._current_tag}, detected: {tag_uid}, has playlist: {has_playlist}")
-
-        # Robust audio state detection
-        is_playing = False
-        is_paused = False
-        if self._audio:
-            is_playing = getattr(self._audio, 'is_playing', False)
-            is_paused = getattr(self._audio, 'is_paused', False)
-            logger.log(LogLevel.DEBUG, f"Audio states: is_playing={is_playing}, is_paused={is_paused}")
-
-        # CASE A/E: New or different tag with playlist (always load and start from beginning)
-        if has_playlist and (self._current_tag is None or tag_uid != self._current_tag):
-            logger.log(LogLevel.INFO, "CASE A/E: New or different tag with playlist - loading and starting playlist from beginning")
-            self._process_new_tag(tag_uid, tag_data)
-            self._auto_pause_enabled = True
-            return
-
-        # CASE B: Same tag, playback paused (resume at paused position)
-        if has_playlist and tag_uid == self._current_tag and is_paused:
-            logger.log(LogLevel.INFO, "CASE B: Same tag with playlist detected while paused - resuming playback at paused position")
-            self._audio.resume()
-            self._auto_pause_enabled = True
-            return
-
-        # CASE C: Tag not associated with any playlist
-        if not has_playlist:
-            logger.log(LogLevel.INFO, "CASE C: Tag without playlist - no action taken")
-            return
-
-        # Safety: Same tag, already playing (continue, no state change)
-        if has_playlist and tag_uid == self._current_tag and is_playing:
-            logger.log(LogLevel.DEBUG, "Same tag detected during playback - continuing (no action)")
-            self._auto_pause_enabled = True
-            return
-
-        # Fallback: Log as unhandled
-        logger.log(LogLevel.WARNING, f"[NFC] Unhandled case: tag={tag_uid}, current_tag={self._current_tag}, has_playlist={has_playlist}, is_playing={is_playing}, is_paused={is_paused}")
-        logger.log(LogLevel.INFO, "No specific action taken for this tag scan event")
+        try:
+            current_time = time.time()
+            self._tag_presence_time = current_time
+            self._tag_last_seen = current_time
+            self._current_tag = tag_uid  # Set current tag immediately to ensure it's set even if an exception occurs
+        
+            # Ignore scan if in association mode, manual override, duplicate scan, or audio unavailable
+            if self._should_ignore_tag_scan(tag_uid, tag_data):
+                return
+        
+            playlist_data = self._playlist_service.get_playlist_by_nfc_tag(tag_uid)
+            has_playlist = playlist_data is not None
+            playlist_name = playlist_data.get('title', 'Unknown') if has_playlist else 'None'
+            logger.log(LogLevel.INFO, f"[NFC] Tag detected: {tag_uid} (Playlist: {playlist_name})")
+            logger.log(LogLevel.DEBUG, f"Current tag: {self._current_tag}, detected: {tag_uid}, has playlist: {has_playlist}")
+        
+            # Robust audio state detection
+            is_playing = False
+            is_paused = False
+            is_finished = False
+            if self._audio:
+                is_playing = getattr(self._audio, 'is_playing', False)
+                is_paused = getattr(self._audio, 'is_paused', False)
+                is_finished = getattr(self._audio, 'is_finished', lambda: False)()
+                logger.log(LogLevel.DEBUG, f"Audio states: is_playing={is_playing}, is_paused={is_paused}, is_finished={is_finished}")
+        
+            # CASE A/E: New or different tag with playlist (always load and start from beginning)
+            if has_playlist and (tag_uid != self._current_tag):
+                logger.log(LogLevel.INFO, "CASE A/E: New or different tag with playlist - loading and starting playlist from beginning")
+                self._play_playlist(playlist_data)
+                logger.log(LogLevel.INFO, f"Started playlist for tag: {tag_uid}")
+                self._auto_pause_enabled = True
+                return
+        
+            # CASE F: Same tag with finished playlist (restart from beginning)
+            if has_playlist and tag_uid == self._current_tag and is_finished:
+                logger.log(LogLevel.INFO, "CASE F: Same tag with finished playlist - restarting playlist from beginning")
+                self._playlist_service.play_playlist_with_validation(playlist_data, self._audio)
+                self._auto_pause_enabled = True
+                return
+        
+            # CASE B: Same tag, playback paused (resume at paused position)
+            if has_playlist and tag_uid == self._current_tag and is_paused:
+                logger.log(LogLevel.INFO, "CASE B: Same tag with playlist detected while paused - resuming playback at paused position")
+                self._audio.resume()
+                self._auto_pause_enabled = True
+                return
+        
+            # CASE C: Tag not associated with any playlist
+            if not has_playlist:
+                logger.log(LogLevel.INFO, "CASE C: Tag without playlist - no action taken")
+                return
+        
+            # Safety: Same tag, already playing (continue, no state change)
+            if has_playlist and tag_uid == self._current_tag and is_playing:
+                logger.log(LogLevel.DEBUG, "Same tag detected during playback - continuing (no action)")
+                self._auto_pause_enabled = True
+                return
+        
+            # Fallback: Log as unhandled
+            logger.log(LogLevel.WARNING, f"[NFC] Unhandled case: tag={tag_uid}, current_tag={self._current_tag}, has_playlist={has_playlist}, is_playing={is_playing}, is_paused={is_paused}")
+            logger.log(LogLevel.INFO, "No specific action taken for this tag scan event")
+        except Exception as e:
+            ErrorHandler.log_error(e, f"Error handling tag scan: {str(e)}")
+            logger.log(LogLevel.ERROR, f"Exception in handle_tag_scanned: {str(e)}")
+            # Ensure tag is still set even if an error occurs
+            self._current_tag = tag_uid
 
     def _should_ignore_tag_scan(self, tag_uid: str, tag_data: Optional[Dict[str, Any]] = None) -> bool:
         """

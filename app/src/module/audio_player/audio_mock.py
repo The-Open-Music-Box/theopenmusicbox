@@ -33,6 +33,16 @@ class MockAudioPlayer(AudioPlayerHardware):
         Return True if the player is paused (not playing, but a track is loaded).
         """
         return not self._is_playing and self._current_track is not None
+        
+    @property
+    def is_playing(self) -> bool:
+        """
+        Check if the player is currently playing audio.
+        
+        Returns:
+            bool: True if audio is playing, False otherwise.
+        """
+        return self._is_playing
 
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
         """
@@ -56,6 +66,36 @@ class MockAudioPlayer(AudioPlayerHardware):
         # Start the progress tracking thread if a playback_subject is provided (for real-time frontend updates)
         if playback_subject:
             self._start_progress_thread()
+
+    def play(self, track: str) -> None:
+        """
+        Play a specific track by filename or path.
+        Args:
+            track: The filename or path of the audio track to play.
+        """
+        logger.log(LogLevel.INFO, f"Mock: Playing track {track}")
+        
+        # Simulate loading a single track
+        path = Path(track)
+        mock_track = Track(
+            number=1,
+            filename=path.name,
+            path=path,
+            title=path.stem
+        )
+        
+        # Create a single-track playlist if we don't have one
+        if not self._playlist:
+            self._playlist = Playlist(name="Single Track", tracks=[mock_track])
+        elif not any(t.path == path for t in self._playlist.tracks):
+            # Add to existing playlist if not already there
+            mock_track.number = len(self._playlist.tracks) + 1
+            self._playlist.tracks.append(mock_track)
+        
+        self._current_track = mock_track
+        self._is_playing = True
+        self._track_start_time = time.time()
+        self._notify_playback_status('playing')
 
     def _load_playlist(self, playlist_path: str) -> bool:
         """(Private) Load a playlist from a path (not part of Protocol)"""
