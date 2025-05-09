@@ -85,12 +85,41 @@ class TagDetectionManager:
     def process_tag_absence(self):
         """
         Process the absence of a tag.
+        
+        Détecte quand un tag n'est plus présent et émet un événement d'absence
+        qui sera traité par le PlaylistController pour mettre en pause la lecture.
         """
         current_time = time.time()
+        
+        # Vérifie si un tag était présent et est maintenant absent
         if self._tag_present:
+            # Marquer comme absent et enregistrer l'horodatage
             self._tag_present = False
             self._last_no_tag_time = current_time
-            logger.log(LogLevel.INFO, "Tag removed from reader")
+            
+            # Calculer le temps de présence du tag (utile pour le débogage)
+            duration_present = 0
+            if hasattr(self, '_last_tag_detection_time') and self._last_tag_detection_time > 0:
+                duration_present = current_time - self._last_tag_detection_time
+                logger.log(LogLevel.DEBUG, f"Tag présent pendant {duration_present:.2f} secondes")
+            
+            # Journal et notification d'absence
+            logger.log(LogLevel.INFO, f"Tag removed from reader (was present for {duration_present:.2f}s)")
+            
+            # Construire un événement d'absence complet avec les données de contexte
+            absence_event = {
+                'absence': True,
+                'timestamp': current_time,
+                'last_tag': self._last_tag,  # Inclure l'ID du dernier tag pour référence
+                'duration_present': duration_present
+            }
+            
+            # Émettre l'événement d'absence à tous les observateurs
+            self._tag_subject.on_next(absence_event)
+            
+            # Réinitialiser le dernier tag vu mais conserver sa valeur pour référence
+            # self._last_tag reste inchangé pour permettre la comparaison lors d'une réapparition
+
     
     @property
     def tag_subject(self) -> Subject:

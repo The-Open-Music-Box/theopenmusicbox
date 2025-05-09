@@ -44,6 +44,11 @@ class NFCService:
             tag_data: Tag data received from the NFC handler
         """
         try:
+            # Handle tag absence event
+            if isinstance(tag_data, dict) and tag_data.get('absence'):
+                if hasattr(self, '_playlist_controller') and self._playlist_controller:
+                    self._playlist_controller.handle_tag_absence()
+                return
             if isinstance(tag_data, dict) and 'uid' in tag_data:
                 tag_id = tag_data['uid']
                 # Launch the coroutine in the event loop with complete data
