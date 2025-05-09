@@ -26,7 +26,7 @@ class StandardConfig(IConfig):
         'SOCKETIO_PORT': 5004,
         'UPLOAD_FOLDER': 'uploads',
         'DB_FILE': 'database/app.db',
-        'CORS_ALLOWED_ORIGINS': 'http://10.0.0.83:8081;http://10.0.0.10:8081;http://10.0.0.10:8080',
+        'CORS_ALLOWED_ORIGINS': 'http://10.0.0.83:8081;http://10.0.0.10:8081;http://10.0.0.10:8080;http://localhost:8080',
         'USE_RELOADER': False,
         'LOG_LEVEL': 'INFO',
         'LOG_FORMAT': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -43,7 +43,7 @@ class StandardConfig(IConfig):
         env_path = Path(__file__).parent.parent.parent / '.env'
         if env_path.exists():
             load_dotenv(env_path)
-            
+
     def _convert_env_value(self, value: str, target_type: type) -> Any:
         try:
             if target_type == bool:
