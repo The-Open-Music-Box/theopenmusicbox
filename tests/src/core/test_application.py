@@ -117,7 +117,7 @@ class TestApplication:
         # Arrange
         with patch('app.src.services.playlist_service.PlaylistService'):
             with patch('app.src.core.application.logger') as mock_logger:
-                # Réinitialiser le mock pour ce test spécifique
+                # Reset the mock for this specific test
                 mock_logger.reset_mock()
                 
                 app = Application(mock_config)
@@ -139,7 +139,7 @@ class TestApplication:
         # Arrange
         with patch('app.src.services.playlist_service.PlaylistService'):
             with patch('app.src.core.application.logger') as mock_logger:
-                # Réinitialiser le mock pour ce test spécifique
+                # Reset the mock for this specific test
                 mock_logger.reset_mock()
                 
                 app = Application(mock_config)
@@ -161,7 +161,7 @@ class TestApplication:
         # Arrange
         with patch('app.src.services.playlist_service.PlaylistService'):
             with patch('app.src.core.application.logger') as mock_logger:
-                # Réinitialiser le mock pour ce test spécifique
+                # Reset the mock for this specific test
                 mock_logger.reset_mock()
                 
                 app = Application(mock_config)
@@ -185,7 +185,7 @@ class TestApplication:
             mock_controller.cleanup = MagicMock()
             
             app = Application(mock_config)
-            # Remplacer l'instance après création
+            # Replace the instance after creation
             app._playlist_controller = mock_controller
             
             # Act

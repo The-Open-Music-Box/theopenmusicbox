@@ -10,6 +10,7 @@ class TestTagRedetectionAfterAssociation:
     """Tests for the tag re-detection feature after mode transition."""
     
     @pytest.mark.asyncio
+    @pytest.mark.timeout(5)  # Add timeout to prevent test hanging
     async def test_force_redetect_emits_event(self):
         """Test that force_redetect properly emits an event with the tag data."""
         # Arrange
@@ -28,6 +29,7 @@ class TestTagRedetectionAfterAssociation:
         assert result['forced'] is True
         
     @pytest.mark.asyncio
+    @pytest.mark.timeout(5)  # Add timeout to prevent test hanging
     async def test_end_to_end_workflow(self):
         """
         Test the tag association workflow without expecting automatic redetection.

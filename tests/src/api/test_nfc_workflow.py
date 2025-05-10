@@ -138,7 +138,7 @@ async def test_full_nfc_workflow(monkeypatch):
         
         # Step 2: Link tag (first time, should succeed)
         res = client.post("/api/nfc/link", json={"playlist_id": playlist_id, "tag_id": tag_id})
-        # Accepter 200 (succès) ou 503 (indisponible)
+        # Accept 200 (success) or 503 (unavailable)
         assert res.status_code in [200, 503]
         if res.status_code == 200:
             assert res.json()["status"] == "association_complete"
@@ -160,7 +160,7 @@ async def test_full_nfc_workflow(monkeypatch):
         
         # Step 5: Override
         res = client.post("/api/nfc/link", json={"playlist_id": other_playlist_id, "tag_id": tag_id, "override": True})
-        # Accepter 200 (succès) ou 503 (indisponible)
+        # Accept 200 (success) or 503 (unavailable)
         assert res.status_code in [200, 503]
         if res.status_code == 200:
             assert res.json()["status"] == "association_complete"

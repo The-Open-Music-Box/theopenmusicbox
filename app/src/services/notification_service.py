@@ -27,7 +27,7 @@ class PlaybackEvent:
 class PlaybackSubject:
     # Global static instance for direct reference
     _instance = None
-    _lock = threading.Lock()
+    _lock = threading.RLock()
     _socketio = None
 
     @classmethod
@@ -42,17 +42,21 @@ class PlaybackSubject:
             return cls._instance
 
     def __init__(self):
-         # RxPy subjects - kept for backward compatibility with legacy components
+        # RxPy subjects - kept for backward compatibility with legacy components
         # Direct Socket.IO communication is now the primary method
         self._status_subject = Subject()
         self._progress_subject = Subject()
         self._last_status_event = None
         self._last_progress_event = None
         self._last_progress_emit_time = 0  # Used to throttle progress event emission frequency
-        # Register this instance as the global static instance if it is the first one
+        # Fix for infinite recursion: only set _instance if it is None and not self
+        if PlaybackSubject._instance is not None and PlaybackSubject._instance is not self:
+            # Prevent attempting to create a new instance if one already exists
+            raise RuntimeError("PlaybackSubject singleton instance already exists. Use get_instance().")
         with PlaybackSubject._lock:
             if PlaybackSubject._instance is None:
                 PlaybackSubject._instance = self
+
 
     @property
     def status_stream(self) -> Subject:
@@ -165,7 +169,21 @@ class PlaybackSubject:
                         await PlaybackSubject._socketio.emit(event_name, event_data)
                     except Exception as e:
                         logger.log(LogLevel.ERROR, f"[Socket.IO] Emit failed: {e}")
-                loop.create_task(_emit())
+                
+                # Store tasks in a class variable to prevent them from being garbage collected
+                if not hasattr(PlaybackSubject, '_pending_tasks'):
+                    PlaybackSubject._pending_tasks = []
+                
+                # Create and store the task
+                task = loop.create_task(_emit())
+                PlaybackSubject._pending_tasks.append(task)
+                
+                # Add a callback to remove the task when done
+                def _cleanup_task(completed_task):
+                    if hasattr(PlaybackSubject, '_pending_tasks') and completed_task in PlaybackSubject._pending_tasks:
+                        PlaybackSubject._pending_tasks.remove(completed_task)
+                
+                task.add_done_callback(_cleanup_task)
                 return
             except RuntimeError:
                 # No active asyncio event loop in this thread (likely a secondary thread)

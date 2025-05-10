@@ -1,14 +1,61 @@
 # tests/conftest.py
 # Merged fixture file combining fixtures from app/tests/conftest.py and tests/conftest.py
 
+def pytest_configure(config):
+    """
+    Configure custom pytest markers for better test organization.
+    
+    These markers allow for more granular test selection and categorization.
+    """
+    # Test type markers
+    config.addinivalue_line("markers", "unit: mark test as a unit test")
+    config.addinivalue_line("markers", "integration: mark test as an integration test")
+    config.addinivalue_line("markers", "api: mark test as an API test")
+    
+    # Feature area markers
+    config.addinivalue_line("markers", "nfc: test involves NFC functionality")
+    config.addinivalue_line("markers", "audio: test involves audio functionality")
+    config.addinivalue_line("markers", "playlist: test involves playlist functionality")
+    
+    # Performance markers
+    config.addinivalue_line("markers", "slow: test is known to be slow")
+    config.addinivalue_line("markers", "fast: test is known to be fast")
+
 import sys
 import os
-import pathlib
 import warnings
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.src.dependencies import get_config, get_audio
+
+# Fixture to reset the PlaybackSubject singleton between tests
+from app.src.services.notification_service import PlaybackSubject
+
+@pytest.fixture
+def reset_playback_subject():
+    """Reset the PlaybackSubject singleton between tests."""
+    # Store original instance
+    original_instance = PlaybackSubject._instance
+    original_socketio = PlaybackSubject._socketio
+    
+    # Reset for test
+    PlaybackSubject._instance = None
+    PlaybackSubject._socketio = None
+    
+    # Add a timeout to avoid infinite wait in tests that use get_instance
+    import signal
+    def handler(signum, frame):
+        raise TimeoutError("Test timed out: possible infinite loop in PlaybackSubject singleton.")
+    signal.signal(signal.SIGALRM, handler)
+    signal.alarm(2)
+    
+    yield
+    
+    # Restore after test
+    signal.alarm(0)
+    PlaybackSubject._instance = original_instance
+    PlaybackSubject._socketio = original_socketio
 
 # Load environment variables from .env if present
 try:
@@ -85,6 +132,7 @@ def dummy_audio():
 @pytest.fixture
 def mock_playlist_with_tracks(test_client_with_mock_db):
     """Creates a mock playlist with tracks in the test DB and returns its id."""
+    # The test_client_with_mock_db parameter ensures the test DB is set up before creating the playlist
     from app.src.config import Config
     from app.src.data.playlist_repository import PlaylistRepository
     import uuid

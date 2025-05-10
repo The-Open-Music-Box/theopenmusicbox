@@ -12,7 +12,7 @@ from app.src.services.notification_service import PlaybackSubject
 class TestContainerAsync:
     """Tests for the ContainerAsync class."""
 
-    def test_init(self, mock_config):
+    def test_init(self, mock_config, reset_playback_subject):
         """Test the container initialization."""
         # Arrange
         with patch('app.src.services.playlist_service.PlaylistService'):
@@ -30,7 +30,7 @@ class TestContainerAsync:
                     assert hasattr(container, '_audio')
 
     @pytest.mark.asyncio
-    async def test_init_with_nfc(self, mock_config):
+    async def test_init_with_nfc(self, mock_config, reset_playback_subject):
         """Test container initialization with NFC available."""
         # Arrange
         mock_nfc = MagicMock()
@@ -47,7 +47,7 @@ class TestContainerAsync:
                         # Assert
                         assert container._nfc_handler == mock_nfc
 
-    def test_config_property(self, mock_config):
+    def test_config_property(self, mock_config, reset_playback_subject):
         """Test the config property."""
         # Arrange
         with patch('app.src.services.playlist_service.PlaylistService'):
@@ -61,7 +61,7 @@ class TestContainerAsync:
                     # Assert
                     assert result == mock_config
 
-    def test_playback_subject_property(self, mock_config):
+    def test_playback_subject_property(self, mock_config, reset_playback_subject):
         """Test the playback_subject property."""
         # Arrange
         with patch('app.src.services.playlist_service.PlaylistService'):
@@ -76,7 +76,7 @@ class TestContainerAsync:
                     assert isinstance(result, PlaybackSubject)
                     assert result == container._playback_subject
 
-    def test_nfc_property(self, mock_config):
+    def test_nfc_property(self, mock_config, reset_playback_subject):
         """Test the nfc property."""
         # Arrange
         mock_nfc = MagicMock()
@@ -95,7 +95,7 @@ class TestContainerAsync:
                         assert result == container._nfc_service
                         # S'assurer que le NFCService est initialisé, même si le handler n'est pas encore utilisé
 
-    def test_audio_property(self, mock_config):
+    def test_audio_property(self, mock_config, reset_playback_subject):
         """Test the audio property."""
         # Arrange
         # Create a simpler mock for this test
@@ -114,7 +114,7 @@ class TestContainerAsync:
                     assert result == mock_audio
 
     @pytest.mark.asyncio
-    async def test_cleanup_async(self, mock_config):
+    async def test_cleanup_async(self, mock_config, reset_playback_subject):
         """Test resource cleanup."""
         # Arrange
         with patch('app.src.services.playlist_service.PlaylistService'):

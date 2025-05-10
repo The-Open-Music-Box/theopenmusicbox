@@ -10,6 +10,7 @@ def tag_detection_manager():
     return TagDetectionManager(cooldown_period=0.1, removal_threshold=0.2)
 
 
+@pytest.mark.timeout(5)  # Add timeout to prevent test hanging
 def test_tag_detection_initial_state(tag_detection_manager):
     """Test the initial state of the TagDetectionManager."""
     assert tag_detection_manager._last_tag is None
@@ -20,6 +21,7 @@ def test_tag_detection_initial_state(tag_detection_manager):
     assert tag_detection_manager.removal_threshold == 0.2
 
 
+@pytest.mark.timeout(5)  # Add timeout to prevent test hanging
 def test_process_tag_detection_new_tag():
     """Test processing a new tag detection."""
     manager = TagDetectionManager(cooldown_period=0.1, removal_threshold=0.2)
@@ -42,6 +44,7 @@ def test_process_tag_detection_new_tag():
         assert manager._last_read_time == 100.0
 
 
+@pytest.mark.timeout(5)  # Add timeout to prevent test hanging
 def test_process_tag_detection_same_tag():
     """Test processing the same tag multiple times."""
     manager = TagDetectionManager(cooldown_period=0.1, removal_threshold=0.2)
@@ -62,6 +65,7 @@ def test_process_tag_detection_same_tag():
         assert manager._tag_present is True
 
 
+@pytest.mark.timeout(5)  # Add timeout to prevent test hanging
 def test_process_tag_absence():
     """Test processing tag absence."""
     manager = TagDetectionManager(cooldown_period=0.1, removal_threshold=0.2)
@@ -80,6 +84,7 @@ def test_process_tag_absence():
         assert manager._last_tag == tag_id  # Last tag ID should still be stored
 
 
+@pytest.mark.timeout(5)  # Add timeout to prevent test hanging
 def test_process_tag_detection_new_tag_after_removal():
     """Test processing a new tag after a previous tag was removed."""
     manager = TagDetectionManager(cooldown_period=0.1, removal_threshold=0.2)
@@ -107,6 +112,7 @@ def test_process_tag_detection_new_tag_after_removal():
         assert manager._tag_present is True
 
 
+@pytest.mark.timeout(5)  # Add timeout to prevent test hanging
 def test_process_tag_detection_with_cooldown():
     """Test tag detection with cooldown period."""
     manager = TagDetectionManager(cooldown_period=0.2, removal_threshold=0.2)
@@ -138,6 +144,7 @@ def test_process_tag_detection_with_cooldown():
         assert manager._tag_present is True
 
 
+@pytest.mark.timeout(5)  # Add timeout to prevent test hanging
 def test_tag_subject_property():
     """Test the tag_subject property."""
     manager = TagDetectionManager(cooldown_period=0.1, removal_threshold=0.2)
