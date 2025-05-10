@@ -1,5 +1,4 @@
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.services.nfc_service import NFCService
@@ -25,7 +24,7 @@ class APIRoutes:
         # Create NFC service
         nfc_service = NFCService(socketio)
 
-        # Initialisation des routes
+        # Initialization of routes
         self.web_routes = WebRoutes(app)
         self.nfc_routes = NFCRoutes(app, socketio, nfc_service)
         self.youtube_routes = YouTubeRoutes(app, socketio)
@@ -33,7 +32,7 @@ class APIRoutes:
         self.playlist_routes = PlaylistRoutes(app)
 
     def init_routes(self):
-        """Initialize toutes les routes de l'application."""
+        """Initialize all application routes."""
         try:
             logger.log(LogLevel.INFO, "Initializing routes")
 
@@ -51,7 +50,7 @@ class APIRoutes:
             raise
 
 def init_routes(app: FastAPI, socketio):
-    """Point d'entrée pour l'initialisation des routes."""
+    """Entry point for route initialization."""
     routes = APIRoutes(app, socketio)
     routes.init_routes()
     return routes
