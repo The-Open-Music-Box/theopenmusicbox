@@ -1,6 +1,6 @@
 import yt_dlp
 from pathlib import Path
-import os
+# import os # Unused import removed
 from typing import Callable, Dict, Any
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
@@ -78,6 +78,7 @@ class YouTubeDownloader:
                     # Vérifier si c'est une playlist
                     entries = info.get('entries', [])
                     if entries:
+                        logger.log(LogLevel.DEBUG, f"Playlist '{info.get('title', 'Unknown')}' (ID: {info.get('id', 'Unknown')}): No explicit chapters found. Processing {len(entries)} entries as individual chapters.")
                         chapters = []
                         for idx, entry in enumerate(entries, 1):
                             chapters.append({
