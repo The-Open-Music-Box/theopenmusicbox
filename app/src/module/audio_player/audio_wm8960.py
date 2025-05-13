@@ -5,6 +5,7 @@ import threading
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
+import pygame
 import mutagen
 from mutagen.mp3 import MP3
 from pydub import AudioSegment
@@ -36,6 +37,8 @@ class AudioPlayerWM8960(AudioPlayerHardware):
     This implementation uses an audio backend abstraction layer to avoid direct dependency
     on specific audio libraries like pygame.
     """
+
+    # MARK: - Initialization and Setup
 
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
         super().__init__(playback_subject)
@@ -93,6 +96,8 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         # Use both our internal state and the backend's state
         return self._is_playing and self._audio_backend.is_playing()
 
+    # MARK: - Playback Control
+
     def play_track(self, track_number: int) -> bool:
         """Play a specific track from the playlist"""
         try:
@@ -117,7 +122,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
 
             try:
                 # Use audio backend abstraction instead of direct pygame calls
-                if not self._audio_backend.load_audio(str(track.path)):
+                if not self._audio_backend.load(str(track.path)):
                     raise Exception("Failed to load audio file")
 
                 self._audio_backend.set_volume(self._volume / 100.0)
@@ -280,7 +285,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
 
             # Stop any current playback first to clear internal state
             try:
-                pygame.mixer.music.stop()
+                self._audio_backend.stop()
             except Exception as e:
                 logger.log(LogLevel.WARNING, f"Error stopping playback: {str(e)}")
 
@@ -288,34 +293,22 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             os.environ['SDL_VIDEODRIVER'] = 'dummy'
             os.environ['SDL_AUDIODRIVER'] = 'alsa'
 
-            # Reset pygame completely if needed (helps on Raspberry Pi)
-            if not pygame.mixer.get_init() or not pygame.get_init():
-                logger.log(LogLevel.WARNING, "Pygame not fully initialized, reinitializing...")
+            # Reinitialize the audio backend if needed
+            if not self._audio_backend.is_playing():
+                logger.log(LogLevel.WARNING, "Audio backend may need reinitialization")
                 try:
-                    pygame.mixer.quit()
+                    # Shutdown and reinitialize the audio backend
+                    self._audio_backend.shutdown()
+                    if not self._audio_backend.initialize():
+                        logger.log(LogLevel.ERROR, "Failed to reinitialize audio backend")
+                        # Wait a bit before retrying
+                        time.sleep(0.2)
+                        if not self._audio_backend.initialize():
+                            logger.log(LogLevel.ERROR, "Second attempt to reinitialize audio backend failed")
+                    else:
+                        logger.log(LogLevel.INFO, "Audio backend successfully reinitialized")
                 except Exception as e:
-                    logger.log(LogLevel.WARNING, f"Error quitting mixer: {str(e)}")
-
-                try:
-                    pygame.quit()
-                except Exception as e:
-                    logger.log(LogLevel.WARNING, f"Error quitting pygame: {str(e)}")
-
-                # Complete reinitialization of pygame in audio-only mode
-                try:
-                    # Re-initialize base components
-                    pygame.init()
-                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
-                    # Disable the display module to avoid errors
-                    pygame.display.quit()
-                    logger.log(LogLevel.INFO, "Pygame successfully reinitialized in audio-only mode")
-                except Exception as init_error:
-                    logger.log(LogLevel.ERROR, f"Failed to reinitialize pygame: {str(init_error)}")
-                    # Wait a bit before retrying
-                    time.sleep(0.2)
-                    pygame.init()
-                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
-                    pygame.display.quit()
+                    logger.log(LogLevel.ERROR, f"Error reinitializing audio backend: {str(e)}")
 
             # IMPORTANT: Ensure the file exists and use the correct path
             file_path = str(saved_track.path)
@@ -332,8 +325,10 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             max_attempts = 3  # Increase number of attempts
             while load_attempts < max_attempts:
                 try:
-                    pygame.mixer.music.load(file_path)
-                    break
+                    if self._audio_backend.load(file_path):
+                        break
+                    else:
+                        raise Exception("Audio backend failed to load file")
                 except Exception as load_error:
                     load_attempts += 1
                     if load_attempts >= max_attempts:
@@ -346,34 +341,44 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                     logger.log(LogLevel.WARNING, f"Load attempt {load_attempts} failed: {load_error}. Retrying...")
                     # Brief delay before retry
                     time.sleep(0.1)  # Longer wait to let the system stabilize
-                    # Reinitialize pygame if needed between attempts
+                    # Try to reinitialize the audio backend if needed
                     if load_attempts == 2:
-                        pygame.mixer.quit()
-                        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                        self._audio_backend.shutdown()
+                        self._audio_backend.initialize()
 
-            # Start playback with explicit position
+            # Set the position and start playback
             logger.log(LogLevel.INFO, f"Starting playback from position {position_seconds:.2f}s")
-            pygame.mixer.music.play(start=position_seconds)
+            self._audio_backend.set_position(position_seconds)
+
+            # Set volume before playing
+            self._audio_backend.set_volume(self._volume)
+
+            # Start playback
+            if not self._audio_backend.play():
+                logger.log(LogLevel.ERROR, "Failed to start playback after setting position")
+                return False
+
+            # Wait a bit to let playback start
+            time.sleep(0.1)
 
             # Verify playback started properly with additional retries
-            pygame.time.delay(100)  # Plus long pour laisser le temps de démarrer
-
             start_attempts = 0
             max_start_attempts = 2
-            while not pygame.mixer.music.get_busy() and start_attempts < max_start_attempts:
+            while not self._audio_backend.is_playing() and start_attempts < max_start_attempts:
                 start_attempts += 1
                 logger.log(LogLevel.WARNING, f"Start attempt {start_attempts} failed. Retrying...")
                 # Retry with different approach
                 if start_attempts == 1:
-                    # Try standard play with position
-                    pygame.mixer.music.play(start=position_seconds)
+                    # Try again with position
+                    self._audio_backend.set_position(position_seconds)
+                    self._audio_backend.play()
                 else:
                     # Last resort: try from beginning
-                    pygame.mixer.music.play()
-                pygame.time.delay(100)
+                    self._audio_backend.play()
+                time.sleep(0.1)
 
             # Update internal state but only if playback actually started
-            if pygame.mixer.music.get_busy():
+            if self._audio_backend.is_playing():
                 self._stream_start_time = time.time() - position_seconds  # Adjust start time
                 self._is_playing = True
 
@@ -399,7 +404,8 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         """Stop playback"""
         was_playing = self._is_playing
         try:
-            pygame.mixer.music.stop()
+            # Use the audio backend abstraction instead of direct pygame calls
+            self._audio_backend.stop()
             self._is_playing = False
             self._current_track = None
             if clear_playlist:
@@ -421,12 +427,12 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                 except Exception as e:
                     logger.log(LogLevel.WARNING, f"Error stopping progress thread: {str(e)}")
 
-            # Stop playback and quit pygame mixer
+            # Stop playback and shutdown the audio backend
             try:
-                pygame.mixer.music.stop()
-                pygame.mixer.quit()
-            except pygame.error as e:
-                logger.log(LogLevel.WARNING, f"Pygame error during cleanup: {str(e)}")
+                self._audio_backend.stop()
+                self._audio_backend.shutdown()
+            except Exception as e:
+                logger.log(LogLevel.WARNING, f"Audio backend error during cleanup: {str(e)}")
 
             # Clear audio cache
             try:
@@ -445,6 +451,8 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             self._current_track = None
             self._playlist = None
             self._progress_thread = None
+
+    # MARK: - Playlist Management
 
     def set_playlist(self, playlist: Playlist) -> bool:
         """Set the current playlist and start playback"""
@@ -490,14 +498,16 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         """Set volume (0-100)"""
         try:
             self._volume = max(0, min(100, volume))
-            # Convert 0-100 range to 0.0-1.0 for pygame
-            pygame_volume = self._volume / 100.0
-            pygame.mixer.music.set_volume(pygame_volume)
+            # Use the audio backend abstraction instead of direct pygame calls
+            if not self._audio_backend.set_volume(self._volume):
+                logger.log(LogLevel.WARNING, "Audio backend failed to set volume")
             logger.log(LogLevel.INFO, f"Volume set to {self._volume}%")
             return True
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error setting volume: {str(e)}")
             return False
+
+    # MARK: - Internal Helpers
 
     def _get_current_track(self):
         """(Private) Return the currently playing track (not part of Protocol)"""
@@ -540,7 +550,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                     self._update_progress()
 
                 # Check if music has stopped playing (track ended)
-                current_playing_state = pygame.mixer.music.get_busy()
+                current_playing_state = self._audio_backend.is_playing()
                 if last_playing_state and not current_playing_state:
                     logger.log(LogLevel.INFO, f"[PROGRESS_LOOP] Detected track end at tick={tick}")
                     self._handle_track_end()
@@ -554,12 +564,12 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             return
 
         try:
-            # Check if playback is active via pygame
-            busy = pygame.mixer.music.get_busy()
+            # Check if playback is active via audio backend
+            busy = self._audio_backend.is_playing()
 
-            # If internal state indicates 'playing' but pygame says it's stopped, this is an error
-            if self._is_playing and not busy and pygame.mixer.get_init():
-                logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] Audio state mismatch: _is_playing=True but pygame says it's not busy")
+            # If internal state indicates 'playing' but backend says it's stopped, this is an error
+            if self._is_playing and not busy:
+                logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] Audio state mismatch: _is_playing=True but audio backend says it's not playing")
                 # Do not send update in this case to avoid conflicting timecodes
                 return
 
