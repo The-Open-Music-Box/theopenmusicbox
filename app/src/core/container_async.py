@@ -22,9 +22,6 @@ class ContainerAsync:
         self._playback_subject = PlaybackSubject()
         self._playlist_service = PlaylistService(config)
         self._audio = get_audio_player(self._playback_subject)
-        self._init_socketio = None  # Will be set before async initialization
-        
-        # NFC service will be properly initialized in initialize_async()
 
     @property
     def config(self):
@@ -38,10 +35,8 @@ class ContainerAsync:
     def nfc(self):
         return self._nfc_service
         
-    def set_init_socketio(self, socketio):
-        """Store the Socket.IO reference for initialization"""
-        self._init_socketio = socketio
-        
+    # set_init_socketio method removed as it was unused
+
     def set_socketio(self, socketio):
         """Update the NFCService with the Socket.IO instance"""
         if self._nfc_service:

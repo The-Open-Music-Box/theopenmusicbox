@@ -57,6 +57,43 @@ class Application:
         await self._setup_nfc()
         return self
 
+    # MARK: - NFC Event Handling
+    async def handle_nfc_event(self, tag_data):
+        """
+        Handles NFC tag events (scan or absence) by routing them to the PlaylistController.
+        This method provides a public API, encapsulating the interaction with _playlist_controller.
+
+        Args:
+            tag_data: Data received from the NFC tag event subscription.
+                      Can be a dict (with 'uid' or 'absence') or just the tag UID string.
+        """
+        try:
+            if isinstance(tag_data, dict) and tag_data.get('absence'):
+                logger.log(LogLevel.DEBUG, "Handling NFC tag absence event.")
+                self._playlist_controller.handle_tag_absence()
+            else:
+                uid = None
+                full_data = None
+                if isinstance(tag_data, dict):
+                    uid = tag_data.get('uid')
+                    full_data = tag_data # Pass full dict if available
+                    logger.log(LogLevel.DEBUG, f"Handling NFC tag scanned event (dict): UID={uid}")
+                else:
+                    uid = tag_data # Assume it's the UID string
+                    logger.log(LogLevel.DEBUG, f"Handling NFC tag scanned event (string): UID={uid}")
+
+                if uid:
+                    self._playlist_controller.handle_tag_scanned(uid, full_data)
+                else:
+                     logger.log(LogLevel.WARNING, f"Received NFC tag event with no usable UID: {tag_data}")
+
+        except Exception as e: # Catch broader exceptions for robustness
+            # Log the error using the improved logger
+            logger.log(LogLevel.ERROR, f"Error processing NFC event in Application: {e}", exc_info=True)
+            # Avoid raising exceptions from here unless absolutely necessary,
+            # as this is typically called from an event handler.
+
+    # MARK: - Internal Setup & Synchronization
     def _sync_playlists(self):
         """
         Synchronize playlists in database with files from upload folder.

@@ -6,15 +6,17 @@ from app.src.core.container_async import ContainerAsync
 from app.src.core.application import Application
 from app.src.routes.playlist_routes import PlaylistRoutes
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.routes.nfc_routes import NFCRoutes
+from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
+import traceback
 
-# NFCRoutes and WebSocketHandlersAsync imported inside lifespan to avoid circular references
 
 logger = ImprovedLogger(__name__)
 
 # Load config
 env_config = config_singleton
 
-# Dependency injection container - créé avant le lifespan
+# Dependency injection container
 container = ContainerAsync(env_config)
 
 from contextlib import asynccontextmanager
@@ -30,40 +32,30 @@ async def lifespan(fastapi_app):
         app_instance = Application(container.config)
         fastapi_app.application = await app_instance.initialize_async()
     
-        # Now that container.nfc is initialized, set up the WebSocket handlers and routes
+        # Set up the WebSocket handlers and routes
         if container.nfc is not None:
             # Setup Socket.IO for the NFC service
             container.set_socketio(sio)  # Pass socketio to NFCService
             
-            # Register NFCRoutes after NFC service is initialized
-            from app.src.routes.nfc_routes import NFCRoutes
-            NFCRoutes(fastapi_app, sio, container.nfc).register()
+            # Instantiate NFCRoutes after NFC service is initialized
+            nfc_router = NFCRoutes(fastapi_app, sio, container.nfc)
+            nfc_router.register()
             
-            # Initialize WebSocket handlers with the fully initialized NFC service
-            from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
+            # Instantiate WebSocket handlers with the fully initialized NFC service
             ws_handlers = WebSocketHandlersAsync(sio, fastapi_app, container.nfc)
             ws_handlers.register()
             
-            # Set up NFC tag event subscription
-            def on_tag(tag_data):
-                try:
-                    if isinstance(tag_data, dict) and tag_data.get('absence'):
-                        fastapi_app.application._playlist_controller.handle_tag_absence()
-                    else:
-                        if isinstance(tag_data, dict) and 'uid' in tag_data:
-                            fastapi_app.application._playlist_controller.handle_tag_scanned(tag_data['uid'], tag_data)
-                        else:
-                            fastapi_app.application._playlist_controller.handle_tag_scanned(tag_data)  # Call method on controller
-                except ValueError as e:
-                    import traceback
-                    logger.log(LogLevel.ERROR, f"[NFC] Error routing tag event: {e}\n{traceback.format_exc()}")
-            container.nfc.tag_subject.subscribe(on_tag)
-            
+            # Set up NFC tag event subscription using the Application's public method
+            async def on_tag(tag_data):
+                # Use the encapsulated handler in Application
+                await fastapi_app.application.handle_nfc_event(tag_data)
+            container.nfc.tag_subject.subscribe(on_tag) # Assuming subscribe can handle async callbacks
+
             logger.log(LogLevel.INFO, "NFC service, routes, and WebSocket handlers initialized successfully")
         else:
             logger.log(LogLevel.WARNING, "No NFC service available - WebSocket handlers initialized without NFC support")
         
-        yield  # Wait for application to finish
+        yield
     except Exception as e:
         import traceback
         print(f"Error during startup: {e}\n{traceback.format_exc()}")
@@ -101,7 +93,3 @@ app_sio = socketio.ASGIApp(sio, other_asgi_app=app)
 
 # Register PlaylistRoutes - these don't depend on async initialization
 PlaylistRoutes(app).register()
-
-# Set the SocketIO reference on the container for use in lifespan
-container.set_init_socketio(sio)
-
