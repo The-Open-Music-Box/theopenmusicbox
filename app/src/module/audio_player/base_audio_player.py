@@ -1,0 +1,312 @@
+"""
+Base Audio Player Implementation
+
+This module provides a base class for audio player implementations to reduce code duplication
+and standardize common functionality across different hardware implementations.
+"""
+
+import threading
+import time
+from typing import Optional, Dict, Any, Callable
+from pathlib import Path
+
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.services.notification_service import PlaybackSubject
+from app.src.model.track import Track
+from app.src.model.playlist import Playlist
+
+logger = ImprovedLogger(__name__)
+
+# MARK: - Base Audio Player Class
+class BaseAudioPlayer:
+    """
+    Base class for audio player implementations.
+
+    Provides common functionality for state management, notification, and threading
+    that can be shared across different hardware implementations.
+    """
+
+    # MARK: - Initialization
+    def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
+        """
+        Initialize the base audio player.
+
+        Args:
+            playback_subject: Optional observer for playback events
+        """
+        self._playback_subject = playback_subject
+        self._is_playing = False
+        self._playlist = None
+        self._current_track = None
+        self._volume = 50
+        self._progress_thread = None
+        self._stop_progress = False
+        self._track_start_time = 0
+        self._paused_position = 0
+        self._pause_time = 0
+        self._state_lock = threading.RLock()  # Lock for thread safety
+
+    # MARK: - State Properties
+    @property
+    def is_playing(self) -> bool:
+        """
+        Check if the player is currently playing audio.
+
+        Returns:
+            bool: True if audio is playing, False otherwise.
+        """
+        with self._state_lock:
+            return self._is_playing
+
+    @property
+    def is_paused(self) -> bool:
+        """
+        Return True if the player is paused (not playing, but a track is loaded).
+
+        Returns:
+            bool: True if paused, False otherwise.
+        """
+        with self._state_lock:
+            return not self._is_playing and self._current_track is not None
+
+    def is_finished(self) -> bool:
+        """
+        Check if the current playlist has finished playing.
+
+        Returns:
+            bool: True if the playlist has finished, False otherwise.
+        """
+        return False
+
+    # MARK: - Playback Control
+    def play(self, track: str) -> None:
+        """
+        Play a specific track by filename or path.
+
+        Args:
+            track: The filename or path of the audio track to play.
+        """
+        raise NotImplementedError("Subclasses must implement play()")
+
+    def pause(self) -> None:
+        """Pause playback."""
+        raise NotImplementedError("Subclasses must implement pause()")
+
+    def resume(self) -> None:
+        """Resume playback from a paused state."""
+        raise NotImplementedError("Subclasses must implement resume()")
+
+    def stop(self, clear_playlist: bool = True) -> None:
+        """
+        Stop playback.
+
+        Args:
+            clear_playlist: Whether to clear the playlist when stopping
+        """
+        raise NotImplementedError("Subclasses must implement stop()")
+
+    def set_volume(self, volume: int) -> bool:
+        """
+        Set the playback volume.
+
+        Args:
+            volume: Volume level (0-100)
+
+        Returns:
+            bool: True if setting volume was successful
+        """
+        with self._state_lock:
+            self._volume = max(0, min(100, volume))
+        return True
+
+    def cleanup(self) -> None:
+        """Clean up resources."""
+        self.stop()
+        with self._state_lock:
+            if self._progress_thread:
+                self._stop_progress = True
+                try:
+                    self._progress_thread.join(timeout=2.0)
+                except Exception as e:
+                    logger.log(LogLevel.WARNING, f"Error stopping progress thread: {str(e)}")
+                self._progress_thread = None
+
+    # MARK: - Playlist Management
+    def set_playlist(self, playlist: Playlist) -> bool:
+        """
+        Set the current playlist and start playback.
+
+        Args:
+            playlist: The playlist to set
+
+        Returns:
+            bool: True if the playlist was set and playback started
+        """
+        with self._state_lock:
+            self.stop()
+            self._playlist = playlist
+
+            if self._playlist and self._playlist.tracks:
+                logger.log(LogLevel.INFO, f"Set playlist with {len(self._playlist.tracks)} tracks")
+                return self.play_track(1)
+
+            logger.log(LogLevel.WARNING, "Empty playlist or no tracks")
+            return False
+
+    def play_track(self, track_number: int) -> bool:
+        """
+        Play a specific track from the playlist.
+
+        Args:
+            track_number: The track number to play
+
+        Returns:
+            bool: True if the track was played successfully
+        """
+        raise NotImplementedError("Subclasses must implement play_track()")
+
+    def next_track(self) -> None:
+        """Advance to the next track in the playlist."""
+        with self._state_lock:
+            if not self._current_track or not self._playlist:
+                logger.log(LogLevel.WARNING, "No current track or playlist")
+                return
+
+            next_number = self._current_track.number + 1
+            if next_number <= len(self._playlist.tracks):
+                logger.log(LogLevel.INFO, f"Moving to next track: {next_number}")
+                self.play_track(next_number)
+            else:
+                logger.log(LogLevel.INFO, "Reached end of playlist")
+                self.stop()
+
+    def previous_track(self) -> None:
+        """Return to the previous track in the playlist."""
+        with self._state_lock:
+            if not self._current_track or not self._playlist:
+                logger.log(LogLevel.WARNING, "No current track or playlist")
+                return
+
+            prev_number = self._current_track.number - 1
+            if prev_number > 0:
+                logger.log(LogLevel.INFO, f"Moving to previous track: {prev_number}")
+                self.play_track(prev_number)
+            else:
+                logger.log(LogLevel.INFO, "Already at first track")
+
+    # MARK: - Thread Management
+    def _start_progress_thread(self) -> None:
+        """Start the progress tracking thread."""
+        with self._state_lock:
+            if self._progress_thread:
+                self._stop_progress = True
+                self._progress_thread.join(timeout=1.0)
+
+            self._stop_progress = False
+            self._progress_thread = threading.Thread(target=self._progress_loop, daemon=True)
+            self._progress_thread.start()
+            logger.log(LogLevel.INFO, "Progress tracking thread started")
+
+    def _progress_loop(self) -> None:
+        """Progress tracking loop that runs in a separate thread."""
+        last_playing_state = False
+        tick = 0
+
+        while not self._stop_progress:
+            tick += 1
+
+            # Thread-safe access to state
+            with self._state_lock:
+                is_playing = self._is_playing
+                current_track = self._current_track
+                playback_subject = self._playback_subject
+
+            if is_playing and playback_subject and current_track:
+                # Update and send progress information
+                self._update_progress()
+
+                # Check for track end - this should be implemented by subclasses
+                current_playing_state = self._check_playback_active()
+                if last_playing_state and not current_playing_state:
+                    logger.log(LogLevel.INFO, f"[PROGRESS_LOOP] Detected track end at tick={tick}")
+                    self._handle_track_end()
+                last_playing_state = current_playing_state
+
+            time.sleep(0.1)
+
+    def _check_playback_active(self) -> bool:
+        """
+        Check if playback is currently active.
+
+        This method should be overridden by subclasses to provide
+        hardware-specific implementation.
+
+        Returns:
+            bool: True if playback is active, False otherwise
+        """
+        return self.is_playing
+
+    def _update_progress(self) -> None:
+        """Update and send current progress."""
+        pass
+
+    def _handle_track_end(self) -> None:
+        """Handle end of track notification."""
+        with self._state_lock:
+            if self._is_playing and self._current_track and self._playlist:
+                next_number = self._current_track.number + 1
+                if next_number <= len(self._playlist.tracks):
+                    logger.log(LogLevel.INFO, f"Track ended, playing next: {next_number}")
+                    self.play_track(next_number)
+                else:
+                    logger.log(LogLevel.INFO, "Playlist ended")
+                    self.stop()
+
+    # MARK: - Notification
+    def _notify_playback_status(self, status: str) -> None:
+        """
+        Notify playback status change.
+
+        Args:
+            status: The playback status ('playing', 'paused', 'stopped', etc.)
+        """
+        if not self._playback_subject:
+            return
+
+        playlist_info = None
+        track_info = None
+
+        if status != 'stopped':
+            with self._state_lock:
+                if self._playlist:
+                    playlist_info = {
+                        'name': self._playlist.name,
+                        'track_count': len(self._playlist.tracks) if self._playlist.tracks else 0
+                    }
+
+                if self._current_track:
+                    track_info = {
+                        'number': self._current_track.number,
+                        'title': self._current_track.title or f'Track {self._current_track.number}',
+                        'filename': self._current_track.filename,
+                        'duration': self._get_track_duration(self._current_track.path)
+                    }
+
+        self._playback_subject.notify_playback_status(status, playlist_info, track_info)
+        logger.log(LogLevel.INFO, f"Playback status update", extra={
+            'status': status,
+            'playlist': playlist_info,
+            'current_track': track_info
+        })
+
+    def _get_track_duration(self, file_path: Path) -> float:
+        """
+        Get track duration in seconds.
+
+        Args:
+            file_path: Path to the audio file
+
+        Returns:
+            float: Duration in seconds
+        """
+        return 0.0

@@ -4,10 +4,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.src.config import config_singleton
 from app.src.core.container_async import ContainerAsync
 from app.src.core.application import Application
-from app.src.routes.playlist_routes import PlaylistRoutes
+# PlaylistRoutes will be handled by APIRoutes
+# from app.src.routes.playlist_routes import PlaylistRoutes
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.routes.nfc_routes import NFCRoutes
-from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
+# NFCRoutes and WebSocketHandlersAsync will be handled by APIRoutes
+# from app.src.routes.nfc_routes import NFCRoutes
+# from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
+# Import init_api_routes
+from app.src.routes.api_routes import init_api_routes
 import traceback
 
 
@@ -19,6 +23,13 @@ env_config = config_singleton
 # Dependency injection container
 container = ContainerAsync(env_config)
 
+# CORS
+# Read CORS origins from the config (.env)
+cors_origins = [origin.strip() for origin in env_config.cors_allowed_origins.split(';') if origin.strip()]
+
+# Socket.IO AsyncServer - use the same origins list as for CORS
+sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=cors_origins)
+
 from contextlib import asynccontextmanager
 
 @asynccontextmanager
@@ -27,37 +38,36 @@ async def lifespan(fastapi_app):
         # Async resource initialization
         await container.initialize_async()
         fastapi_app.container = container  # Assign container to app
-        
+
         # Create and initialize the application asynchronously
         app_instance = Application(container.config)
         fastapi_app.application = await app_instance.initialize_async()
-    
-        # Set up the WebSocket handlers and routes
-        if container.nfc is not None:
-            # Setup Socket.IO for the NFC service
-            container.set_socketio(sio)  # Pass socketio to NFCService
-            
-            # Instantiate NFCRoutes after NFC service is initialized
-            nfc_router = NFCRoutes(fastapi_app, sio, container.nfc)
-            nfc_router.register()
-            
-            # Instantiate WebSocket handlers with the fully initialized NFC service
-            ws_handlers = WebSocketHandlersAsync(sio, fastapi_app, container.nfc)
-            ws_handlers.register()
-            
-            # Set up NFC tag event subscription using the Application's public method
-            async def on_tag(tag_data):
-                # Use the encapsulated handler in Application
-                await fastapi_app.application.handle_nfc_event(tag_data)
-            container.nfc.tag_subject.subscribe(on_tag) # Assuming subscribe can handle async callbacks
 
-            logger.log(LogLevel.INFO, "NFC service, routes, and WebSocket handlers initialized successfully")
-        else:
-            logger.log(LogLevel.WARNING, "No NFC service available - WebSocket handlers initialized without NFC support")
-        
+        # Centralized route initialization using APIRoutes
+        # Ensure sio is available in this scope for APIRoutes
+        # The original sio is defined later, so we need to ensure it's passed correctly.
+        # For now, assuming sio is accessible or passed appropriately.
+        # If container.nfc is None, APIRoutes will handle not registering NFC-dependent routes.
+
+        # Pass sio to the container if NFC is available, as APIRoutes might need it for NFCService setup via container
+        if container.nfc:
+            container.set_socketio(sio) # Ensure socketio is set in container for NFCService
+
+            # Set up NFC tag event subscription using the Application's public method
+            # This logic should remain here as it's specific to the application's core behavior
+            # and not just route registration.
+            async def on_tag(tag_data):
+                await fastapi_app.application.handle_nfc_event(tag_data)
+            container.nfc.tag_subject.subscribe(on_tag)
+            logger.log(LogLevel.INFO, "main.py: NFC tag event subscription setup complete.")
+
+        # Initialize all API routes via the centralized APIRoutes
+        init_api_routes(fastapi_app, sio, container)
+        logger.log(LogLevel.INFO, "main.py: All API routes initialized via init_api_routes.")
+
         yield
     except Exception as e:
-        import traceback
+        # import traceback # Already imported at the top
         print(f"Error during startup: {e}\n{traceback.format_exc()}")
         raise
     finally:
@@ -67,18 +77,7 @@ async def lifespan(fastapi_app):
 # FastAPI app
 app = FastAPI(lifespan=lifespan)
 
-@app.get("/health")
-async def health_check():
-    nfc_status = {
-        "available": getattr(app, 'container', None) and app.container.nfc is not None,
-        "code": "NFC_OK" if getattr(app, 'container', None) and app.container.nfc is not None else "NFC_NOT_AVAILABLE"
-    }
-    return {"status": "ok", "nfc": nfc_status}
-
-
-# CORS
-# Read CORS origins from the config (.env)
-cors_origins = [origin.strip() for origin in env_config.cors_allowed_origins.split(';') if origin.strip()]
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -87,9 +86,5 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Socket.IO AsyncServer - use the same origins list as for CORS
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=cors_origins)
+# Create the ASGI app with Socket.IO
 app_sio = socketio.ASGIApp(sio, other_asgi_app=app)
-
-# Register PlaylistRoutes - these don't depend on async initialization
-PlaylistRoutes(app).register()

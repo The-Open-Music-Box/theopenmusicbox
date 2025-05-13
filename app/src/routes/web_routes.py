@@ -1,45 +1,39 @@
 from pathlib import Path
-from flask import Blueprint, current_app, jsonify
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, FileResponse
+from fastapi.staticfiles import StaticFiles
+from typing import Dict, Any, Optional
 
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 
 class WebRoutes:
-    def __init__(self, app):
+    def __init__(self, app: FastAPI):
         self.app = app
-        self.web = Blueprint('web', __name__)
+        self.router = None
+        # We'll set up static file serving in register()
 
     def register(self):
-        self._init_routes()
-        self.app.register_blueprint(self.web)
+        """Register web routes with FastAPI app"""
+        try:
+            logger.log(LogLevel.INFO, "WebRoutes: Registering web routes")
+            self._init_routes()
+            logger.log(LogLevel.INFO, "WebRoutes: Web routes registered successfully")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"WebRoutes: Failed to register routes: {e}", exc_info=True)
+            raise
 
     def _init_routes(self):
-        @self.web.route('/', defaults={'path': ''})
-        @self.web.route('/<path:path>')
-        def serve(path):
-            try:
-                if path and Path(current_app.static_folder / path).exists():
-                    return current_app.send_static_file(path)
-                return current_app.send_static_file('index.html')
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error serving static file: {str(e)}")
-                return jsonify({"error": "File not found"}), 404
-
-        @self.web.route('/health')
-        def health_check():
-            try:
-                container = current_app.container
-                status = {
-                    "status": "ok",
-                    "components": {
-                        "websocket": bool(current_app.socketio),
-                        "gpio": bool(container.gpio),
-                        "nfc": bool(container.nfc),
-                        "audio": bool(container.audio),
-                        "led_hat": bool(container.led_hat)
-                    }
-                }
-                return jsonify(status)
-            except Exception as e:
-                return jsonify({"status": "error", "message": str(e)}), 500
+        """Initialize web routes for serving static files and health check"""
+        # Mount static files directory if it exists
+        try:
+            # Assuming static files are in app/static
+            static_dir = Path("app/static")
+            if static_dir.exists() and static_dir.is_dir():
+                self.app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+                logger.log(LogLevel.INFO, f"WebRoutes: Mounted static files from {static_dir}")
+            else:
+                logger.log(LogLevel.WARNING, f"WebRoutes: Static directory {static_dir} not found")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"WebRoutes: Error mounting static files: {e}")

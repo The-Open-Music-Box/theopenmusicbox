@@ -1,8 +1,7 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional, List
 import threading
 import asyncio
 import time
-from rx.subject import Subject
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
@@ -42,31 +41,14 @@ class PlaybackSubject:
             return cls._instance
 
     def __init__(self):
-        # RxPy subjects - kept for backward compatibility with legacy components
-        # Direct Socket.IO communication is now the primary method
-        self._status_subject = Subject()
-        self._progress_subject = Subject()
         self._last_status_event = None
         self._last_progress_event = None
         self._last_progress_emit_time = 0  # Used to throttle progress event emission frequency
-        # Fix for infinite recursion: only set _instance if it is None and not self
         if PlaybackSubject._instance is not None and PlaybackSubject._instance is not self:
-            # Prevent attempting to create a new instance if one already exists
             raise RuntimeError("PlaybackSubject singleton instance already exists. Use get_instance().")
         with PlaybackSubject._lock:
             if PlaybackSubject._instance is None:
                 PlaybackSubject._instance = self
-
-
-    @property
-    def status_stream(self) -> Subject:
-        """Stream of playback status events (playing, paused, stopped)"""
-        return self._status_subject
-
-    @property
-    def progress_stream(self) -> Subject:
-        """Stream of track progress events"""
-        return self._progress_subject
 
     def notify_playback_status(self, status: str, playlist_info: Dict = None, track_info: Dict = None):
         """
@@ -84,10 +66,7 @@ class PlaybackSubject:
             event = PlaybackEvent('status', event_data)
             self._last_status_event = event
 
-            # 1. Maintain RxPy compatibility for legacy components
-            self._status_subject.on_next(event)
-
-            # 2. Main method: emit directly via Socket.IO (preferred)
+            # Emit directly via Socket.IO
             if PlaybackSubject._socketio:
                 try:
                     # Emit via Socket.IO by creating an asyncio task
@@ -108,7 +87,6 @@ class PlaybackSubject:
         is_playing: bool, if playback is active
         """
         try:
-            # Compose frontend-compatible payload (snake_case for frontend)
             event_data = {
                 'track': track_info,
                 'playlist': playlist_info,
@@ -119,10 +97,7 @@ class PlaybackSubject:
             event = PlaybackEvent('progress', event_data)
             self._last_progress_event = event
 
-            # 1. Maintain RxPy compatibility for legacy components
-            self._progress_subject.on_next(event)
-
-            # 2. Main method: emit directly via Socket.IO (preferred)
+            # Emit directly via Socket.IO
             if PlaybackSubject._socketio:
                 try:
                     # Emit via Socket.IO by creating an asyncio task
@@ -158,7 +133,6 @@ class PlaybackSubject:
                 return  # Ignore overly frequent updates
             self._last_progress_emit_time = current_time
 
-        # Simplified approach to reduce concurrency issues
         try:
             # Try to get the current event loop and use it if available
             try:
@@ -169,20 +143,20 @@ class PlaybackSubject:
                         await PlaybackSubject._socketio.emit(event_name, event_data)
                     except Exception as e:
                         logger.log(LogLevel.ERROR, f"[Socket.IO] Emit failed: {e}")
-                
+
                 # Store tasks in a class variable to prevent them from being garbage collected
                 if not hasattr(PlaybackSubject, '_pending_tasks'):
                     PlaybackSubject._pending_tasks = []
-                
+
                 # Create and store the task
                 task = loop.create_task(_emit())
                 PlaybackSubject._pending_tasks.append(task)
-                
+
                 # Add a callback to remove the task when done
                 def _cleanup_task(completed_task):
                     if hasattr(PlaybackSubject, '_pending_tasks') and completed_task in PlaybackSubject._pending_tasks:
                         PlaybackSubject._pending_tasks.remove(completed_task)
-                
+
                 task.add_done_callback(_cleanup_task)
                 return
             except RuntimeError:

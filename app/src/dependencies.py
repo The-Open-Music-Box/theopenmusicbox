@@ -2,23 +2,26 @@
 Dependency providers for FastAPI DI (Depends pattern).
 Provides config, container, audio, playback_subject, etc.
 """
-from fastapi import Depends
+from fastapi import Depends, Request
 from app.src.config import config_singleton
-from app.src.core.container_async import ContainerAsync
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
-# Singleton instance or factory as needed
-
-_container_instance = None
+logger = ImprovedLogger(__name__)
 
 def get_config():
     """Dependency provider for the global config singleton."""
     return config_singleton
 
-def get_container(config=Depends(get_config)):
-    global _container_instance
-    if _container_instance is None:
-        _container_instance = ContainerAsync(config)
-    return _container_instance
+def get_container(request: Request):
+    """
+    Get the container from the FastAPI app instance.
+    This ensures we use the same container that was initialized in main.py.
+    """
+    container = getattr(request.app, "container", None)
+    if not container:
+        logger.log(LogLevel.ERROR, "Container not found on app instance. This is a critical error.")
+        raise RuntimeError("Container not available. Application may not have initialized properly.")
+    return container
 
 def get_audio(container=Depends(get_container)):
     return container.audio

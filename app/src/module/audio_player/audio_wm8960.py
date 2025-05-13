@@ -2,34 +2,25 @@ import os
 import sys
 import time
 import threading
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-import pygame
-import mutagen
 from mutagen.mp3 import MP3
-from pydub import AudioSegment
 
-# Choose appropriate logger based on available imports
-try:
-    from app.src.common.logging.logger import logger, LogLevel
-    from app.src.common.exception import AppError
-    from app.src.common.model.playback import PlaybackState, PlaybackSubject
-except ImportError:
-    from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-    from app.src.helpers.exceptions import AppError
-    from app.src.services.notification_service import PlaybackSubject
-    # PlaybackState may not exist in the old code
-    PlaybackState = None
-    logger = ImprovedLogger(__name__)
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.helpers.exceptions import AppError
+from app.src.services.notification_service import PlaybackSubject
 
+from .base_audio_player import BaseAudioPlayer
 from .audio_hardware import AudioPlayerHardware
-from .audio_backend import AudioBackend
 from .pygame_audio_backend import PygameAudioBackend
 from app.src.model.track import Track
 from app.src.model.playlist import Playlist
 
-class AudioPlayerWM8960(AudioPlayerHardware):
+logger = ImprovedLogger(__name__)
+
+class AudioPlayerWM8960(BaseAudioPlayer, AudioPlayerHardware):
     """
     AudioPlayerWM8960 implements the audio player hardware interface for the WM8960 codec.
     Playback state is managed and exposed through public properties `is_playing` and `is_paused`.
@@ -42,20 +33,10 @@ class AudioPlayerWM8960(AudioPlayerHardware):
 
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
         super().__init__(playback_subject)
-        self._playback_subject = playback_subject
-        self._is_playing = False
-        self._playlist = None
-        self._current_track = None
-        self._progress_thread = None
-        self._stop_progress = False
-        self._volume = 100
-        self._stream_start_time = 0
         self._audio_cache = {}
-        self._paused_position = 0
-        self._pause_time = 0
+        self._alsa_process = None
 
         try:
-            # Initialize the audio backend (using pygame under the hood)
             self._audio_backend = PygameAudioBackend()
             if not self._audio_backend.initialize():
                 raise AppError.hardware_error(
@@ -63,6 +44,8 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                     component="audio",
                     operation="init"
                 )
+
+            self.set_volume(self._volume)
 
             # Register track end event handler
             self._audio_backend.register_end_event_callback(self._handle_track_end)
@@ -79,253 +62,180 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                 operation="init"
             )
 
-    @property
-    def is_paused(self) -> bool:
-        """
-        Return True if the player is paused (not playing, but a track is loaded).
-        """
-        return not self._is_playing and self._current_track is not None
-
-    @property
-    def is_playing(self) -> bool:
-        """Check if the player is currently playing audio.
-
-        Returns:
-            bool: True if audio is playing, False otherwise.
-        """
-        # Use both our internal state and the backend's state
-        return self._is_playing and self._audio_backend.is_playing()
-
     # MARK: - Playback Control
 
     def play_track(self, track_number: int) -> bool:
         """Play a specific track from the playlist"""
-        try:
-            # Stop current playback without clearing playlist
-            self.stop(clear_playlist=False)
+        with self._state_lock:
+            try:
+                # Stop current playback without clearing playlist
+                self.stop(clear_playlist=False)
 
-            if not self._playlist or not self._playlist.tracks:
-                logger.log(LogLevel.WARNING, "No playlist or empty playlist")
-                return False
+                if not self._playlist or not self._playlist.tracks:
+                    logger.log(LogLevel.WARNING, "No playlist or empty playlist")
+                    return False
 
-            track = next((t for t in self._playlist.tracks if t.number == track_number), None)
-            if not track:
-                logger.log(LogLevel.WARNING, f"Track number {track_number} not found in playlist")
-                return False
+                track = next((t for t in self._playlist.tracks if t.number == track_number), None)
+                if not track:
+                    logger.log(LogLevel.WARNING, f"Track number {track_number} not found in playlist")
+                    return False
 
-            self._current_track = track
-            logger.log(LogLevel.INFO, f"Playing track: {track.title or track.filename}")
+                self._current_track = track
+                logger.log(LogLevel.INFO, f"Playing track: {track.title or track.filename}")
 
-            # Notify that we're loading the track
-            if self._playback_subject:
+                # Notify that we're loading the track
                 self._notify_playback_status("loading")
 
-            try:
-                # Use audio backend abstraction instead of direct pygame calls
-                if not self._audio_backend.load(str(track.path)):
-                    raise Exception("Failed to load audio file")
+                # This inner try-except block handles the audio loading and playback
+                try:
+                    # Use audio backend abstraction instead of direct pygame calls
+                    if not self._audio_backend.load(str(track.path)):
+                        logger.log(LogLevel.ERROR, f"Failed to load audio file: {track.path}")
+                        # Attempt ALSA fallback if loading fails
+                        return self._fallback_to_alsa(str(track.path))
 
-                self._audio_backend.set_volume(self._volume / 100.0)
-                if not self._audio_backend.play():
-                    raise Exception("Failed to start playback")
+                    logger.log(LogLevel.INFO, f"AudioPlayerWM8960: Setting backend volume to {self._volume} (0-100 scale)")
+                    if not self._audio_backend.set_volume(self._volume):
+                        logger.log(LogLevel.WARNING, "Failed to set volume via audio backend.")
 
-                # Track playback start time for progress calculation
-                self._stream_start_time = time.time()
-                self._is_playing = True
+                    if not self._audio_backend.play():
+                        logger.log(LogLevel.ERROR, "Audio backend failed to start playback.")
+                        # Attempt ALSA fallback if play fails
+                        return self._fallback_to_alsa(str(track.path))
 
-                # Notify that playback has started
-                if self._playback_subject:
+                    # Track playback start time for progress calculation
+                    self._stream_start_time = time.time()
+                    self._is_playing = True
+
+                    # Notify that playback has started
                     self._notify_playback_status("playing")
 
-                logger.log(LogLevel.INFO, f"✓ Track started: '{track.title or track.filename}'")
-                return True
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Failed to play track: {str(e)}")
-                # Reset the current track if we couldn't play it
-                self._current_track = None
+                    logger.log(LogLevel.INFO, f"✓ Track started: '{track.title or track.filename}' via Pygame backend")
+                    return True
+                except Exception as e: # Catches errors from load, set_volume, play
+                    logger.log(LogLevel.ERROR, f"Error during Pygame backend playback attempt for track {track.title or track.filename}: {str(e)}")
+                    logger.log(LogLevel.INFO, f"Attempting ALSA fallback for track: {track.title or track.filename}")
+                    return self._fallback_to_alsa(str(track.path)) # Fallback to ALSA
+            except Exception as e: # Catches errors from outer logic (playlist handling, etc.)
+                logger.log(LogLevel.ERROR, f"Outer error in play_track: {str(e)}")
                 return False
-
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error in play_track: {str(e)}")
-            return False
-
-    def _notify_playback_status(self, status: str) -> None:
-        """Notify playback status change"""
-        if self._playback_subject:
-            playlist_info = None
-            track_info = None
-
-            if status != 'stopped':
-                if self._playlist:
-                    playlist_info = {
-                        'name': self._playlist.name,
-                        'track_count': len(self._playlist.tracks) if self._playlist.tracks else 0
-                    }
-
-                if self._current_track:
-                    track_info = {
-                        'number': self._current_track.number,
-                        'title': self._current_track.title or f'Track {self._current_track.number}',
-                        'filename': self._current_track.filename,
-                        'duration': self._get_track_duration(self._current_track.path)
-                    }
-
-            self._playback_subject.notify_playback_status(status, playlist_info, track_info)
-            logger.log(LogLevel.INFO, f"Playback status update", extra={
-                'status': status,
-                'playlist': playlist_info,
-                'current_track': track_info
-            })
 
     def pause(self) -> bool:
         """Pause playback and preserve current position"""
-        if not self._is_playing or not self._current_track:
-            logger.log(LogLevel.WARNING, "No active playback to pause")
-            return False
+        with self._state_lock:
+            if not self._is_playing or not self._current_track:
+                logger.log(LogLevel.WARNING, "No active playback to pause")
+                return False
 
-        try:
-            # Calculate the current position based on elapsed time
-            # This is more reliable than using the audio backend's position
-            elapsed = 0
-            if self._stream_start_time > 0:
-                elapsed = time.time() - self._stream_start_time
-                if elapsed > 0:  # Sanity check
-                    self._paused_position = elapsed
-                    logger.log(LogLevel.INFO, f"Paused at position: {self._paused_position:.2f}s")
+            try:
+                # Calculate the current position based on elapsed time
+                elapsed = 0
+                if self._stream_start_time > 0:
+                    elapsed = time.time() - self._stream_start_time
+                    if elapsed > 0:  # Sanity check
+                        self._paused_position = elapsed
+                        logger.log(LogLevel.INFO, f"Paused at position: {self._paused_position:.2f}s")
 
-            # Also store the pause time for time-based calculations
-            self._pause_time = time.time()
+                # Also store the pause time for time-based calculations
+                self._pause_time = time.time()
 
-            # Pause the playback using the audio backend
-            if not self._audio_backend.pause():
-                logger.log(LogLevel.WARNING, "Audio backend failed to pause playback")
-                # Continue anyway, as we've stored the position and might recover
+                # Pause the playback using the audio backend
+                if not self._audio_backend.pause():
+                    logger.log(LogLevel.WARNING, "Audio backend failed to pause playback")
 
-            self._is_playing = False
+                self._is_playing = False
 
-            # Notify pause status
-            if self._playback_subject:
+                # Notify pause status
                 self._notify_playback_status("paused")
 
-            return True
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error pausing playback: {str(e)}")
-            return False
+                return True
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error pausing playback: {str(e)}")
+                return False
 
     def resume(self) -> bool:
-        """Resume playback with fallback to reloading if unpause fails silently
+        """Resume playback with fallback to reloading if unpause fails silently"""
+        with self._state_lock:
+            if not self.is_paused or not self._current_track:
+                logger.log(LogLevel.WARNING, "No paused playback to resume")
+                return False
 
-        This method handles resuming playback after a pause. It includes:
-        1. Using the exact position stored during pause
-        2. A complete check of the audio backend state
-        3. Several fallback mechanisms in case of failure
-        """
-        if not self.is_paused or not self._current_track:
-            logger.log(LogLevel.WARNING, "No paused playback to resume")
-            return False
+            logger.log(LogLevel.INFO, f"Attempting to resume from position: {self._paused_position:.2f}s")
 
-        logger.log(LogLevel.INFO, f"Attempting to resume from position: {self._paused_position:.2f}s")
+            try:
+                # First, try the simple resume through the audio backend
+                if self._audio_backend.resume(): # Changed from unpause()
+                    # Wait a tiny bit and check if it's actually playing
+                    time.sleep(0.1)  # Small delay to let the audio backend update its state
 
-        try:
-            # First, try the simple unpause through the audio backend
-            if self._audio_backend.unpause():
-                # Wait a tiny bit and check if it's actually playing
-                time.sleep(0.1)  # Small delay to let the audio backend update its state
-
-                if self._audio_backend.is_playing():
-                    # Direct unpause worked!
-                    logger.log(LogLevel.INFO, "Successfully resumed using simple unpause")
-                    self._is_playing = True
-
-                    if self._playback_subject:
+                    if self._audio_backend.is_playing():
+                        # Direct unpause worked!
+                        logger.log(LogLevel.INFO, "Successfully resumed using simple unpause")
+                        self._is_playing = True
                         self._notify_playback_status('playing')
 
-                    # Update the stream start time to account for the pause duration
-                    pause_duration = time.time() - self._pause_time
-                    self._stream_start_time += pause_duration
+                        # Update the stream start time to account for the pause duration
+                        pause_duration = time.time() - self._pause_time
+                        self._stream_start_time += pause_duration
+                        return True
 
-                    return True
+                # If we get here, the unpause didn't work
+                # Fallback: reload and seek to the paused position
+                logger.log(LogLevel.WARNING, "Simple unpause failed, trying reload and seek")
+                return self.play_current_from_position(self._paused_position)
 
-            # If we get here, the unpause didn't work (common issue)
-            # Fallback: reload and seek to the paused position
-            logger.log(LogLevel.WARNING, "Simple unpause failed, trying reload and seek")
-            return self.play_current_from_position(self._paused_position)
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error during resume: {str(e)}")
+                # Final fallback: reload and seek to saved position
+                logger.log(LogLevel.WARNING, "Error during resume, trying reload fallback")
+                return self.play_current_from_position(self._paused_position)
 
+    def _validate_position(self, position_seconds: float, track_path: Path) -> float:
+        """Validate and adjust the position if needed."""
+        total_duration = self._get_track_duration(track_path)
+        if position_seconds < 0:
+            return 0
+        if position_seconds > total_duration:
+            return 0  # Start from beginning if position is beyond duration
+        return position_seconds
+
+    def _prepare_audio_backend(self) -> bool:
+        """Prepare the audio backend for playback."""
+        try:
+            self._audio_backend.stop()
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error during resume: {str(e)}")
-            # Final fallback: reload and seek to saved position
-            logger.log(LogLevel.WARNING, "Error during resume, trying reload fallback")
-            return self.play_current_from_position(self._paused_position)
+            logger.log(LogLevel.WARNING, f"Error stopping playback: {str(e)}")
 
-    def play_current_from_position(self, position_seconds: float) -> bool:
-        """Play the current track from a specific position with robust error handling
+        # Set environment variables
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        os.environ['SDL_AUDIODRIVER'] = 'alsa'
 
-        Args:
-            position_seconds: Position in seconds to start playback from
+        # Reinitialize if needed
+        if not self._audio_backend.is_playing():
+            return self._reinitialize_audio_backend()
+        return True
 
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        if not self._current_track or not self._playlist:
-            logger.log(LogLevel.WARNING, "No current track to resume")
+    def _reinitialize_audio_backend(self) -> bool:
+        """Reinitialize the audio backend if needed."""
+        try:
+            self._audio_backend.shutdown()
+            if not self._audio_backend.initialize():
+                logger.log(LogLevel.ERROR, "Failed to reinitialize audio backend")
+                time.sleep(0.2)
+                return self._audio_backend.initialize()
+            return True
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error reinitializing audio backend: {str(e)}")
             return False
 
-        # IMPORTANT: Save state references before any reinitialization
-        saved_track = self._current_track
-        saved_playlist = self._playlist
-        current_track_number = saved_track.number
-
+    def _load_and_play_from_position(self, track: Track, position_seconds: float) -> bool:
+        """Load and play a track from a specific position."""
         try:
-            # Make sure we have a valid position
-            total_duration = self._get_track_duration(saved_track.path)
-            if position_seconds < 0:
-                position_seconds = 0
-            if position_seconds > total_duration:
-                position_seconds = 0  # Start from beginning if position is beyond duration
-
-            # Stop any current playback first to clear internal state
-            try:
-                self._audio_backend.stop()
-            except Exception as e:
-                logger.log(LogLevel.WARNING, f"Error stopping playback: {str(e)}")
-
-            # To avoid video system errors, use only the audio driver
-            os.environ['SDL_VIDEODRIVER'] = 'dummy'
-            os.environ['SDL_AUDIODRIVER'] = 'alsa'
-
-            # Reinitialize the audio backend if needed
-            if not self._audio_backend.is_playing():
-                logger.log(LogLevel.WARNING, "Audio backend may need reinitialization")
-                try:
-                    # Shutdown and reinitialize the audio backend
-                    self._audio_backend.shutdown()
-                    if not self._audio_backend.initialize():
-                        logger.log(LogLevel.ERROR, "Failed to reinitialize audio backend")
-                        # Wait a bit before retrying
-                        time.sleep(0.2)
-                        if not self._audio_backend.initialize():
-                            logger.log(LogLevel.ERROR, "Second attempt to reinitialize audio backend failed")
-                    else:
-                        logger.log(LogLevel.INFO, "Audio backend successfully reinitialized")
-                except Exception as e:
-                    logger.log(LogLevel.ERROR, f"Error reinitializing audio backend: {str(e)}")
-
-            # IMPORTANT: Ensure the file exists and use the correct path
-            file_path = str(saved_track.path)
-
-            # Make sure we haven't lost playlist state
-            # If attributes have been reset, restore them
-            if not self._current_track or not self._playlist:
-                self._current_track = saved_track
-                self._playlist = saved_playlist
-                logger.log(LogLevel.INFO, "Restored playlist state after reinitialization")
-
-            # Try loading with retry mechanism
             load_attempts = 0
-            max_attempts = 3  # Increase number of attempts
+            max_attempts = 3
             while load_attempts < max_attempts:
                 try:
-                    if self._audio_backend.load(file_path):
+                    if self._audio_backend.load(str(track.path)):
                         break
                     else:
                         raise Exception("Audio backend failed to load file")
@@ -333,15 +243,13 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                     load_attempts += 1
                     if load_attempts >= max_attempts:
                         logger.log(LogLevel.ERROR, f"Final load attempt failed: {load_error}.")
-                        if saved_track and saved_track.path and os.path.exists(saved_track.path):
-                            logger.log(LogLevel.INFO, f"Track exists at path: {saved_track.path}")
+                        if track and track.path and os.path.exists(track.path):
+                            logger.log(LogLevel.INFO, f"Track exists at path: {track.path}")
                         else:
-                            logger.log(LogLevel.ERROR, f"Track file not found: {saved_track.path}")
+                            logger.log(LogLevel.ERROR, f"Track file not found: {track.path}")
                         raise load_error
                     logger.log(LogLevel.WARNING, f"Load attempt {load_attempts} failed: {load_error}. Retrying...")
-                    # Brief delay before retry
-                    time.sleep(0.1)  # Longer wait to let the system stabilize
-                    # Try to reinitialize the audio backend if needed
+                    time.sleep(0.1)
                     if load_attempts == 2:
                         self._audio_backend.shutdown()
                         self._audio_backend.initialize()
@@ -349,92 +257,131 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             # Set the position and start playback
             logger.log(LogLevel.INFO, f"Starting playback from position {position_seconds:.2f}s")
             self._audio_backend.set_position(position_seconds)
-
-            # Set volume before playing
             self._audio_backend.set_volume(self._volume)
 
-            # Start playback
             if not self._audio_backend.play():
                 logger.log(LogLevel.ERROR, "Failed to start playback after setting position")
                 return False
 
-            # Wait a bit to let playback start
-            time.sleep(0.1)
+            time.sleep(0.1) # Wait for playback to start
 
-            # Verify playback started properly with additional retries
+            # Verify playback started
             start_attempts = 0
             max_start_attempts = 2
             while not self._audio_backend.is_playing() and start_attempts < max_start_attempts:
                 start_attempts += 1
                 logger.log(LogLevel.WARNING, f"Start attempt {start_attempts} failed. Retrying...")
-                # Retry with different approach
                 if start_attempts == 1:
-                    # Try again with position
                     self._audio_backend.set_position(position_seconds)
                     self._audio_backend.play()
                 else:
-                    # Last resort: try from beginning
-                    self._audio_backend.play()
+                    self._audio_backend.play() # Last resort: try from beginning
                 time.sleep(0.1)
 
-            # Update internal state but only if playback actually started
             if self._audio_backend.is_playing():
-                self._stream_start_time = time.time() - position_seconds  # Adjust start time
+                self._stream_start_time = time.time() - position_seconds
                 self._is_playing = True
-
-            # Only notify status change if we're actually playing
-            if self._is_playing:
                 self._notify_playback_status('playing')
-                logger.log(LogLevel.INFO, f"Successfully resumed track from position {position_seconds:.2f}s: {self._current_track.title}")
+                logger.log(LogLevel.INFO, f"Successfully resumed track from position {position_seconds:.2f}s: {track.title}")
                 return True
             else:
                 logger.log(LogLevel.ERROR, "Failed to resume playback after multiple attempts")
                 return False
-
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error playing from position: {str(e)}")
-            # Last resort attempt: try to completely restart playback from beginning
+            logger.log(LogLevel.ERROR, f"Error in _load_and_play_from_position: {str(e)}")
+            return False
+
+    def _fallback_to_alsa(self, track_path: str) -> bool:
+        """Fallback to direct ALSA playback if Pygame fails."""
+        try:
+            logger.log(LogLevel.WARNING, f"Attempting ALSA fallback for {track_path}")
+
+            # Use aplay for WAV files or mpg123 for MP3 files
+            if track_path.lower().endswith('.mp3'):
+                cmd = ["mpg123", "-a", "default", track_path]
+            else:
+                cmd = ["aplay", track_path]
+
+            # Kill any existing processes
             try:
-                self.play_track(self._current_track.number)
-                return self._is_playing
-            except:
+                if hasattr(self, '_alsa_process') and self._alsa_process:
+                    self._alsa_process.terminate()
+                    self._alsa_process.wait(timeout=1)
+            except Exception as e:
+                logger.log(LogLevel.WARNING, f"Error terminating previous ALSA process: {str(e)}")
+
+            # Start new process
+            self._alsa_process = subprocess.Popen(cmd)
+            logger.log(LogLevel.INFO, f"Started ALSA fallback process with command: {' '.join(cmd)}")
+
+            # Set state
+            self._is_playing = True
+            self._stream_start_time = time.time()
+
+            return True
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"ALSA fallback failed: {str(e)}")
+            return False
+
+    def _attempt_fallback_playback(self) -> bool:
+        """Attempt to restart playback from the beginning as a last resort."""
+        try:
+            if self._current_track:
+                # First try normal playback
+                if self.play_track(self._current_track.number):
+                    return True
+
+                # If that fails, try ALSA fallback
+                logger.log(LogLevel.WARNING, "Normal playback failed, trying ALSA fallback")
+                return self._fallback_to_alsa(str(self._current_track.path))
+            return False
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"All fallback attempts failed: {str(e)}")
+            return False
+
+    def play_current_from_position(self, position_seconds: float) -> bool:
+        """Play the current track from a specific position with robust error handling."""
+        with self._state_lock:
+            if not self._current_track or not self._playlist:
+                logger.log(LogLevel.WARNING, "No current track to resume")
                 return False
+
+            saved_track = self._current_track
+
+            try:
+                position_seconds = self._validate_position(position_seconds, saved_track.path)
+                if not self._prepare_audio_backend():
+                    return False
+                return self._load_and_play_from_position(saved_track, position_seconds)
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error playing from position: {str(e)}")
+                return self._attempt_fallback_playback()
 
     def stop(self, clear_playlist: bool = True) -> None:
         """Stop playback"""
-        was_playing = self._is_playing
-        try:
-            # Use the audio backend abstraction instead of direct pygame calls
-            self._audio_backend.stop()
-            self._is_playing = False
-            self._current_track = None
-            if clear_playlist:
-                self._playlist = None
-            if was_playing:
-                self._notify_playback_status('stopped')
+        with self._state_lock:
+            was_playing = self._is_playing
+            try:
+                self._audio_backend.stop()
+                self._is_playing = False
+                self._current_track = None
+                if clear_playlist:
+                    self._playlist = None
+                if was_playing:
+                    self._notify_playback_status('stopped')
                 logger.log(LogLevel.INFO, "Playback stopped")
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error during stop: {str(e)}")
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error during stop: {str(e)}")
 
     def cleanup(self) -> None:
         """Clean up resources"""
-        try:
-            # Stop the progress thread
-            if self._progress_thread:
-                self._stop_progress = True
-                try:
-                    self._progress_thread.join(timeout=2.0)
-                except Exception as e:
-                    logger.log(LogLevel.WARNING, f"Error stopping progress thread: {str(e)}")
-
-            # Stop playback and shutdown the audio backend
+        super().cleanup() # Call BaseAudioPlayer's cleanup
+        with self._state_lock:
             try:
-                self._audio_backend.stop()
                 self._audio_backend.shutdown()
             except Exception as e:
                 logger.log(LogLevel.WARNING, f"Audio backend error during cleanup: {str(e)}")
 
-            # Clear audio cache
             try:
                 self._audio_cache.clear()
             except AttributeError as e:
@@ -442,193 +389,101 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             except Exception as e:
                 logger.log(LogLevel.WARNING, f"Unexpected error clearing audio cache: {str(e)}")
 
-            logger.log(LogLevel.INFO, "All resources cleaned up successfully")
+            logger.log(LogLevel.INFO, "WM8960 resources cleaned up successfully")
 
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error during cleanup: {str(e)}")
-        finally:
-            self._is_playing = False
-            self._current_track = None
-            self._playlist = None
-            self._progress_thread = None
 
-    # MARK: - Playlist Management
-
-    def set_playlist(self, playlist: Playlist) -> bool:
-        """Set the current playlist and start playback"""
-        try:
-            self.stop()
-            self._playlist = playlist
-            if self._playlist and self._playlist.tracks:
-                logger.log(LogLevel.INFO, f"Set playlist with {len(self._playlist.tracks)} tracks")
-                return self.play_track(1)  # Play first track
-            logger.log(LogLevel.WARNING, "Empty playlist or no tracks")
-            return False
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error setting playlist: {str(e)}")
-            return False
-
-    def next_track(self) -> None:
-        """Play next track"""
-        if not self._current_track or not self._playlist:
-            logger.log(LogLevel.WARNING, "No current track or playlist")
-            return
-
-        next_number = self._current_track.number + 1
-        if next_number <= len(self._playlist.tracks):
-            logger.log(LogLevel.INFO, f"Moving to next track: {next_number}")
-            self.play_track(next_number)
-        else:
-            logger.log(LogLevel.INFO, "Reached end of playlist")
-
-    def previous_track(self) -> None:
-        """Play previous track"""
-        if not self._current_track or not self._playlist:
-            logger.log(LogLevel.WARNING, "No current track or playlist")
-            return
-
-        prev_number = self._current_track.number - 1
-        if prev_number > 0:
-            logger.log(LogLevel.INFO, f"Moving to previous track: {prev_number}")
-            self.play_track(prev_number)
-        else:
-            logger.log(LogLevel.INFO, "Already at first track")
+    # MARK: - Playlist Management (Most methods are inherited from BaseAudioPlayer)
 
     def set_volume(self, volume: int) -> bool:
         """Set volume (0-100)"""
-        try:
-            self._volume = max(0, min(100, volume))
-            # Use the audio backend abstraction instead of direct pygame calls
-            if not self._audio_backend.set_volume(self._volume):
+        with self._state_lock:
+            # First update the internal volume value via the parent class
+            super().set_volume(volume) # This always returns True and sets self._volume
+
+            # Now try to set the volume in the audio backend
+            backend_success = self._audio_backend.set_volume(self._volume)
+            if not backend_success:
                 logger.log(LogLevel.WARNING, "Audio backend failed to set volume")
+                return False # Return False if backend failed
+
             logger.log(LogLevel.INFO, f"Volume set to {self._volume}%")
-            return True
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error setting volume: {str(e)}")
-            return False
+            return True # Return True only if both operations succeeded
 
-    # MARK: - Internal Helpers
+    # MARK: - Internal Helpers (Most methods are inherited or removed)
 
-    def _get_current_track(self):
-        """(Private) Return the currently playing track (not part of Protocol)"""
-        return self._current_track
-
-    def _get_playlist(self):
-        """(Private) Return the current playlist (not part of Protocol)"""
-        return self._playlist
-
-    def _get_volume(self):
-        """(Private) Return current volume (not part of Protocol)"""
-        return self._volume
-
-    def _setup_event_handler(self):
-        """Set up event handler"""
-        self._start_progress_thread()
-
-    def _start_progress_thread(self):
-        """Start progress tracking thread"""
-        if self._progress_thread:
-            self._stop_progress = True
-            self._progress_thread.join(timeout=1.0)
-
-        self._stop_progress = False
-        self._progress_thread = threading.Thread(target=self._progress_loop)
-        self._progress_thread.daemon = True
-        self._progress_thread.start()
-
-    def _progress_loop(self):
-        """Progress tracking loop"""
-        last_playing_state = False
-        last_update_time = 0
-        tick = 0
-        while not self._stop_progress:
-            tick += 1
-            if self._is_playing and self._playback_subject and self._current_track:
-                current_time = time.time()
-                if current_time - last_update_time >= 1.0:
-                    last_update_time = current_time
-                    self._update_progress()
-
-                # Check if music has stopped playing (track ended)
-                current_playing_state = self._audio_backend.is_playing()
-                if last_playing_state and not current_playing_state:
-                    logger.log(LogLevel.INFO, f"[PROGRESS_LOOP] Detected track end at tick={tick}")
-                    self._handle_track_end()
-                last_playing_state = current_playing_state
-            time.sleep(0.1)  # Update more frequently to catch track end
+    def _check_playback_active(self) -> bool:
+        """Check if playback is currently active using the audio backend."""
+        with self._state_lock:
+            return self._audio_backend.is_playing()
 
     def _update_progress(self):
         """Update and send current progress"""
-        if not self._current_track or not self._playback_subject:
-            logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] No current_track or playback_subject; skipping progress update.")
-            return
-
-        try:
-            # Check if playback is active via audio backend
-            busy = self._audio_backend.is_playing()
-
-            # If internal state indicates 'playing' but backend says it's stopped, this is an error
-            if self._is_playing and not busy:
-                logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] Audio state mismatch: _is_playing=True but audio backend says it's not playing")
-                # Do not send update in this case to avoid conflicting timecodes
+        with self._state_lock:
+            if not self._current_track or not self._playback_subject:
+                logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] No current_track or playback_subject; skipping progress update.")
                 return
 
-            # Calculate time elapsed since playback started
-            elapsed = time.time() - self._stream_start_time if self._stream_start_time > 0 else 0
-            total = self._get_track_duration(self._current_track.path)
+            try:
+                # Check if playback is active via audio backend
+                busy = self._audio_backend.is_playing()
 
-            # Avoid negative values or values greater than total duration
-            if elapsed < 0:
-                elapsed = 0
-            if total > 0 and elapsed > total:
-                elapsed = total
+                # If internal state indicates 'playing' but backend says it's stopped, this is an error
+                if self._is_playing and not busy:
+                    logger.log(LogLevel.WARNING, "[UPDATE_PROGRESS] Audio state mismatch: _is_playing=True but audio backend says it's not playing")
+                    # Do not send update in this case to avoid conflicting timecodes
+                    return
 
-            track_info = {
-                'number': self._current_track.number,
-                'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
-                'filename': getattr(self._current_track, 'filename', None),
-                'duration': total
-            }
-            playlist_info = self._playlist.to_dict() if self._playlist and hasattr(self._playlist, 'to_dict') else None
+                # Calculate time elapsed since playback started
+                elapsed = time.time() - self._stream_start_time if self._stream_start_time > 0 else 0
+                total = self._get_track_duration(self._current_track.path)
 
-            # Only send the update if we are in playback mode
-            # to avoid conflicting timecodes
-            if self._is_playing:
-                self._playback_subject.notify_track_progress(
-                    elapsed=elapsed,
-                    total=total,
-                    track_number=track_info.get('number'),
-                    track_info=track_info,
-                    playlist_info=playlist_info,
-                    is_playing=self._is_playing
-                )
+                # Avoid negative values or values greater than total duration
+                if elapsed < 0:
+                    elapsed = 0
+                if total > 0 and elapsed > total:
+                    elapsed = total
 
-                # Do not log every update to avoid log overload
-                # Log only every 10 seconds or at key moments
-                if int(elapsed) % 10 == 0 or int(elapsed) == 0 or int(elapsed) == int(total):
-                    logger.log(LogLevel.INFO, f"[UPDATE_PROGRESS] notify_track_progress called (elapsed={elapsed:.2f} / {total:.2f})")
+                track_info = {
+                    'number': self._current_track.number,
+                    'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
+                    'filename': getattr(self._current_track, 'filename', None),
+                    'duration': total
+                }
+                playlist_info = self._playlist.to_dict() if self._playlist and hasattr(self._playlist, 'to_dict') else None
 
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error updating progress: {str(e)}")
+                # Only send the update if we are in playback mode
+                # to avoid conflicting timecodes
+                if self._is_playing:
+                    self._playback_subject.notify_track_progress(
+                        elapsed=elapsed,
+                        total=total,
+                        track_number=track_info.get('number'),
+                        track_info=track_info,
+                        playlist_info=playlist_info,
+                        is_playing=self._is_playing
+                    )
+
+                    # Do not log every update to avoid log overload
+                    # Log only every 10 seconds or at key moments
+                    if int(elapsed) % 10 == 0 or int(elapsed) == 0 or int(elapsed) == int(total):
+                        logger.log(LogLevel.INFO, f"[UPDATE_PROGRESS] notify_track_progress called (elapsed={elapsed:.2f} / {total:.2f})")
+
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error updating progress: {str(e)}")
 
     def _get_track_duration(self, file_path: Path) -> float:
         """Get track duration in seconds"""
-        try:
-            if str(file_path).lower().endswith('.mp3'):
-                audio = MP3(str(file_path))
-                return audio.info.length
-            return 0
-        except Exception as e:
-            logger.log(LogLevel.WARNING, f"Error getting track duration: {str(e)}")
-            return 0
+        with self._state_lock:
+            try:
+                if str(file_path) in self._audio_cache:
+                    return self._audio_cache[str(file_path)]
 
-    def _handle_track_end(self):
-        """Handle end of track"""
-        if self._is_playing and self._current_track and self._playlist:
-            next_number = self._current_track.number + 1
-            if next_number <= len(self._playlist.tracks):
-                logger.log(LogLevel.INFO, f"Track ended, playing next: {next_number}")
-                self.play_track(next_number)
-            else:
-                logger.log(LogLevel.INFO, "Playlist ended")
-                self.stop()
+                if str(file_path).lower().endswith('.mp3'):
+                    audio = MP3(str(file_path))
+                    duration = audio.info.length
+                    self._audio_cache[str(file_path)] = duration
+                    return duration
+                return 0
+            except Exception as e:
+                logger.log(LogLevel.WARNING, f"Error getting track duration: {str(e)}")
+                return 0

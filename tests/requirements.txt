@@ -1,5 +1,32 @@
-requests>=2.31.0
-python-socketio[client]>=5.11.1
+# Test environment dependencies (for CI/CD and local testing)
+# Base application dependencies are required for importing and testing app modules.
+-r ../app/requirements_base.txt
+
+# Core testing framework
 pytest>=7.0.0
 pytest-cov>=4.0.0
 pytest-asyncio>=0.18.0
+
+# Pygame is needed as PygameAudioBackend is tested and imports pygame.
+# Numpy is included as it was previously added for pygame.sndarray or other test needs.
+pygame==2.6.1
+numpy>=1.26.0
+
+# RPi.GPIO is included as modules under test might import it.
+# If your CI environment cannot install RPi.GPIO, or if all imports are
+# robustly mocked (e.g., via sys.modules patching in conftest.py before
+# application module imports), this could potentially be removed or replaced
+# with a mock package like 'fake-rpi'.
+RPi.GPIO>=0.7.0
+
+# python-socketio[client] is retained if tests specifically act as a Socket.IO client.
+# The base 'python-socketio' is already included via requirements_base.txt.
+python-socketio[client]>=5.11.1
+
+# Note: Adafruit CircuitPython libraries (bh1750, pn532) and rpi_ws281x
+# were previously considered but are omitted here on the assumption that
+# modules using them are either not tested in a way that requires these
+# packages to be importable, or that their imports are effectively mocked
+# at a level that doesn't require the packages themselves.
+# If ImportErrors occur for these during testing, they may need to be added
+# or a pre-import mocking strategy implemented in conftest.py.

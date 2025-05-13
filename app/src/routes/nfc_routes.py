@@ -8,7 +8,10 @@ from app.src.dependencies import get_config
 logger = ImprovedLogger(__name__)
 
 def get_nfc_service(request: Request) -> NFCService:
-    return request.app.container.nfc
+    logger.log(LogLevel.INFO, f"get_nfc_service: Retrieving NFC service from request.app.container")
+    nfc_service = getattr(request.app, "container", None) and getattr(request.app.container, "nfc", None)
+    logger.log(LogLevel.INFO, f"get_nfc_service: NFC service is {nfc_service}")
+    return nfc_service
 
 class NFCRoutes:
     def __init__(self, app, socketio, nfc_service: NFCService):
@@ -19,7 +22,9 @@ class NFCRoutes:
         self._register_routes()
 
     def register(self):
+        logger.log(LogLevel.INFO, "NFCRoutes: Registering NFC routes")
         self.app.include_router(self.router)
+        logger.log(LogLevel.INFO, "NFCRoutes: NFC routes registered successfully")
 
     def _register_routes(self):
         @self.router.post("/observe")
@@ -29,11 +34,9 @@ class NFCRoutes:
                 if not nfc_service or not hasattr(nfc_service, "_nfc_handler") or not nfc_service._nfc_handler:
                     logger.log(LogLevel.WARNING, "NFC reader not available")
                     return JSONResponse(status_code=503, content={"error": "NFC reader not available"})
-                
-                # Utiliser la méthode start_observe du service NFC
-                # Elle initialisera le lecteur NFC et mettra le service en mode observation
+
                 result = await nfc_service.start_observe(playlist_id=None)
-                
+
                 if result.get("status") == "ok":
                     logger.log(LogLevel.INFO, "NFC hardware reader started in observation mode")
                     return {"status": "ok"}
@@ -56,7 +59,6 @@ class NFCRoutes:
                 if not playlist_id or not tag_id:
                     return JSONResponse({'error': 'playlist_id and tag_id are required'}, status_code=400)
                 playlist_service = PlaylistService(config)
-                # Vérifie si le tag est déjà associé à une playlist
                 existing_playlist = playlist_service.get_playlist_by_nfc_tag(tag_id)
                 if existing_playlist:
                     if existing_playlist['id'] == playlist_id:
@@ -69,9 +71,7 @@ class NFCRoutes:
                             'playlist_title': existing_playlist.get('title', '')
                         })
                         return JSONResponse({'error': 'Tag already associated', 'playlist_id': existing_playlist['id'], 'playlist_title': existing_playlist.get('title', '')}, status_code=409)
-                    # Override demandé : désassocier puis associer atomiquement
                     playlist_service.disassociate_nfc_tag(existing_playlist['id'])
-                # Associe le tag à la nouvelle playlist
                 success = playlist_service.associate_nfc_tag(playlist_id, tag_id)
                 if success:
                     await self.socketio.emit('nfc_link_success', {'playlist_id': playlist_id, 'tag_id': tag_id})

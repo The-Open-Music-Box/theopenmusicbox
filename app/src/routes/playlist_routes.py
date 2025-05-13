@@ -201,4 +201,3 @@ class PlaylistRoutes:
                 raise HTTPException(status_code=400, detail="Invalid action")
             actions[action]()
             return {"status": "success", "action": action}
-

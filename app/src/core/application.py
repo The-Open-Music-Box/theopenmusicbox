@@ -1,3 +1,5 @@
+# MARK: - Imports
+import os
 import time
 import threading
 import traceback
@@ -10,14 +12,17 @@ from app.src.services.nfc_service import NFCService
 from app.src.module.nfc.nfc_factory import get_nfc_handler
 from app.src.helpers.decorators import deprecated
 
+# MARK: - Logger
 logger = ImprovedLogger(__name__)
 
+# MARK: - Application Class
 class Application:
     """
     Main application class that manages initialization and lifecycle
     of various components.
     """
 
+    # MARK: - Initialization
     def __init__(self, config):
         """
         Initialize the application with async config only (legacy DI container removed).
@@ -42,13 +47,13 @@ class Application:
 
         # Audio setup (non-async)
         self._setup_audio()
-        
+
         # Initialize NFC components in constructor (basic setup)
         self._nfc_handler = None  # Will be initialized in initialize_async
         self._nfc_service = None  # Will be initialized in initialize_async
 
         logger.log(LogLevel.INFO, "Application initialized successfully")
-        
+
     async def initialize_async(self):
         """
         Asynchronous initialization - to be called from lifespan context
@@ -93,7 +98,7 @@ class Application:
             # Avoid raising exceptions from here unless absolutely necessary,
             # as this is typically called from an event handler.
 
-    # MARK: - Internal Setup & Synchronization
+    # MARK: - Playlist Synchronization
     def _sync_playlists(self):
         """
         Synchronize playlists in database with files from upload folder.
@@ -157,17 +162,18 @@ class Application:
             logger.log(LogLevel.ERROR, f"Playlist synchronization setup failed: {str(e)}")
             logger.log(LogLevel.DEBUG, f"Sync error details: {traceback.format_exc()}")
 
+    # MARK: - NFC Setup
     async def _setup_nfc(self):
         """Set up and initialize NFC reader using asyncio."""
         try:
             # In our application architecture, the NFC handler and service should
             # already be initialized by the ContainerAsync class.
             # We'll just ensure our playlist controller is linked to the NFC service.
-            
+
             # Try to get the NFC service from fastapi app's container
             container = None
             nfc_service_from_container = None
-            
+
             try:
                 # Try to import and access FastAPI app to get its container
                 from app.main import app
@@ -178,7 +184,7 @@ class Application:
                         logger.log(LogLevel.INFO, "Found existing NFC service from container")
             except (ImportError, AttributeError):
                 logger.log(LogLevel.WARNING, "Couldn't access container NFC service from FastAPI app")
-                
+
             if nfc_service_from_container and self._nfc_service is None:
                 # Use the existing NFC service from container
                 self._nfc_service = nfc_service_from_container
@@ -189,42 +195,42 @@ class Application:
                 # Create a lock for I2C bus (if needed)
                 if self._nfc_lock is None:
                     self._nfc_lock = asyncio.Lock()
-                
+
                 # Initialize the NFC handler via the async factory
                 self._nfc_handler = await get_nfc_handler(self._nfc_lock)
                 logger.log(LogLevel.INFO, f"NFC handler initialized: {type(self._nfc_handler).__name__}")
-                
+
                 # Initialize the NFC service with handler and playlist controller
                 self._nfc_service = NFCService(
                     socketio=None,  # Will be set later by API/web layer
                     nfc_handler=self._nfc_handler,
                     playlist_controller=self._playlist_controller
                 )
-                
+
                 # If we have access to the container, update its NFC service
                 if container and hasattr(container, '_nfc_service'):
                     container._nfc_service = self._nfc_service
                     container._nfc_handler = self._nfc_handler
                     logger.log(LogLevel.INFO, "Updated container's NFC service")
-            
+
             # Always ensure bi-directional link between playlist controller and NFC service
             if hasattr(self._playlist_controller, 'set_nfc_service'):
                 self._playlist_controller.set_nfc_service(self._nfc_service)
                 logger.log(LogLevel.INFO, "PlaylistController linked with NFC service")
             else:
                 logger.log(LogLevel.WARNING, "PlaylistController doesn't have set_nfc_service method - coordination with NFC service not possible")
-            
+
             # Make sure the playlist controller is set on the NFC service
             if hasattr(self._nfc_service, '_playlist_controller') and self._nfc_service._playlist_controller is None:
                 self._nfc_service._playlist_controller = self._playlist_controller
                 logger.log(LogLevel.INFO, "Set playlist controller on NFC service")
-                
+
             # Load playlist mapping if needed
             if not hasattr(self._nfc_service, '_playlists') or not self._nfc_service._playlists:
                 playlists = self._playlists.get_all_playlists(page=1, page_size=1000)
                 self._nfc_service.load_mapping(playlists)
                 logger.log(LogLevel.INFO, "Playlist mapping loaded into NFC service")
-            
+
             # Ensure the NFC reader is started
             if self._nfc_handler and hasattr(self._nfc_handler, 'start_nfc_reader'):
                 # Check if already started to avoid duplicate starts
@@ -234,12 +240,13 @@ class Application:
                 except Exception as reader_error:
                     # This might fail if already started, which is fine
                     logger.log(LogLevel.WARNING, f"NFC reader may already be started: {reader_error}")
-            
+
             logger.log(LogLevel.INFO, "NFC system fully initialized and ready")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Failed to initialize NFC: {e}")
             logger.log(LogLevel.DEBUG, f"NFC setup error details: {traceback.format_exc()}")
 
+    # MARK: - Deprecated Methods
     @deprecated
     def _handle_tag_scanned(self, tag):
         """
@@ -254,6 +261,7 @@ class Application:
         """
         pass
 
+    # MARK: - Internal Event Handlers
     def _handle_nfc_error(self, error):
         """
         Handle NFC reader errors.
@@ -262,60 +270,69 @@ class Application:
             error: Error information
         """
         logger.log(LogLevel.ERROR, f"NFC error: {error}")
-        
+
+    # MARK: - Audio Setup
     def _setup_audio(self):
         """
         Set up and initialize audio system for playlist playback.
+
+        This method ensures that the audio system is properly initialized and connected
+        to the playlist controller. It sets environment variables for audio playback,
+        creates an audio player instance, and handles any errors that may occur.
         """
+        # Set environment variables at the application level
+        os.environ['SDL_AUDIODRIVER'] = 'alsa'   # Explicitly use ALSA
+        os.environ['SDL_AUDIODEV'] = 'hw:1'      # Target WM8960 (card 1)
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'  # Disable video mode
+
+        container_audio = None
+
+        # First try to get the audio player from the container if available
         try:
-            # Try to get the audio player from the container if available
-            try:
-                # Attempt to access the FastAPI app container
-                from app.main import app
-                container_audio = None
-                
-                if hasattr(app, 'container') and app.container:
-                    if hasattr(app.container, 'audio'):
-                        container_audio = app.container.audio
-                        logger.log(LogLevel.INFO, f"Using audio player from container: {type(container_audio).__name__}")
-                        
-                        # Update the playlist controller with the audio player
-                        if self._playlist_controller:
-                            self._playlist_controller._audio = container_audio
-                            logger.log(LogLevel.INFO, "Audio player connected to playlist controller")
-                        else:
-                            logger.log(LogLevel.WARNING, "Playlist controller not available to connect audio player")
-                        return
-            except (ImportError, AttributeError) as e:
-                logger.log(LogLevel.WARNING, f"Could not access container audio from FastAPI app: {e}")
-                
-            # If we couldn't get the audio player from the container, create one
-            try:
-                from app.src.module.audio_player.audio_factory import get_audio_player
-                from app.src.services.notification_service import PlaybackSubject
-                
-                # Get a PlaybackSubject instance
-                playback_subject = PlaybackSubject.get_instance()
-                
-                # Create an audio player
-                audio_player = get_audio_player(playback_subject)
-                
-                # Set it on the playlist controller
-                if self._playlist_controller:
-                    self._playlist_controller._audio = audio_player
-                    logger.log(LogLevel.INFO, f"Created and connected new {type(audio_player).__name__} to playlist controller")
-                else:
-                    logger.log(LogLevel.WARNING, "Playlist controller not available to connect new audio player")
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error creating audio player: {str(e)}")
-                import traceback
-                logger.log(LogLevel.DEBUG, f"Audio creation error details: {traceback.format_exc()}")
-                
+            # Attempt to access the FastAPI app container
+            from app.main import app
+
+            if hasattr(app, 'container') and app.container:
+                if hasattr(app.container, 'audio'):
+                    container_audio = app.container.audio
+                    logger.log(LogLevel.INFO, f"Using audio player from container: {type(container_audio).__name__}")
+        except (ImportError, AttributeError) as e:
+            logger.log(LogLevel.WARNING, f"Could not access container audio from FastAPI app: {e}")
+
+        # If we got the audio player from the container, connect it to the playlist controller
+        if container_audio:
+            if self._playlist_controller:
+                self._playlist_controller._audio = container_audio
+                logger.log(LogLevel.INFO, "Audio player connected to playlist controller")
+                return
+            else:
+                logger.log(LogLevel.WARNING, "Playlist controller not available to connect audio player")
+                return
+
+        # If we couldn't get the audio player from the container, create one
+        try:
+            from app.src.module.audio_player.audio_factory import get_audio_player
+            from app.src.services.notification_service import PlaybackSubject
+
+            # Get a PlaybackSubject instance
+            playback_subject = PlaybackSubject.get_instance()
+
+            # Create an audio player
+            audio_player = get_audio_player(playback_subject)
+
+            # Set it on the playlist controller
+            if self._playlist_controller:
+                self._playlist_controller._audio = audio_player
+                logger.log(LogLevel.INFO, f"Created and connected new {type(audio_player).__name__} to playlist controller")
+            else:
+                logger.log(LogLevel.ERROR, "Playlist controller not available to connect new audio player")
+                raise RuntimeError("Audio initialization failed: playlist controller not available")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Audio setup failed: {str(e)}")
+            logger.log(LogLevel.ERROR, f"Error creating audio player: {str(e)}")
             import traceback
-            logger.log(LogLevel.DEBUG, f"Audio setup error details: {traceback.format_exc()}")
-    
+            logger.log(LogLevel.DEBUG, f"Audio creation error details: {traceback.format_exc()}")
+            raise RuntimeError(f"Failed to initialize audio system: {str(e)}")
+
     def _handle_playback_status(self, event):
         """
         Handle playback status updates.
@@ -353,6 +370,7 @@ class Application:
         """
         logger.log(LogLevel.ERROR, f"Audio error: {error}")
 
+    # MARK: - Application Lifecycle
     async def run(self):
         """
         Start and run the application asynchronously.

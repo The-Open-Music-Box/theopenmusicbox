@@ -17,7 +17,7 @@ logger = ImprovedLogger(__name__)
 
 class PN532I2CNFC(NFCHardware):
     """PN532 NFC hardware implementation using I2C communication.
-    
+
     This class handles the low-level communication with the PN532 NFC reader
     via I2C, while delegating tag detection logic to the TagDetectionManager.
     """
@@ -25,7 +25,7 @@ class PN532I2CNFC(NFCHardware):
     def __init__(self, lock: asyncio.Lock, config: Optional[NFCConfig] = None) -> None:
         """
         Initialize the PN532 NFC reader with I2C communication.
-        
+
         Args:
             lock: Asyncio lock for thread-safe hardware access
             config: Optional NFC configuration parameters
@@ -35,7 +35,7 @@ class PN532I2CNFC(NFCHardware):
         self._config = config or NFCConfig()  # Use default if none provided
         self._stop_event = asyncio.Event()
         self._reader_task = None
-        
+
         # Create tag detection manager with configuration parameters
         self._tag_manager = TagDetectionManager(
             cooldown_period=self._config.tag_cooldown,
@@ -45,7 +45,7 @@ class PN532I2CNFC(NFCHardware):
     async def initialize(self) -> None:
         """
         Asynchronous initialization method, to be called after instance creation.
-        
+
         Initializes the hardware and prepares the NFC reader for operation.
         """
         try:
@@ -64,7 +64,7 @@ class PN532I2CNFC(NFCHardware):
     async def _initialize_hardware(self) -> None:
         """
         Initialize the NFC hardware components.
-        
+
         Sets up the I2C communication and configures the PN532 chip.
         """
         try:
@@ -86,7 +86,7 @@ class PN532I2CNFC(NFCHardware):
     async def read_nfc(self) -> Optional[str]:
         """
         Read NFC tag from the hardware.
-        
+
         Returns:
             The UID string of the detected tag, or None if no tag is present
         """
@@ -96,7 +96,7 @@ class PN532I2CNFC(NFCHardware):
         try:
             async with self._lock:
                 uid = self._pn532.read_passive_target(timeout=self._config.read_timeout)
-                
+
                 # If no tag is detected
                 if not uid:
                     # Process tag absence in the detection manager
@@ -106,11 +106,11 @@ class PN532I2CNFC(NFCHardware):
                 # A tag is detected, process it
                 uid_string = ':'.join([f'{i:02X}' for i in uid])
                 tag_data = self._tag_manager.process_tag_detection(uid_string)
-                
+
                 # Return the UID if an event was emitted
                 if tag_data:
                     return uid_string
-                    
+
                 return None
 
         except (RuntimeError, OSError):
@@ -128,7 +128,7 @@ class PN532I2CNFC(NFCHardware):
     async def _nfc_reader_loop(self) -> None:
         """
         Main loop for NFC tag reading.
-        
+
         Continuously polls the NFC hardware for tag presence and handles errors.
         """
         logger.log(LogLevel.INFO, "Starting reader loop")
@@ -152,7 +152,6 @@ class PN532I2CNFC(NFCHardware):
                     # Log INFO every 5 seconds to signal waiting
                     now = time.time()
                     if now - last_info_log > 5:
-                        logger.log(LogLevel.INFO, "NFC reader waiting for tag scan...")
                         last_info_log = now
 
                 await asyncio.sleep(self._config.retry_delay)
@@ -165,7 +164,7 @@ class PN532I2CNFC(NFCHardware):
     async def start_nfc_reader(self) -> None:
         """
         Start the NFC reader loop.
-        
+
         Creates an asyncio task that continuously polls for NFC tags.
         """
         # Reset the stop event if necessary
@@ -177,7 +176,7 @@ class PN532I2CNFC(NFCHardware):
     async def stop_nfc_reader(self) -> None:
         """
         Stop the NFC reader loop.
-        
+
         Signals the reader loop to stop and cancels the task if necessary.
         """
         # Signal to stop
@@ -199,7 +198,7 @@ class PN532I2CNFC(NFCHardware):
     async def cleanup(self) -> None:
         """
         Clean up resources used by the NFC reader.
-        
+
         Stops the reader loop and releases hardware resources.
         """
         try:
@@ -224,7 +223,7 @@ class PN532I2CNFC(NFCHardware):
     def tag_subject(self) -> Subject:
         """
         Get the tag detection subject for subscribing to tag events.
-        
+
         Returns:
             The tag detection Subject instance from the TagDetectionManager
         """
