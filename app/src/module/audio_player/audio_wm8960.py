@@ -15,15 +15,16 @@ try:
     from app.src.common.exception import AppError
     from app.src.common.model.playback import PlaybackState, PlaybackSubject
 except ImportError:
-    from app.src.monitoring.improved_logger import ImprovedLogger as logger, LogLevel
+    from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
     from app.src.helpers.exceptions import AppError
     from app.src.services.notification_service import PlaybackSubject
     # PlaybackState may not exist in the old code
     PlaybackState = None
+    logger = ImprovedLogger(__name__)
 
-from app.src.contract.audio_player_hardware import AudioPlayerHardware
-from app.src.module.audio_player.audio_backend import AudioBackend
-from app.src.module.audio_player.pygame_audio_backend import PygameAudioBackend
+from .audio_hardware import AudioPlayerHardware
+from .audio_backend import AudioBackend
+from .pygame_audio_backend import PygameAudioBackend
 from app.src.model.track import Track
 from app.src.model.playlist import Playlist
 
@@ -31,7 +32,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
     """
     AudioPlayerWM8960 implements the audio player hardware interface for the WM8960 codec.
     Playback state is managed and exposed through public properties `is_playing` and `is_paused`.
-    
+
     This implementation uses an audio backend abstraction layer to avoid direct dependency
     on specific audio libraries like pygame.
     """
@@ -49,7 +50,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
         self._audio_cache = {}
         self._paused_position = 0
         self._pause_time = 0
-        
+
         try:
             # Initialize the audio backend (using pygame under the hood)
             self._audio_backend = PygameAudioBackend()
@@ -59,12 +60,12 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                     component="audio",
                     operation="init"
                 )
-                
+
             # Register track end event handler
             self._audio_backend.register_end_event_callback(self._handle_track_end)
-            
+
             logger.log(LogLevel.INFO, "✓ Audio system initialized with WM8960 (audio-only)")
-            
+
             # Start the progress tracking thread
             self._start_progress_thread()
         except Exception as e:
@@ -118,7 +119,7 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                 # Use audio backend abstraction instead of direct pygame calls
                 if not self._audio_backend.load_audio(str(track.path)):
                     raise Exception("Failed to load audio file")
-                    
+
                 self._audio_backend.set_volume(self._volume / 100.0)
                 if not self._audio_backend.play():
                     raise Exception("Failed to start playback")
@@ -186,10 +187,10 @@ class AudioPlayerWM8960(AudioPlayerHardware):
                 if elapsed > 0:  # Sanity check
                     self._paused_position = elapsed
                     logger.log(LogLevel.INFO, f"Paused at position: {self._paused_position:.2f}s")
-            
+
             # Also store the pause time for time-based calculations
             self._pause_time = time.time()
-            
+
             # Pause the playback using the audio backend
             if not self._audio_backend.pause():
                 logger.log(LogLevel.WARNING, "Audio backend failed to pause playback")
@@ -225,86 +226,31 @@ class AudioPlayerWM8960(AudioPlayerHardware):
             if self._audio_backend.unpause():
                 # Wait a tiny bit and check if it's actually playing
                 time.sleep(0.1)  # Small delay to let the audio backend update its state
-                
+
                 if self._audio_backend.is_playing():
                     # Direct unpause worked!
                     logger.log(LogLevel.INFO, "Successfully resumed using simple unpause")
                     self._is_playing = True
-                    
+
                     if self._playback_subject:
                         self._notify_playback_status('playing')
-                    
+
                     # Update the stream start time to account for the pause duration
                     pause_duration = time.time() - self._pause_time
                     self._stream_start_time += pause_duration
-                    
+
                     return True
-            
+
             # If we get here, the unpause didn't work (common issue)
             # Fallback: reload and seek to the paused position
             logger.log(LogLevel.WARNING, "Simple unpause failed, trying reload and seek")
             return self.play_current_from_position(self._paused_position)
-            
+
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during resume: {str(e)}")
             # Final fallback: reload and seek to saved position
             logger.log(LogLevel.WARNING, "Error during resume, trying reload fallback")
             return self.play_current_from_position(self._paused_position)
-                    pygame.mixer.music.unpause()
-                    self._is_playing = True
-
-                    # Wait briefly and check if resume worked
-                    pygame.time.delay(50)  # 50ms should be enough to detect problems
-
-                    # Force the mixer to process events
-                    pygame.event.pump()
-
-                    # Check that playback actually resumed
-                    if pygame.mixer.music.get_busy():
-                        success = True
-                        # Update stream_start_time to account for pause
-                        self._stream_start_time = time.time() - last_pos
-                        self._notify_playback_status('playing')
-                        logger.log(LogLevel.INFO, f"Resume succeeded at position {last_pos:.2f}s")
-                    else:
-                        logger.log(LogLevel.WARNING, "Standard resume failed silently, falling back to reload")
-                        success = False
-                else:
-                    logger.log(LogLevel.WARNING, "No sound loaded or pending, cannot resume directly")
-                    success = False
-            except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error during resume: {str(e)}")
-                success = False
-
-            # FALLBACK - If direct resume fails, reload and seek position
-            if not success:
-                try:
-                    # Ensure state variables are intact
-                    if not self._current_track:
-                        self._current_track = saved_track
-
-                    # Reload from the calculated position
-                    if last_pos > 0:
-                        logger.log(LogLevel.INFO, f"Forced reload: Resuming at position {last_pos:.2f}s")
-                        # Use the dedicated method for loading from a position
-                        result = self.play_current_from_position(last_pos)
-                        if not result:
-                            logger.log(LogLevel.WARNING, "Unable to resume from exact position, restarting track")
-                            self.play_track(self._current_track.number)
-                    else:
-                        # Simply restart the track if we don't have a valid position
-                        logger.log(LogLevel.INFO, f"Forced reload: Restarting track {self._current_track.number}")
-                        self.play_track(self._current_track.number)
-                except Exception as e:
-                    logger.log(LogLevel.ERROR, f"Error in resume fallback mechanism: {str(e)}")
-                    try:
-                        # Last resort - simply try to play from the beginning
-                        logger.log(LogLevel.WARNING, "Last resort: attempt to play from beginning")
-                        self.play_track(self._current_track.number)
-                    except Exception as fallback_error:
-                        logger.log(LogLevel.ERROR, f"Complete resume failure: {str(fallback_error)}")
-                        self._is_playing = False
-                        self._notify_playback_status('stopped')
 
     def play_current_from_position(self, position_seconds: float) -> bool:
         """Play the current track from a specific position with robust error handling
