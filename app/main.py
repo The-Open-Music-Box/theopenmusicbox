@@ -4,13 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.src.config import config_singleton
 from app.src.core.container_async import ContainerAsync
 from app.src.core.application import Application
-# PlaylistRoutes will be handled by APIRoutes
-# from app.src.routes.playlist_routes import PlaylistRoutes
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-# NFCRoutes and WebSocketHandlersAsync will be handled by APIRoutes
-# from app.src.routes.nfc_routes import NFCRoutes
-# from app.src.routes.websocket_handlers_async import WebSocketHandlersAsync
-# Import init_api_routes
 from app.src.routes.api_routes import init_api_routes
 import traceback
 
