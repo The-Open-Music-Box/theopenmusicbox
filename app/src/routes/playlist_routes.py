@@ -21,6 +21,9 @@ class PlaylistRoutes:
         self.router = APIRouter(prefix="/api/playlists", tags=["playlists"])
         # Cache the audio instance to avoid repeated dependency resolution
         self._audio_instance = None
+        # Initialize controls-related attributes
+        self._controles_manager = None
+        self._controles_subscription = None
         self._register_routes()
 
     def register(self):
@@ -35,6 +38,119 @@ class PlaylistRoutes:
                 self._audio_instance = container.audio
         return self._audio_instance
 
+    def _setup_controls_integration(self):
+        """
+        Set up integration with physical controls.
+        """
+        try:
+            # Import here to avoid circular imports
+            from app.src.module.controles import get_controles_manager
+            from app.src.module.controles.events.controles_events import ControlesEventType
+            
+            # Create controls manager
+            logger.log(LogLevel.DEBUG, "Creating controls manager...")
+            self.controls_manager = get_controles_manager()
+            
+            # Initialize and start the controls manager
+            if self.controls_manager.initialize() and self.controls_manager.start():
+                # Subscribe to control events
+                logger.log(LogLevel.DEBUG, "Subscribing to control events...")
+                self.controls_subscription = self.controls_manager.event_observable.subscribe(
+                    on_next=self._handle_control_event
+                )
+                logger.log(LogLevel.INFO, "✓ Controls manager initialized and started successfully")
+            else:
+                logger.log(LogLevel.ERROR, "✗ Failed to initialize controls manager")
+                
+        except ImportError as e:
+            # Controls module might not be available, which is fine in development
+            logger.log(LogLevel.WARNING, f"Controls module not available: {str(e)}")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, 
+                      f"✗ Failed to set up controls integration: {str(e)}")
+            # Make sure we don't have any dangling resources
+            if hasattr(self, 'controls_manager'):
+                try:
+                    self.controls_manager.cleanup()
+                except Exception as cleanup_error:
+                    logger.log(LogLevel.ERROR, 
+                              f"Error during controls cleanup: {str(cleanup_error)}")
+            if hasattr(self, 'controls_subscription'):
+                try:
+                    self.controls_subscription.dispose()
+                except Exception as dispose_error:
+                    logger.log(LogLevel.ERROR, 
+                              f"Error disposing controls subscription: {str(dispose_error)}")
+
+    def _handle_control_event(self, event):
+        """
+        Handle control events from physical inputs.
+        
+        This method is called when a control event is emitted by the controls manager.
+        It performs the appropriate action on the audio player based on the event type.
+        
+        Args:
+            event: The control event to handle
+        """
+        # Import here to avoid circular imports
+        from app.src.module.controles.events.controles_events import ControlesEventType
+        
+        # Check if we have an audio player
+        if not self._audio_instance:
+            logger.log(LogLevel.WARNING, "Cannot handle control event: No audio player available")
+            return
+        
+        # Log the received event
+        logger.log(LogLevel.INFO, 
+                  f"✓ Received control event: {event.event_type.name} from {event.source}")
+        
+        try:
+            # Handle different event types
+            if event.event_type == ControlesEventType.PLAY_PAUSE:
+                # Toggle play/pause
+                if self._audio_instance.is_playing:
+                    logger.log(LogLevel.INFO, "✓ Control action: Pausing playback")
+                    self._audio_instance.pause()
+                else:
+                    # If not playing, start playback if possible
+                    logger.log(LogLevel.INFO, "✓ Control action: Starting playback")
+                    self._audio_instance.play()
+                    
+            elif event.event_type == ControlesEventType.VOLUME_UP:
+                # Increase volume by 5%
+                current_volume = self._audio_instance.volume
+                new_volume = min(current_volume + 5, 100)
+                logger.log(LogLevel.INFO, 
+                          f"✓ Control action: Increasing volume from {current_volume}% to {new_volume}%")
+                self._audio_instance.volume = new_volume
+                
+            elif event.event_type == ControlesEventType.VOLUME_DOWN:
+                # Decrease volume by 5%
+                current_volume = self._audio_instance.volume
+                new_volume = max(current_volume - 5, 0)
+                logger.log(LogLevel.INFO, 
+                          f"✓ Control action: Decreasing volume from {current_volume}% to {new_volume}%")
+                self._audio_instance.volume = new_volume
+                
+            elif event.event_type == ControlesEventType.NEXT_TRACK:
+                # Skip to next track in playlist
+                logger.log(LogLevel.INFO, "✓ Control action: Skipping to next track")
+                self._audio_instance.next()
+                
+            elif event.event_type == ControlesEventType.PREVIOUS_TRACK:
+                # Go to previous track in playlist
+                logger.log(LogLevel.INFO, "✓ Control action: Going to previous track")
+                self._audio_instance.previous()
+                
+            else:
+                # Unhandled event type
+                logger.log(LogLevel.WARNING, 
+                          f"Unhandled control event type: {event.event_type.name}")
+                
+        except Exception as e:
+            logger.log(LogLevel.ERROR, 
+                      f"✗ Error handling control event {event.event_type.name}: {str(e)}")
+    
     def _register_routes(self):
         @self.router.get("/", response_model=Dict[str, Any])
         async def list_playlists(page: int = 1, page_size: int = 50, config=Depends(get_config)):
@@ -223,3 +339,6 @@ class PlaylistRoutes:
             
             # Return immediately without waiting for side effects
             return {"status": "success", "action": action}
+        
+        # Set up controls integration if enabled
+        self._setup_controls_integration()
