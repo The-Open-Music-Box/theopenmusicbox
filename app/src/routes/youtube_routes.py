@@ -1,37 +1,59 @@
-from flask import Blueprint, current_app, request, jsonify
+from fastapi import FastAPI, HTTPException, Request, Body, Depends
+from fastapi.responses import JSONResponse
+from typing import Dict, Any, Optional
+from pydantic import BaseModel
 
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.services import YouTubeService
+from app.src.services.youtube import YouTubeService
 
 logger = ImprovedLogger(__name__)
 
+# Define request model
+class YouTubeDownloadRequest(BaseModel):
+    url: str
+
 class YouTubeRoutes:
-    def __init__(self, app, socketio):
+    def __init__(self, app: FastAPI, socketio):
         self.app = app
         self.socketio = socketio
-        self.api = Blueprint('youtube_api', __name__)
+        self.router = None
 
     def register(self):
-        self._init_routes()
-        self.app.register_blueprint(self.api, url_prefix='/api/youtube')
+        """Register YouTube routes with FastAPI app"""
+        try:
+            logger.log(LogLevel.INFO, "YouTubeRoutes: Registering YouTube routes")
+            self._init_routes()
+            logger.log(LogLevel.INFO, "YouTubeRoutes: YouTube routes registered successfully")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"YouTubeRoutes: Failed to register routes: {e}", exc_info=True)
+            raise
 
     def _init_routes(self):
-        @self.api.route('/youtube/download', methods=['POST'])
-        def download_youtube():
-            logger.log(LogLevel.INFO, "Received YouTube download request")
-            if not request.is_json:
-                return jsonify({"error": "Content-Type must be application/json"}), 400
+        """Initialize YouTube routes"""
 
-            url = request.json.get('url')
+        @self.app.post("/api/youtube/download", tags=["youtube"])
+        async def download_youtube(request: Request, download_req: YouTubeDownloadRequest):
+            """Download a YouTube video"""
+            logger.log(LogLevel.INFO, "YouTubeRoutes: Received YouTube download request")
+
+            url = download_req.url
             if not url:
-                return jsonify({"error": "Invalid YouTube URL"}), 400
+                logger.log(LogLevel.WARNING, "YouTubeRoutes: Invalid YouTube URL provided")
+                raise HTTPException(status_code=400, detail="Invalid YouTube URL")
 
             try:
-                service = YouTubeService(self.socketio, current_app.container.config)
-                result = service.process_download(url)
-                return jsonify(result)
+                # Get container from app state
+                container = getattr(request.app, "container", None)
+                if not container:
+                    logger.log(LogLevel.ERROR, "YouTubeRoutes: Container not available")
+                    raise HTTPException(status_code=500, detail="Application container not available")
+
+                service = YouTubeService(self.socketio, container.config)
+                # Call the asynchronous method which handles the download in a non-blocking way
+                result = await service.process_download(url)
+                return result
 
             except Exception as e:
                 error_msg = str(e)
-                logger.log(LogLevel.ERROR, f"Download failed: {error_msg}")
-                return jsonify({"error": error_msg}), 500
+                logger.log(LogLevel.ERROR, f"YouTubeRoutes: Download failed: {error_msg}", exc_info=True)
+                raise HTTPException(status_code=500, detail=error_msg)

@@ -599,3 +599,58 @@ class PlaylistService:
         audio.play_track(track_number)
         # Optionnel: mettre à jour le play_counter ou autre info
         return True
+
+    def add_playlist(self, playlist_data: Dict[str, Any]) -> str:
+        """
+        Add a new playlist with the provided data.
+
+        This method is used by the YouTube service to create playlists from downloaded content.
+
+        Args:
+            playlist_data: Dictionary containing playlist information
+                - title: Title of the playlist
+                - folder: Path to the folder containing the tracks
+                - tracks: List of track information
+
+        Returns:
+            ID of the created playlist
+        """
+        try:
+            # Create a basic playlist structure
+            playlist_id = str(uuid4())
+
+            # Prepare the playlist data for storage
+            formatted_playlist = {
+                'id': playlist_id,
+                'type': 'playlist',
+                'title': playlist_data.get('title', 'YouTube Download'),
+                'path': playlist_data.get('folder', ''),
+                'created_at': datetime.now(timezone.utc).isoformat(),
+                'youtube_id': playlist_data.get('youtube_id'),
+                'tracks': []
+            }
+
+            # Process tracks if available
+            tracks = playlist_data.get('tracks', [])
+            for i, track_data in enumerate(tracks, 1):
+                track = {
+                    'number': i,
+                    'title': track_data.get('title', f'Track {i}'),
+                    'filename': track_data.get('filename', ''),
+                    'duration': track_data.get('duration', 0),
+                    'artist': track_data.get('artist', 'YouTube'),
+                    'album': track_data.get('album', formatted_playlist['title']),
+                    'play_counter': 0
+                }
+                formatted_playlist['tracks'].append(track)
+
+            # Create the playlist in the repository
+            self.repository.create_playlist(formatted_playlist)
+            logger.log(LogLevel.INFO, f"Created playlist from YouTube download: {formatted_playlist['title']}")
+            return playlist_id
+
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error adding playlist from YouTube data: {str(e)}")
+            import traceback
+            logger.log(LogLevel.DEBUG, f"Add playlist error details: {traceback.format_exc()}")
+            raise

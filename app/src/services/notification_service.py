@@ -11,8 +11,8 @@ class DownloadNotifier:
         self.socketio = socketio
         self.download_id = download_id
 
-    def notify(self, status: str, **data):
-        self.socketio.emit('download_progress', {
+    async def notify(self, status: str, **data):
+        await self.socketio.emit('download_progress', {
             'download_id': self.download_id,
             'status': status,
             **data

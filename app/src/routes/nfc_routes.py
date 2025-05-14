@@ -8,9 +8,22 @@ from app.src.dependencies import get_config
 logger = ImprovedLogger(__name__)
 
 def get_nfc_service(request: Request) -> NFCService:
-    logger.log(LogLevel.INFO, f"get_nfc_service: Retrieving NFC service from request.app.container")
-    nfc_service = getattr(request.app, "container", None) and getattr(request.app.container, "nfc", None)
-    logger.log(LogLevel.INFO, f"get_nfc_service: NFC service is {nfc_service}")
+    """
+    Dependency to retrieve the NFC service from the application container.
+    Returns None if the NFC service is not available.
+    """
+    logger.log(LogLevel.DEBUG, f"get_nfc_service: Retrieving NFC service from request.app.container")
+    container = getattr(request.app, "container", None)
+    if not container:
+        logger.log(LogLevel.WARNING, "get_nfc_service: Container not available in request.app")
+        return None
+
+    nfc_service = getattr(container, "nfc", None)
+    if not nfc_service:
+        logger.log(LogLevel.WARNING, "get_nfc_service: NFC service not available in container")
+    else:
+        logger.log(LogLevel.DEBUG, f"get_nfc_service: NFC service retrieved successfully")
+
     return nfc_service
 
 class NFCRoutes:
