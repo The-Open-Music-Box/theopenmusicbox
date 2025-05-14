@@ -114,31 +114,42 @@ class MockAudioPlayer(BaseAudioPlayer, AudioPlayerHardware): # Inherit from Base
             return True
 
     def pause(self) -> None:
-        """Pause playback"""
+        """Pause playback - optimized for immediate response"""
+        # Pre-check to avoid lock if unnecessary
+        if not self._is_playing:
+            return
+            
         with self._state_lock:
             if self._is_playing:
                 self._is_playing = False
                 # Store the current position for later resume
                 self._track_position = time.time() - self._track_start_time
-
-                # Notify pause
-                self._notify_playback_status('paused')
-                logger.log(LogLevel.INFO, "Mock: Playback paused")
+        
+        # Move notification outside the lock to make control immediate
+        # This critical modification reduces response time
+        self._notify_playback_status('paused')
+        logger.log(LogLevel.INFO, "Mock: Playback paused")
 
     def resume(self) -> None:
-        """Resume playback"""
+        """Resume playback - optimized for immediate response"""
+        # Pre-check to avoid lock if unnecessary
+        if self._is_playing or not self._current_track:
+            return
+            
         with self._state_lock:
             if not self._is_playing and self._current_track:
                 self._is_playing = True
                 # Adjust start time to account for current position
                 self._track_start_time = time.time() - self._track_position
-
-                # Notify resume
-                self._notify_playback_status('playing')
-                logger.log(LogLevel.INFO, "Mock: Playback resumed")
+        
+        # Move notification outside the lock to make control immediate
+        self._notify_playback_status('playing')
+        logger.log(LogLevel.INFO, "Mock: Playback resumed")
 
     def stop(self, clear_playlist: bool = True) -> None:
-        """Stop playback"""
+        """Stop playback - optimized for immediate response"""
+        was_playing = False
+        
         with self._state_lock:
             was_playing = self._is_playing
             self._is_playing = False
@@ -147,48 +158,71 @@ class MockAudioPlayer(BaseAudioPlayer, AudioPlayerHardware): # Inherit from Base
 
             if clear_playlist:
                 self._playlist = None
-
-            if was_playing:
-                self._notify_playback_status('stopped')
-            logger.log(LogLevel.INFO, "Mock: Playback stopped")
+        
+        # Move notification outside the lock to make control immediate
+        if was_playing:
+            self._notify_playback_status('stopped')
+        logger.log(LogLevel.INFO, "Mock: Playback stopped")
 
     def _check_playback_active(self) -> bool:
         """Check if playback is currently active (mock implementation)."""
-        with self._state_lock:
-            return self._is_playing
+        # Just do a quick check without lock - for a Boolean this is safe enough
+        # This reduces lock contention during monitoring cycles
+        return self._is_playing
 
     def _update_progress(self) -> None:
         """Update and send current progress (mock implementation)."""
+        # Quick check without lock first
+        if not self._is_playing or not self._playback_subject or not self._current_track:
+            return
+        
+        # Snapshot necessary state with minimal lock time
+        current_track = None
+        playlist = None
+        is_playing = False
+        track_start_time = 0
+        
         with self._state_lock:
-            if not self._is_playing or not self._playback_subject or not self._current_track:
+            if not self._is_playing or not self._current_track:
                 return
+                
+            # Take a snapshot of the current state
+            current_track = self._current_track
+            playlist = self._playlist
+            is_playing = self._is_playing
+            track_start_time = self._track_start_time
+        
+        # Process the data outside the lock
+        current_time = time.time()
+        elapsed = current_time - track_start_time
 
-            current_time = time.time()
-            elapsed = current_time - self._track_start_time
-
-            if elapsed >= self._track_duration:
-                self._handle_track_end() # Call the base class _handle_track_end
-            else:
-                track_info = {
-                    'number': self._current_track.number,
-                    'title': getattr(self._current_track, 'title', f'Track {self._current_track.number}'),
-                    'filename': getattr(self._current_track, 'filename', None),
-                    'duration': self._track_duration
+        if elapsed >= self._track_duration:
+            self._handle_track_end()  # Call the base class _handle_track_end
+        else:
+            # Prepare data without holding the lock
+            track_info = {
+                'number': current_track.number,
+                'title': getattr(current_track, 'title', f'Track {current_track.number}'),
+                'filename': getattr(current_track, 'filename', None),
+                'duration': self._track_duration
+            }
+            
+            playlist_info = None
+            if playlist:
+                playlist_info = {
+                    'name': getattr(playlist, 'name', None),
+                    'track_count': len(playlist.tracks) if playlist.tracks else 0
                 }
-                playlist_info = None
-                if self._playlist:
-                    playlist_info = {
-                        'name': getattr(self._playlist, 'name', None),
-                        'track_count': len(self._playlist.tracks) if self._playlist.tracks else 0
-                    }
-                self._playback_subject.notify_track_progress(
-                    elapsed=elapsed,
-                    total=self._track_duration,
-                    track_number=self._current_track.number,
-                    track_info=track_info,
-                    playlist_info=playlist_info,
-                    is_playing=self._is_playing
-                )
+                
+            # Send notifications outside the lock
+            self._playback_subject.notify_track_progress(
+                elapsed=elapsed,
+                total=self._track_duration,
+                track_number=current_track.number,
+                track_info=track_info,
+                playlist_info=playlist_info,
+                is_playing=is_playing
+            )
 
     def _get_track_duration(self, file_path: Path) -> float:
         """Get track duration in seconds (mock implementation)."""

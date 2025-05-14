@@ -51,7 +51,8 @@ class AudioPlayer(Generic[T]):
         """
         Pause playback.
         Delegates to the hardware implementation.
-        """
+        """        
+        # Execute pause without blocking on notifications
         self._hardware.pause()
 
     def resume(self) -> None:
@@ -59,6 +60,7 @@ class AudioPlayer(Generic[T]):
         Resume playback.
         Delegates to the hardware implementation.
         """
+        # Execute resume without blocking on notifications
         self._hardware.resume()
 
     def stop(self) -> None:
@@ -66,6 +68,7 @@ class AudioPlayer(Generic[T]):
         Stop playback.
         Delegates to the hardware implementation.
         """
+        # Execute stop without blocking on notifications
         self._hardware.stop()
 
     def set_volume(self, volume: float) -> None:
@@ -73,6 +76,7 @@ class AudioPlayer(Generic[T]):
         Set the playback volume (0.0-100.0).
         Delegates to the hardware implementation.
         """
+        # Execute set_volume without blocking on notifications
         self._hardware.set_volume(volume)
 
     def cleanup(self) -> None:
@@ -95,6 +99,7 @@ class AudioPlayer(Generic[T]):
         Advance to the next track in the playlist.
         Delegates to the hardware implementation.
         """
+        # Execute next_track without blocking on notifications
         self._hardware.next_track()
 
     def previous_track(self) -> None:
@@ -102,6 +107,7 @@ class AudioPlayer(Generic[T]):
         Return to the previous track in the playlist.
         Delegates to the hardware implementation.
         """
+        # Execute previous_track without blocking on notifications
         self._hardware.previous_track()
 
     def play_track(self, track_number: int) -> bool:
@@ -119,31 +125,21 @@ class AudioPlayer(Generic[T]):
         Delegates to the hardware implementation.
         Returns True if audio is playing, False otherwise.
         """
-        if hasattr(self._hardware, 'is_playing'):
-            return self._hardware.is_playing
-        elif hasattr(self._hardware, '_is_playing'):
-            return self._hardware._is_playing
-        return False
-        
+        return self._hardware.is_playing
+
     def is_finished(self) -> bool:
         """
         Check if the current playlist has finished playing.
-        Delegates to the hardware implementation if available.
+        Delegates to the hardware implementation.
         Returns True if the playlist has finished, False otherwise.
         """
-        if hasattr(self._hardware, 'is_finished'):
-            return self._hardware.is_finished()
-        elif hasattr(self._hardware, '_is_finished') and callable(self._hardware._is_finished):
-            return self._hardware._is_finished()
-        return False
+        return self._hardware.is_finished()
 
     @property
     def is_paused(self) -> bool:
         """
         Return True if the player is paused (not playing, but a track is loaded).
-        Delegates to the hardware implementation if available.
+        Delegates to the hardware implementation.
         """
-        if hasattr(self._hardware, 'is_paused'):
-            return self._hardware.is_paused
-        return False
+        return self._hardware.is_paused
 

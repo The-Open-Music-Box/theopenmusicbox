@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body, UploadFile, File, FastAPI
+from fastapi import APIRouter, Depends, HTTPException, Body, UploadFile, File, FastAPI, Request
 from pydantic import BaseModel
 from typing import List, Optional, Tuple, Dict, Any
 from app.src.services.playlist_service import PlaylistService
@@ -19,10 +19,21 @@ class PlaylistRoutes:
     def __init__(self, app: FastAPI):
         self.app = app
         self.router = APIRouter(prefix="/api/playlists", tags=["playlists"])
+        # Cache the audio instance to avoid repeated dependency resolution
+        self._audio_instance = None
         self._register_routes()
 
     def register(self):
         self.app.include_router(self.router)
+        
+    def _get_cached_audio(self, request):
+        """Get cached audio instance or resolve it once and cache it"""
+        if self._audio_instance is None:
+            # Only resolve the dependency once
+            container = getattr(request.app, "container", None)
+            if container and hasattr(container, "audio"):
+                self._audio_instance = container.audio
+        return self._audio_instance
 
     def _register_routes(self):
         @self.router.get("/", response_model=Dict[str, Any])
@@ -183,12 +194,17 @@ class PlaylistRoutes:
 
         @self.router.post("/control", response_model=Dict[str, Any])
         async def control_playlist(
-            action: str = Body(..., embed=True),
-            audio=Depends(get_audio)
+            request: Request,
+            action: str = Body(..., embed=True)
         ):
-            """Control the currently playing playlist"""
+            """Control the currently playing playlist with immediate response"""
+            # Get the audio directly from the cached instance or app container
+            audio = self._get_cached_audio(request)
+            
             if not audio:
                 raise HTTPException(status_code=503, detail="Audio system not available")
+            
+            # Direct mapping to audio functions for immediate execution
             actions = {
                 'play': audio.resume,
                 'resume': audio.resume,
@@ -197,7 +213,13 @@ class PlaylistRoutes:
                 'previous': audio.previous_track,
                 'stop': audio.stop
             }
+            
             if action not in actions:
                 raise HTTPException(status_code=400, detail="Invalid action")
-            actions[action]()
+                
+            # Execute without waiting for notification callbacks to complete
+            action_func = actions[action]
+            action_func()
+            
+            # Return immediately without waiting for side effects
             return {"status": "success", "action": action}

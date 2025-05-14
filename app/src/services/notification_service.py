@@ -115,75 +115,44 @@ class PlaybackSubject:
 
     def _emit_socketio_event(self, event_name, event_data):
         """
-        Emit a Socket.IO event in an optimized way to avoid thread conflicts.
-        This is a simplified and robust version that minimizes new asyncio loop creation.
+        Emit a Socket.IO event in a fully non-blocking way.
+        This implementation ensures we never block the main thread or event loop.
         """
         if not PlaybackSubject._socketio:
             return
 
-        # Identify the current thread for logging
-        thread_name = threading.current_thread().name
-
-        # Check if this event should be sent (to reduce network overhead)
+        # Throttle progress events to reduce overhead
         if event_name == 'track_progress' and 'current_time' in event_data:
-            # Only send progress updates at most every 250ms
             current_time = time.time()
             last_progress_time = getattr(self, '_last_progress_emit_time', 0)
             if current_time - last_progress_time < 0.25:  # 250ms throttle
                 return  # Ignore overly frequent updates
             self._last_progress_emit_time = current_time
 
-        try:
-            # Try to get the current event loop and use it if available
+        # Fire-and-forget approach: submit the task to a dedicated background thread
+        def _background_emit():
             try:
-                loop = asyncio.get_running_loop()
-                # Use create_task, which is safer than directly awaiting
-                async def _emit():
-                    try:
-                        await PlaybackSubject._socketio.emit(event_name, event_data)
-                    except Exception as e:
-                        logger.log(LogLevel.ERROR, f"[Socket.IO] Emit failed: {e}")
-
-                # Store tasks in a class variable to prevent them from being garbage collected
-                if not hasattr(PlaybackSubject, '_pending_tasks'):
-                    PlaybackSubject._pending_tasks = []
-
-                # Create and store the task
-                task = loop.create_task(_emit())
-                PlaybackSubject._pending_tasks.append(task)
-
-                # Add a callback to remove the task when done
-                def _cleanup_task(completed_task):
-                    if hasattr(PlaybackSubject, '_pending_tasks') and completed_task in PlaybackSubject._pending_tasks:
-                        PlaybackSubject._pending_tasks.remove(completed_task)
-
-                task.add_done_callback(_cleanup_task)
-                return
-            except RuntimeError:
-                # No active asyncio event loop in this thread (likely a secondary thread)
-                pass
-
-            # If here, we are in a secondary thread without an active loop
-            # Create a dedicated event loop and cache it globally for reuse
-            # This avoids constantly creating new event loops
-            if not hasattr(PlaybackSubject, '_thread_local_loops'):
-                PlaybackSubject._thread_local_loops = {}
-
-            thread_id = threading.get_ident()
-            if thread_id not in PlaybackSubject._thread_local_loops:
-                new_loop = asyncio.new_event_loop()
-                PlaybackSubject._thread_local_loops[thread_id] = new_loop
-                logger.log(LogLevel.DEBUG, f"Created new event loop for thread {thread_id}")
-
-            loop = PlaybackSubject._thread_local_loops[thread_id]
-
-            # Function to synchronously emit the event
-            async def _emit_async():
-                await PlaybackSubject._socketio.emit(event_name, event_data)
-
-            # Synchronously emit the event using the existing loop
-            loop.run_until_complete(_emit_async())
-
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"[Socket.IO] Emit error ({thread_name}): {e}")
-            # Do not attempt further retries - this avoids error cascades
+                # Create a new event loop for this thread if needed
+                try:
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    # Create and run the coroutine
+                    async def _emit_async():
+                        try:
+                            await PlaybackSubject._socketio.emit(event_name, event_data)
+                        except Exception as e:
+                            logger.log(LogLevel.ERROR, f"[Socket.IO] Emit failed: {e}")
+                    
+                    # Run and close the loop
+                    loop.run_until_complete(_emit_async())
+                    loop.close()
+                except Exception as e:
+                    logger.log(LogLevel.ERROR, f"[Socket.IO] Background emit error: {e}")
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"[Socket.IO] Fatal background emit error: {e}")
+        
+        # Use a daemon thread that won't block application shutdown
+        emit_thread = threading.Thread(target=_background_emit, daemon=True)
+        emit_thread.start()
+        # Don't wait for the thread to complete - immediately return

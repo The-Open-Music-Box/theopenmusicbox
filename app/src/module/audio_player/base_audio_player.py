@@ -265,7 +265,7 @@ class BaseAudioPlayer:
     # MARK: - Notification
     def _notify_playback_status(self, status: str) -> None:
         """
-        Notify playback status change.
+        Notify playback status change in a non-blocking way.
 
         Args:
             status: The playback status ('playing', 'paused', 'stopped', etc.)
@@ -273,31 +273,62 @@ class BaseAudioPlayer:
         if not self._playback_subject:
             return
 
-        playlist_info = None
-        track_info = None
+        # Use a separate thread for notification to prevent blocking the control operations
+        try:
+            import threading
+            notification_thread = threading.Thread(
+                target=self._send_notification,
+                args=(status,),
+                daemon=True  # Use daemon thread to avoid blocking app shutdown
+            )
+            notification_thread.start()
+            # We don't join() the thread - let it run independently
+        except Exception as e:
+            # Log but continue if threading fails
+            logger.log(LogLevel.ERROR, "Failed to send notification in background", extra={'error': str(e)})
+    
+    def _send_notification(self, status: str) -> None:
+        """
+        Internal method to send actual notification in a separate thread.
+        """
+        try:
+            # Gather info with minimal lock time 
+            playlist_info = None
+            track_info = None
 
-        if status != 'stopped':
-            with self._state_lock:
-                if self._playlist:
+            if status != 'stopped':
+                # Use a quick, separate lock acquisition to minimize contention
+                with self._state_lock:
+                    # Capture just the data we need quickly
+                    playlist = self._playlist
+                    current_track = self._current_track
+                
+                # Process the data outside the lock
+                if playlist:
                     playlist_info = {
-                        'name': self._playlist.name,
-                        'track_count': len(self._playlist.tracks) if self._playlist.tracks else 0
+                        'name': playlist.name,
+                        'track_count': len(playlist.tracks) if playlist.tracks else 0
                     }
 
-                if self._current_track:
+                if current_track:
+                    # Note: this could call _get_track_duration which might be slow
+                    # But we're in a separate thread so it won't block the main operation
                     track_info = {
-                        'number': self._current_track.number,
-                        'title': self._current_track.title or f'Track {self._current_track.number}',
-                        'filename': self._current_track.filename,
-                        'duration': self._get_track_duration(self._current_track.path)
+                        'number': current_track.number,
+                        'title': current_track.title or f'Track {current_track.number}',
+                        'filename': current_track.filename,
+                        'duration': self._get_track_duration(current_track.path)
                     }
 
-        self._playback_subject.notify_playback_status(status, playlist_info, track_info)
-        logger.log(LogLevel.INFO, f"Playback status update", extra={
-            'status': status,
-            'playlist': playlist_info,
-            'current_track': track_info
-        })
+            # Finally send notification (potentially slow operation)
+            self._playback_subject.notify_playback_status(status, playlist_info, track_info)
+            logger.log(LogLevel.INFO, "Playback status update", extra={
+                'status': status,
+                'playlist': playlist_info,
+                'current_track': track_info
+            })
+        except Exception as e:
+            logger.log(LogLevel.ERROR, "Error in notification thread", extra={'error': str(e)})
 
     def _get_track_duration(self, file_path: Path) -> float:
         """
