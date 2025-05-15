@@ -10,6 +10,9 @@ from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.helpers.exceptions import InvalidFileError, ProcessingError
 from app.src.model.playlist import Playlist
 
+# Import the controls event types
+from app.src.module.controles.events.controles_events import ControlesEventType
+
 logger = ImprovedLogger(__name__)
 
 class PlaylistRoutes:
@@ -22,82 +25,97 @@ class PlaylistRoutes:
         # Cache the audio instance to avoid repeated dependency resolution
         self._audio_instance = None
         # Initialize controls-related attributes
-        self._controles_manager = None
-        self._controles_subscription = None
+        self.controls_manager = None
+        self.controls_subscription = None
+        # Keep track of the current volume for rotary encoder adjustments
+        self._current_volume = 50  # Default volume 50%
         self._register_routes()
+        
+        # Do not set up controls here, it will be done in the startup event
 
     def register(self):
         self.app.include_router(self.router)
         
+        # Store reference to self in app state for startup events
+        setattr(self.app, "playlist_routes", self)
+        
     def _get_cached_audio(self, request):
         """Get cached audio instance or resolve it once and cache it"""
-        if self._audio_instance is None:
-            # Only resolve the dependency once
+        # Check if we already have a cached instance
+        if self._audio_instance is not None:
+            return self._audio_instance
+            
+        # Handle case when request is None (called from control events)
+        if request is None:
+            # Try to get the container from the app instance we have
+            if hasattr(self, 'app') and hasattr(self.app, 'container'):
+                container = self.app.container
+                if hasattr(container, 'audio'):
+                    self._audio_instance = container.audio
+                    logger.log(LogLevel.DEBUG, "Retrieved audio instance from app.container for control event")
+        else:
+            # Normal request-based dependency resolution
             container = getattr(request.app, "container", None)
             if container and hasattr(container, "audio"):
                 self._audio_instance = container.audio
+                
         return self._audio_instance
 
     def _setup_controls_integration(self):
         """
-        Set up integration with physical controls.
+        Set up integration with physical control devices if enabled.
         """
         try:
-            # Import here to avoid circular imports
+            # Import the controls manager
             from app.src.module.controles import get_controles_manager
-            from app.src.module.controles.events.controles_events import ControlesEventType
             
-            # Create controls manager
-            logger.log(LogLevel.DEBUG, "Creating controls manager...")
+            # Get the controls manager singleton
             self.controls_manager = get_controles_manager()
             
             # Initialize and start the controls manager
-            if self.controls_manager.initialize() and self.controls_manager.start():
-                # Subscribe to control events
-                logger.log(LogLevel.DEBUG, "Subscribing to control events...")
-                self.controls_subscription = self.controls_manager.event_observable.subscribe(
-                    on_next=self._handle_control_event
-                )
-                logger.log(LogLevel.INFO, "✓ Controls manager initialized and started successfully")
-            else:
-                logger.log(LogLevel.ERROR, "✗ Failed to initialize controls manager")
+            if self.controls_manager and self.controls_manager.initialize() and self.controls_manager.start():
+                logger.log(LogLevel.INFO, "Controls manager started successfully")
                 
-        except ImportError as e:
-            # Controls module might not be available, which is fine in development
-            logger.log(LogLevel.WARNING, f"Controls module not available: {str(e)}")
+                # Subscribe to control events
+                self.controls_subscription = self.controls_manager.event_observable.subscribe(
+                    self._handle_control_event,
+                    on_error=lambda e: logger.log(LogLevel.ERROR, f"Error in control event handling: {str(e)}")
+                )
+                logger.log(LogLevel.INFO, "Subscribed to physical control events")
+            else:
+                logger.log(LogLevel.WARNING, "Failed to start controls manager or it is not available")
         except Exception as e:
-            logger.log(LogLevel.ERROR, 
-                      f"✗ Failed to set up controls integration: {str(e)}")
-            # Make sure we don't have any dangling resources
-            if hasattr(self, 'controls_manager'):
-                try:
-                    self.controls_manager.cleanup()
-                except Exception as cleanup_error:
-                    logger.log(LogLevel.ERROR, 
-                              f"Error during controls cleanup: {str(cleanup_error)}")
-            if hasattr(self, 'controls_subscription'):
-                try:
-                    self.controls_subscription.dispose()
-                except Exception as dispose_error:
-                    logger.log(LogLevel.ERROR, 
-                              f"Error disposing controls subscription: {str(dispose_error)}")
+            logger.log(LogLevel.ERROR, f"Failed to set up controls integration: {str(e)}")
+            
+    def _cleanup_controls(self):
+        """
+        Clean up resources associated with physical controls.
+        """
+        try:
+            # Unsubscribe from control events if we have a subscription
+            if self.controls_subscription:
+                self.controls_subscription.dispose()
+                self.controls_subscription = None
+                logger.log(LogLevel.INFO, "Unsubscribed from physical control events")
+            
+            # Stop the controls manager if it's running
+            if self.controls_manager:
+                self.controls_manager.stop()
+                self.controls_manager = None
+                logger.log(LogLevel.INFO, "Controls manager stopped successfully")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error while cleaning up controls resources: {str(e)}")
 
     def _handle_control_event(self, event):
         """
         Handle control events from physical inputs.
         
-        This method is called when a control event is emitted by the controls manager.
-        It performs the appropriate action on the audio player based on the event type.
-        
         Args:
-            event: The control event to handle
+            event: The ControlesEvent to handle
         """
-        # Import here to avoid circular imports
-        from app.src.module.controles.events.controles_events import ControlesEventType
-        
-        # Check if we have an audio player
-        if not self._audio_instance:
-            logger.log(LogLevel.WARNING, "Cannot handle control event: No audio player available")
+        audio_player = self._get_cached_audio(None)
+        if not audio_player:
+            logger.log(LogLevel.WARNING, "Cannot handle control event: No audio player available.")
             return
         
         # Log the received event
@@ -112,35 +130,41 @@ class PlaylistRoutes:
                     logger.log(LogLevel.INFO, "✓ Control action: Pausing playback")
                     self._audio_instance.pause()
                 else:
-                    # If not playing, start playback if possible
-                    logger.log(LogLevel.INFO, "✓ Control action: Starting playback")
-                    self._audio_instance.play()
+                    # If not playing, resume playback if possible
+                    logger.log(LogLevel.INFO, "✓ Control action: Resuming playback")
+                    self._audio_instance.resume()
                     
-            elif event.event_type == ControlesEventType.VOLUME_UP:
+            # Note: The rotary encoder direction is inverted - VOLUME_DOWN actually means clockwise rotation
+            # and VOLUME_UP means counter-clockwise rotation
+            elif event.event_type == ControlesEventType.VOLUME_DOWN:  # Actually clockwise rotation
+                # Use our cached volume instead of trying to read from hardware
                 # Increase volume by 5%
-                current_volume = self._audio_instance.volume
-                new_volume = min(current_volume + 5, 100)
+                new_volume = min(self._current_volume + 5, 100)
                 logger.log(LogLevel.INFO, 
-                          f"✓ Control action: Increasing volume from {current_volume}% to {new_volume}%")
-                self._audio_instance.volume = new_volume
+                          f"✓ Control action: Increasing volume from {self._current_volume}% to {new_volume}%")
+                self._audio_instance.set_volume(new_volume)
+                # Update our cached volume
+                self._current_volume = new_volume
                 
-            elif event.event_type == ControlesEventType.VOLUME_DOWN:
+            elif event.event_type == ControlesEventType.VOLUME_UP:  # Actually counter-clockwise rotation
+                # Use our cached volume instead of trying to read from hardware
                 # Decrease volume by 5%
-                current_volume = self._audio_instance.volume
-                new_volume = max(current_volume - 5, 0)
+                new_volume = max(self._current_volume - 5, 0)
                 logger.log(LogLevel.INFO, 
-                          f"✓ Control action: Decreasing volume from {current_volume}% to {new_volume}%")
-                self._audio_instance.volume = new_volume
+                          f"✓ Control action: Decreasing volume from {self._current_volume}% to {new_volume}%")
+                self._audio_instance.set_volume(new_volume)
+                # Update our cached volume
+                self._current_volume = new_volume
                 
             elif event.event_type == ControlesEventType.NEXT_TRACK:
                 # Skip to next track in playlist
                 logger.log(LogLevel.INFO, "✓ Control action: Skipping to next track")
-                self._audio_instance.next()
+                self._audio_instance.next_track()
                 
             elif event.event_type == ControlesEventType.PREVIOUS_TRACK:
                 # Go to previous track in playlist
                 logger.log(LogLevel.INFO, "✓ Control action: Going to previous track")
-                self._audio_instance.previous()
+                self._audio_instance.previous_track()
                 
             else:
                 # Unhandled event type
@@ -340,5 +364,4 @@ class PlaylistRoutes:
             # Return immediately without waiting for side effects
             return {"status": "success", "action": action}
         
-        # Set up controls integration if enabled
-        self._setup_controls_integration()
+        # Controls setup will be handled by app startup event

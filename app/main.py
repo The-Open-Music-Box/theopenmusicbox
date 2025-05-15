@@ -58,6 +58,23 @@ async def lifespan(fastapi_app):
         # Initialize all API routes via the centralized APIRoutes
         init_api_routes(fastapi_app, sio, container)
         logger.log(LogLevel.INFO, "main.py: All API routes initialized via init_api_routes.")
+        
+        # Initialize physical controls after audio player is fully available
+        # This happens after route initialization to ensure PlaylistRoutes has set up its audio player reference
+        playlist_routes = getattr(fastapi_app, "playlist_routes", None)
+        if playlist_routes:
+            # Setup controls integration with proper error handling
+            try:
+                # Call the controls setup method
+                if hasattr(playlist_routes, "_setup_controls_integration"):
+                    playlist_routes._setup_controls_integration()
+                    logger.log(LogLevel.INFO, "main.py: Physical controls initialized successfully.")
+                else:
+                    logger.log(LogLevel.WARNING, "main.py: Could not find _setup_controls_integration method on playlist_routes")
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"main.py: Failed to initialize physical controls: {str(e)}\n{traceback.format_exc()}")
+        else:
+            logger.log(LogLevel.WARNING, "main.py: No playlist_routes instance found, physical controls not initialized.")
 
         yield
     except Exception as e:
@@ -66,6 +83,16 @@ async def lifespan(fastapi_app):
         raise
     finally:
         # Cleanup when application stops
+        # First shut down any physical controls
+        playlist_routes = getattr(fastapi_app, "playlist_routes", None)
+        if playlist_routes and hasattr(playlist_routes, "_cleanup_controls"):
+            try:
+                playlist_routes._cleanup_controls()
+                logger.log(LogLevel.INFO, "main.py: Physical controls cleaned up successfully.")
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"main.py: Error while cleaning up physical controls: {str(e)}")
+        
+        # Then proceed with normal container cleanup
         await container.cleanup_async()
 
 # FastAPI app

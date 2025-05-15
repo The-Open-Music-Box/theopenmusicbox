@@ -26,7 +26,7 @@ class AudioPlayer(Generic[T]):
     State detection:
     - Use `is_playing` and `is_paused` for all playback state checks.
     - Do not rely on private attributes for playback state.
-    
+
     Business Logic:
     - Ensures architectural consistency and prevents direct hardware access from business logic layers.
     - Enables seamless switching between mock and real hardware based on environment/configuration.
@@ -51,7 +51,7 @@ class AudioPlayer(Generic[T]):
         """
         Pause playback.
         Delegates to the hardware implementation.
-        """        
+        """
         # Execute pause without blocking on notifications
         self._hardware.pause()
 
@@ -117,7 +117,7 @@ class AudioPlayer(Generic[T]):
         Returns True if the track was played successfully, False otherwise.
         """
         return self._hardware.play_track(track_number)
-        
+
     @property
     def is_playing(self) -> bool:
         """
