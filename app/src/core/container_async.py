@@ -1,4 +1,4 @@
-from app.src.config import Config
+from app.src.config import config
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.services.notification_service import PlaybackSubject
 from app.src.services.playlist_service import PlaylistService
@@ -14,13 +14,14 @@ class ContainerAsync:
     Provides access to configuration, NFC, LED, playback subject, playlist service, and audio player.
     Handles initialization and cleanup of async resources required by the application.
     """
-    def __init__(self, config: Config):
-        self._config = config
+    def __init__(self, config_obj=None):
+        from app.src.config import config as global_config
+        self._config = config_obj or global_config
         self._nfc_handler = None
         self._nfc_service = None
         self._led_hat = None
         self._playback_subject = PlaybackSubject.get_instance()
-        self._playlist_service = PlaylistService(config)
+        self._playlist_service = PlaylistService(self._config)
         self._audio = get_audio_player(playback_subject=self._playback_subject)
 
     @property
@@ -94,7 +95,6 @@ class ContainerAsync:
         """
         logger.log(LogLevel.INFO, "Starting async resource cleanup...")
 
-        # Nettoyer les ressources NFC
         if self._nfc_handler:
             try:
                 await self._nfc_handler.cleanup()

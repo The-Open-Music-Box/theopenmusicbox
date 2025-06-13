@@ -28,6 +28,7 @@ class NFCService:
         self._scan_status_task = None
         self._last_tag_info = None
         self._allow_override = False
+        self._playlist_controller = None  # Added attribute
         
         # Create a subject for playback events
         self._playback_subject = Subject()
@@ -46,7 +47,7 @@ class NFCService:
         try:
             # Handle tag absence event
             if isinstance(tag_data, dict) and tag_data.get('absence'):
-                if hasattr(self, '_playlist_controller') and self._playlist_controller:
+                if self._playlist_controller:
                     self._playlist_controller.handle_tag_absence()
                 return
             if isinstance(tag_data, dict) and 'uid' in tag_data:
@@ -298,8 +299,7 @@ class NFCService:
                 try:
                     # Create a new instance of the playlist service
                     from app.src.services.playlist_service import PlaylistService
-                    from app.src.config import config_singleton
-                    playlist_service = PlaylistService(config_singleton)
+                    playlist_service = PlaylistService()
                         
                     # Persist the association to the database
                     if playlist_service:
@@ -485,6 +485,15 @@ class NFCService:
         """
         return self._playback_subject
         
+    def set_playlist_controller(self, playlist_controller):
+        """
+        Set the playlist controller for this NFC service.
+        
+        Args:
+            playlist_controller: The playlist controller instance
+        """
+        self._playlist_controller = playlist_controller
+        
     async def handle_tag_association(self, tag_id: str, tag_data: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         Handle a tag detected in association mode.
@@ -536,8 +545,7 @@ class NFCService:
         try:
             # Use the playlist service directly to associate the tag
             from app.src.services.playlist_service import PlaylistService
-            from app.src.config import config_singleton
-            playlist_service = PlaylistService(config_singleton)
+            playlist_service = PlaylistService()
             success = playlist_service.associate_nfc_tag(self.current_playlist_id, tag_id)
                 
             if success:

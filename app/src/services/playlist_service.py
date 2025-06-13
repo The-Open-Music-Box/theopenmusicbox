@@ -5,7 +5,7 @@ from typing import Dict, List, Optional, Any, Tuple
 from uuid import uuid4
 from datetime import datetime, timezone
 
-from app.src.config import Config
+from app.src.config import config
 from app.src.data.playlist_repository import PlaylistRepository
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.model.playlist import Playlist
@@ -29,22 +29,17 @@ class PlaylistService:
     SYNC_FOLDER_TIMEOUT = 1.0
     SYNC_OPERATION_TIMEOUT = 2.0
 
-    def __init__(self, config: Config):
+    def __init__(self, config_obj=None):
         """
         Initialize the playlist service.
 
         Args:
-            config: Application configuration
+            config_obj: Optional configuration object (defaults to global config)
         """
-        self.config = config
-        self.repository = PlaylistRepository(config)
-        # Support both Config and ContainerAsync (which exposes .config)
-        if hasattr(config, 'upload_folder'):
-            self.upload_folder = Path(config.upload_folder)
-        elif hasattr(config, 'config') and hasattr(config.config, 'upload_folder'):
-            self.upload_folder = Path(config.config.upload_folder)
-        else:
-            raise AttributeError("Config object must have an 'upload_folder' attribute or a 'config' property with 'upload_folder'.")
+        from app.src.config import config as global_config
+        self.config = config_obj or global_config
+        self.repository = PlaylistRepository(self.config)
+        self.upload_folder = Path(self.config.upload_folder)
         self._sync_lock = threading.RLock()
 
     def create_playlist(self, title: str) -> dict:

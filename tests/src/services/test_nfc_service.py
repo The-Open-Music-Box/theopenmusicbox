@@ -151,9 +151,9 @@ async def test_handle_tag_detected_association_mode(nfc_service, mock_socketio):
         {"id": "test_playlist", "title": "Test Playlist", "nfc_tag": None}
     ]
     
-    # Mock the playlist service and config_singleton
+    # Mock the playlist service and config
     with patch('app.src.services.playlist_service.PlaylistService') as MockPlaylistService, \
-         patch('app.src.config.config_singleton') as mock_config:
+         patch('app.src.config.config') as mock_config:
         mock_playlist_service = MockPlaylistService.return_value
         mock_playlist_service.associate_nfc_tag.return_value = True
         

@@ -17,13 +17,11 @@ class APIRoutes:
     This class instantiates and registers the various route handlers.
     It also manages their dependencies and provides a unified entry point for route initialization.
     """
-    # Modified __init__ to accept container
     def __init__(self, app: FastAPI, socketio, container: ContainerAsync):
         self.app = app
         self.socketio = socketio
         self.container = container
 
-        # Initialization of routes
         self.web_routes = WebRoutes(app)
         logger.log(LogLevel.INFO, f"APIRoutes: Checking NFC service availability. container.nfc is {self.container.nfc}")
         if self.container.nfc:
@@ -42,17 +40,14 @@ class APIRoutes:
     def init_routes(self):
         """Initialize all application routes."""
         try:
-            logger.log(LogLevel.INFO, "APIRoutes: Initializing routes")
-
-            # Register routes
-            self.web_routes.register()
+            self.playlist_routes.register()
             if self.nfc_routes:
                 self.nfc_routes.register()
             if self.websocket_handlers:
                 self.websocket_handlers.register()
             self.youtube_routes.register()
-            self.playlist_routes.register()
             self.system_routes.register()
+            self.web_routes.register()
 
             logger.log(LogLevel.INFO, "APIRoutes: Routes initialized successfully")
 

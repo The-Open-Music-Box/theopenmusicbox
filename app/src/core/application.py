@@ -5,12 +5,20 @@ import threading
 import traceback
 import asyncio
 from pathlib import Path
+from typing import Optional, Dict, Any, Union
+
+# Application imports
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.services.playlist_service import PlaylistService
 from app.src.core.playlist_controller import PlaylistController
 from app.src.services.nfc_service import NFCService
 from app.src.module.nfc.nfc_factory import get_nfc_handler
-from app.src.helpers.decorators import deprecated
+from app.src.module.audio_player.audio_factory import get_audio_player
+from app.src.services.notification_service import PlaybackSubject
+
+# MARK: - Constants
+PROGRESS_LOG_INTERVAL = 10  # Log track progress every 10%
+SYNC_TIMEOUT_SECONDS = 15  # Maximum wait time for playlist synchronization
 
 # MARK: - Logger
 logger = ImprovedLogger(__name__)
@@ -45,12 +53,10 @@ class Application:
             self._playlists
         )
 
-        # Audio setup (non-async)
-        self._setup_audio()
-
         # Initialize NFC components in constructor (basic setup)
-        self._nfc_handler = None  # Will be initialized in initialize_async
-        self._nfc_service = None  # Will be initialized in initialize_async
+        # These will be properly initialized in initialize_async
+        self._nfc_handler = None
+        self._nfc_service = None
 
         logger.log(LogLevel.INFO, "Application initialized successfully")
 
@@ -81,16 +87,16 @@ class Application:
                 full_data = None
                 if isinstance(tag_data, dict):
                     uid = tag_data.get('uid')
-                    full_data = tag_data # Pass full dict if available
+                    full_data = tag_data  # Pass full dict if available
                     logger.log(LogLevel.DEBUG, f"Handling NFC tag scanned event (dict): UID={uid}")
                 else:
-                    uid = tag_data # Assume it's the UID string
+                    uid = tag_data  # Assume it's the UID string
                     logger.log(LogLevel.DEBUG, f"Handling NFC tag scanned event (string): UID={uid}")
 
                 if uid:
                     self._playlist_controller.handle_tag_scanned(uid, full_data)
                 else:
-                     logger.log(LogLevel.WARNING, f"Received NFC tag event with no usable UID: {tag_data}")
+                    logger.log(LogLevel.WARNING, f"Received NFC tag event with no usable UID: {tag_data}")
 
         except Exception as e: # Catch broader exceptions for robustness
             # Log the error using the improved logger
@@ -112,6 +118,13 @@ class Application:
                 upload_folder = Path(self._config.config.upload_folder)
             else:
                 raise AttributeError("Config object must have an 'upload_folder' attribute or a 'config' property with 'upload_folder'.")
+            
+            # Get the app directory path (parent of src)
+            app_dir = Path(__file__).parent.parent.parent
+            
+            # Make relative paths absolute from the app directory
+            if not upload_folder.is_absolute():
+                upload_folder = app_dir / upload_folder
             if not upload_folder.exists():
                 logger.log(LogLevel.WARNING, f"Upload folder doesn't exist: {upload_folder}")
                 upload_folder.mkdir(parents=True, exist_ok=True)
@@ -135,10 +148,9 @@ class Application:
             sync_thread.daemon = True
             sync_thread.start()
 
-            # Wait max 15 seconds for synchronization
-            timeout = 15
+            # Wait for synchronization with timeout
             start_time = time.time()
-            while not sync_completed and time.time() - start_time < timeout:
+            while not sync_completed and time.time() - start_time < SYNC_TIMEOUT_SECONDS:
                 time.sleep(0.2)
 
             if not sync_completed:
@@ -188,7 +200,12 @@ class Application:
             if nfc_service_from_container and self._nfc_service is None:
                 # Use the existing NFC service from container
                 self._nfc_service = nfc_service_from_container
-                self._nfc_handler = getattr(self._nfc_service, '_nfc_handler', None)
+                # Get NFC handler through proper access methods
+                if hasattr(self._nfc_service, 'get_nfc_handler'):
+                    self._nfc_handler = self._nfc_service.get_nfc_handler()
+                else:
+                    # Fallback for backward compatibility
+                    self._nfc_handler = getattr(self._nfc_service, '_nfc_handler', None)
                 logger.log(LogLevel.INFO, "Using NFC service from container")
             elif self._nfc_service is None:
                 # Create a new NFC service if we couldn't get one from container
@@ -202,15 +219,23 @@ class Application:
 
                 # Initialize the NFC service with handler and playlist controller
                 self._nfc_service = NFCService(
-                    socketio=None,  # Will be set later by API/web layer
-                    nfc_handler=self._nfc_handler,
-                    playlist_controller=self._playlist_controller
+                    socketio=None,
+                    nfc_handler=self._nfc_handler
                 )
 
                 # If we have access to the container, update its NFC service
-                if container and hasattr(container, '_nfc_service'):
-                    container._nfc_service = self._nfc_service
-                    container._nfc_handler = self._nfc_handler
+                if container:
+                    # Use setter methods if available
+                    if hasattr(container, 'set_nfc_service'):
+                        container.set_nfc_service(self._nfc_service)
+                    elif hasattr(container, '_nfc_service'):
+                        container._nfc_service = self._nfc_service
+                        
+                    if hasattr(container, 'set_nfc_handler'):
+                        container.set_nfc_handler(self._nfc_handler)
+                    elif hasattr(container, '_nfc_handler'):
+                        container._nfc_handler = self._nfc_handler
+                        
                     logger.log(LogLevel.INFO, "Updated container's NFC service")
 
             # Always ensure bi-directional link between playlist controller and NFC service
@@ -221,12 +246,19 @@ class Application:
                 logger.log(LogLevel.WARNING, "PlaylistController doesn't have set_nfc_service method - coordination with NFC service not possible")
 
             # Make sure the playlist controller is set on the NFC service
-            if hasattr(self._nfc_service, '_playlist_controller') and self._nfc_service._playlist_controller is None:
-                self._nfc_service._playlist_controller = self._playlist_controller
+            if hasattr(self._nfc_service, 'set_playlist_controller'):
+                self._nfc_service.set_playlist_controller(self._playlist_controller)
                 logger.log(LogLevel.INFO, "Set playlist controller on NFC service")
 
             # Load playlist mapping if needed
-            if not hasattr(self._nfc_service, '_playlists') or not self._nfc_service._playlists:
+            # Check if playlists are loaded through a proper method or attribute
+            playlists_loaded = False
+            if hasattr(self._nfc_service, 'has_playlists_loaded'):
+                playlists_loaded = self._nfc_service.has_playlists_loaded()
+            elif hasattr(self._nfc_service, '_playlists'):
+                playlists_loaded = bool(getattr(self._nfc_service, '_playlists', None))
+                
+            if not playlists_loaded:
                 playlists = self._playlists.get_all_playlists(page=1, page_size=1000)
                 self._nfc_service.load_mapping(playlists)
                 logger.log(LogLevel.INFO, "Playlist mapping loaded into NFC service")
@@ -245,21 +277,6 @@ class Application:
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Failed to initialize NFC: {e}")
             logger.log(LogLevel.DEBUG, f"NFC setup error details: {traceback.format_exc()}")
-
-    # MARK: - Deprecated Methods
-    @deprecated
-    def _handle_tag_scanned(self, tag):
-        """
-        Handle NFC tag scan event.
-
-        This method is deprecated and no longer used directly.
-        The NFCService now handles tags and coordinates with the PlaylistController.
-        Kept for compatibility with existing code.
-
-        Args:
-            tag: Scanned NFC tag data
-        """
-        pass
 
     # MARK: - Internal Event Handlers
     def _handle_nfc_error(self, error):
@@ -302,7 +319,12 @@ class Application:
         # If we got the audio player from the container, connect it to the playlist controller
         if container_audio:
             if self._playlist_controller:
-                self._playlist_controller._audio = container_audio
+                # Set audio player on playlist controller
+                if hasattr(self._playlist_controller, 'set_audio_player'):
+                    self._playlist_controller.set_audio_player(container_audio)
+                else:
+                    # Fallback for backward compatibility
+                    self._playlist_controller._audio = container_audio
                 logger.log(LogLevel.INFO, "Audio player connected to playlist controller")
                 return
             else:
@@ -318,18 +340,27 @@ class Application:
             playback_subject = PlaybackSubject.get_instance()
 
             # Create an audio player
-            audio_player = get_audio_player(playback_subject)
+            try:
+                audio_player = get_audio_player(playback_subject)
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Failed to create audio player: {str(e)}")
+                raise RuntimeError(f"Failed to initialize audio system: {str(e)}")
 
             # Set it on the playlist controller
             if self._playlist_controller:
-                self._playlist_controller._audio = audio_player
+                # Set audio player on playlist controller
+                if hasattr(self._playlist_controller, 'set_audio_player'):
+                    self._playlist_controller.set_audio_player(audio_player)
+                else:
+                    # Fallback for backward compatibility
+                    self._playlist_controller._audio = audio_player
                 logger.log(LogLevel.INFO, f"Created and connected new {type(audio_player).__name__} to playlist controller")
             else:
                 logger.log(LogLevel.ERROR, "Playlist controller not available to connect new audio player")
                 raise RuntimeError("Audio initialization failed: playlist controller not available")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error creating audio player: {str(e)}")
-            import traceback
+            # Traceback already imported at the top of the file
             logger.log(LogLevel.DEBUG, f"Audio creation error details: {traceback.format_exc()}")
             raise RuntimeError(f"Failed to initialize audio system: {str(e)}")
 
@@ -356,7 +387,7 @@ class Application:
         try:
             if event.event_type == 'progress':
                 # Only log progress at a reasonable interval to avoid log flooding
-                if event.data.get('progress_percent', 0) % 10 == 0:  # Log every 10%
+                if event.data.get('progress_percent', 0) % PROGRESS_LOG_INTERVAL == 0:
                     logger.log(LogLevel.DEBUG, "Track progress update", extra=event.data)
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error handling track progress: {str(e)}")

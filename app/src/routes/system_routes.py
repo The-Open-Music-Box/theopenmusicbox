@@ -15,6 +15,104 @@ class SystemRoutes:
         self._register_routes()
 
     def register(self):
+        # Enregistrer les routes système importantes directement sur l'app FastAPI
+        # pour éviter les problèmes potentiels avec le routeur
+        
+        # Route GET /api/volume
+        @self.app.get("/api/volume")
+        async def get_volume_direct(audio=Depends(get_audio)):
+            from fastapi.responses import JSONResponse
+            
+            logger.log(LogLevel.INFO, "DIRECT API /api/volume: Route called")
+            
+            try:
+                if not audio:
+                    error_data = {"error": "Audio system not available"}
+                    return JSONResponse(content=error_data, status_code=503)
+
+                current_volume = getattr(audio, '_volume', "unknown")
+                logger.log(LogLevel.INFO, f"API: Responding with current volume: {current_volume}")
+                
+                data = {"volume": current_volume}
+                response = JSONResponse(content=data, status_code=200)
+                
+                # Ajouter des en-têtes anti-cache
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+                
+                return response
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"DIRECT API /api/volume: Error: {str(e)}")
+                error_data = {"error": str(e)}
+                return JSONResponse(content=error_data, status_code=500)
+        
+        # Route GET /api/health
+        @self.app.get("/api/health")
+        async def health_check_direct(request: Request):
+            from fastapi.responses import JSONResponse
+            
+            logger.log(LogLevel.INFO, "DIRECT API /api/health: Route called")
+            
+            try:
+                # Get container from app state
+                container = getattr(request.app, "container", None)
+                if not container:
+                    data = {
+                        "status": "warning",
+                        "message": "Container not available",
+                        "subsystems": {
+                            "api": True,
+                            "audio": False,
+                            "nfc": False,
+                            "gpio": False,
+                            "led_hat": False,
+                            "websocket": False
+                        }
+                    }
+                    response = JSONResponse(content=data, status_code=200)
+                    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                    return response
+
+                # Get audio status
+                audio = getattr(container, "audio", None)
+
+                # Get NFC status
+                nfc = getattr(container, "nfc", None)
+                nfc_status = {
+                    "available": nfc is not None,
+                    "code": "NFC_OK" if nfc is not None else "NFC_NOT_AVAILABLE"
+                }
+
+                # Consolidated health information
+                data = {
+                    "status": "ok",
+                    "nfc": nfc_status,
+                    "subsystems": {
+                        "api": True,
+                        "audio": bool(audio),
+                        "nfc": bool(nfc),
+                        "gpio": bool(getattr(container, "gpio", None)),
+                        "led_hat": bool(getattr(container, "led_hat", None)),
+                        "websocket": hasattr(request.app, "socketio")
+                    },
+                    "volume": getattr(audio, "_volume", None) if audio else None
+                }
+                
+                response = JSONResponse(content=data, status_code=200)
+                
+                # Ajouter des en-têtes anti-cache
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+                
+                return response
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"DIRECT API /api/health: Error: {str(e)}")
+                error_data = {"error": str(e), "status": "error"}
+                return JSONResponse(content=error_data, status_code=500)
+        
+        # Inclure le routeur pour les autres routes (comme POST /api/volume)
         self.app.include_router(self.router)
 
     def _register_routes(self):

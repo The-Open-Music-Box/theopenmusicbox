@@ -30,35 +30,62 @@ class PlaylistRoutes:
         # Keep track of the current volume for rotary encoder adjustments
         self._current_volume = 50  # Default volume 50%
         self._register_routes()
-        
-        # Do not set up controls here, it will be done in the startup event
 
     def register(self):
+        @self.app.get("/api/playlists")
+        async def get_playlists_direct(page: int = 1, page_size: int = 50, config=Depends(get_config)):
+            from fastapi.responses import JSONResponse
+
+            logger.log(LogLevel.INFO, "DIRECT API /api/playlists: Route called")
+
+            try:
+                playlist_service = PlaylistService()
+                playlists_data = playlist_service.get_all_playlists(page=page, page_size=page_size)
+
+                if playlists_data is None:
+                    playlists_data = []
+
+                logger.log(LogLevel.INFO, f"DIRECT API /api/playlists: Fetched {len(playlists_data)} playlists from service")
+
+                data = {"playlists": playlists_data}
+
+                response = JSONResponse(
+                    content=data,
+                    status_code=200,
+                )
+
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
+                logger.log(LogLevel.INFO, "DIRECT API /api/playlists: Returning JSONResponse with real playlists")
+                return response
+
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"DIRECT API /api/playlists: Error creating response: {str(e)}")
+                error_data = {"playlists": [], "error": str(e)}
+                return JSONResponse(content=error_data, status_code=500)
+
         self.app.include_router(self.router)
-        
-        # Store reference to self in app state for startup events
+
         setattr(self.app, "playlist_routes", self)
-        
+
     def _get_cached_audio(self, request):
         """Get cached audio instance or resolve it once and cache it"""
-        # Check if we already have a cached instance
         if self._audio_instance is not None:
             return self._audio_instance
-            
-        # Handle case when request is None (called from control events)
+
         if request is None:
-            # Try to get the container from the app instance we have
             if hasattr(self, 'app') and hasattr(self.app, 'container'):
                 container = self.app.container
                 if hasattr(container, 'audio'):
                     self._audio_instance = container.audio
                     logger.log(LogLevel.DEBUG, "Retrieved audio instance from app.container for control event")
         else:
-            # Normal request-based dependency resolution
             container = getattr(request.app, "container", None)
             if container and hasattr(container, "audio"):
                 self._audio_instance = container.audio
-                
+
         return self._audio_instance
 
     def _setup_controls_integration(self):
@@ -66,17 +93,13 @@ class PlaylistRoutes:
         Set up integration with physical control devices if enabled.
         """
         try:
-            # Import the controls manager
             from app.src.module.controles import get_controles_manager
-            
-            # Get the controls manager singleton
+
             self.controls_manager = get_controles_manager()
-            
-            # Initialize and start the controls manager
+
             if self.controls_manager and self.controls_manager.initialize() and self.controls_manager.start():
                 logger.log(LogLevel.INFO, "Controls manager started successfully")
-                
-                # Subscribe to control events
+
                 self.controls_subscription = self.controls_manager.event_observable.subscribe(
                     self._handle_control_event,
                     on_error=lambda e: logger.log(LogLevel.ERROR, f"Error in control event handling: {str(e)}")
@@ -86,19 +109,17 @@ class PlaylistRoutes:
                 logger.log(LogLevel.WARNING, "Failed to start controls manager or it is not available")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Failed to set up controls integration: {str(e)}")
-            
+
     def _cleanup_controls(self):
         """
         Clean up resources associated with physical controls.
         """
         try:
-            # Unsubscribe from control events if we have a subscription
             if self.controls_subscription:
                 self.controls_subscription.dispose()
                 self.controls_subscription = None
                 logger.log(LogLevel.INFO, "Unsubscribed from physical control events")
-            
-            # Stop the controls manager if it's running
+
             if self.controls_manager:
                 self.controls_manager.stop()
                 self.controls_manager = None
@@ -109,7 +130,7 @@ class PlaylistRoutes:
     def _handle_control_event(self, event):
         """
         Handle control events from physical inputs.
-        
+
         Args:
             event: The ControlesEvent to handle
         """
@@ -117,76 +138,86 @@ class PlaylistRoutes:
         if not audio_player:
             logger.log(LogLevel.WARNING, "Cannot handle control event: No audio player available.")
             return
-        
-        # Log the received event
-        logger.log(LogLevel.INFO, 
+
+        logger.log(LogLevel.INFO,
                   f"✓ Received control event: {event.event_type.name} from {event.source}")
-        
+
         try:
-            # Handle different event types
             if event.event_type == ControlesEventType.PLAY_PAUSE:
-                # Toggle play/pause
                 if self._audio_instance.is_playing:
                     logger.log(LogLevel.INFO, "✓ Control action: Pausing playback")
                     self._audio_instance.pause()
                 else:
-                    # If not playing, resume playback if possible
                     logger.log(LogLevel.INFO, "✓ Control action: Resuming playback")
                     self._audio_instance.resume()
-                    
-            # Note: The rotary encoder direction is inverted - VOLUME_DOWN actually means clockwise rotation
-            # and VOLUME_UP means counter-clockwise rotation
-            elif event.event_type == ControlesEventType.VOLUME_DOWN:  # Actually clockwise rotation
-                # Use our cached volume instead of trying to read from hardware
-                # Increase volume by 5%
+
+            elif event.event_type == ControlesEventType.VOLUME_DOWN:
                 new_volume = min(self._current_volume + 5, 100)
-                logger.log(LogLevel.INFO, 
+                logger.log(LogLevel.INFO,
                           f"✓ Control action: Increasing volume from {self._current_volume}% to {new_volume}%")
                 self._audio_instance.set_volume(new_volume)
-                # Update our cached volume
                 self._current_volume = new_volume
-                
+
             elif event.event_type == ControlesEventType.VOLUME_UP:  # Actually counter-clockwise rotation
-                # Use our cached volume instead of trying to read from hardware
-                # Decrease volume by 5%
                 new_volume = max(self._current_volume - 5, 0)
-                logger.log(LogLevel.INFO, 
+                logger.log(LogLevel.INFO,
                           f"✓ Control action: Decreasing volume from {self._current_volume}% to {new_volume}%")
                 self._audio_instance.set_volume(new_volume)
-                # Update our cached volume
                 self._current_volume = new_volume
-                
+
             elif event.event_type == ControlesEventType.NEXT_TRACK:
-                # Skip to next track in playlist
                 logger.log(LogLevel.INFO, "✓ Control action: Skipping to next track")
                 self._audio_instance.next_track()
-                
+
             elif event.event_type == ControlesEventType.PREVIOUS_TRACK:
-                # Go to previous track in playlist
                 logger.log(LogLevel.INFO, "✓ Control action: Going to previous track")
                 self._audio_instance.previous_track()
-                
+
             else:
-                # Unhandled event type
-                logger.log(LogLevel.WARNING, 
+                logger.log(LogLevel.WARNING,
                           f"Unhandled control event type: {event.event_type.name}")
-                
+
         except Exception as e:
-            logger.log(LogLevel.ERROR, 
+            logger.log(LogLevel.ERROR,
                       f"✗ Error handling control event {event.event_type.name}: {str(e)}")
-    
+
     def _register_routes(self):
-        @self.router.get("/", response_model=Dict[str, Any])
+
+        @self.router.get("/")
         async def list_playlists(page: int = 1, page_size: int = 50, config=Depends(get_config)):
             """Get all playlists with pagination support"""
-            playlist_service = PlaylistService(config)
-            playlists = playlist_service.get_all_playlists(page=page, page_size=page_size)
-            return {"playlists": playlists}
+            from fastapi.responses import JSONResponse
+            import json
+
+            logger.log(LogLevel.INFO, "API /api/playlists: Route called with ultra-direct JSON response")
+
+            try:
+                data = {"playlists": []}
+
+                json_str = json.dumps(data)
+                logger.log(LogLevel.DEBUG, f"API /api/playlists: JSON string: {json_str}")
+
+                response = JSONResponse(
+                    content=data,
+                    status_code=200,
+                )
+
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
+                logger.log(LogLevel.INFO, "API /api/playlists: Returning JSONResponse with headers")
+                return response
+
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"API /api/playlists: Error creating response: {str(e)}")
+                error_data = {"playlists": [], "error": str(e)}
+                return JSONResponse(content=error_data, status_code=500)
 
         @self.router.post("/", response_model=Dict[str, Any])
         async def create_playlist(body: dict = Body(...), config=Depends(get_config)):
             """Create a new playlist"""
-            playlist_service = PlaylistService(config)
+            playlist_service = PlaylistService()
             title = body.get("title")
             if not isinstance(title, str) or not title.strip():
                 raise HTTPException(status_code=422, detail="Missing or invalid 'title' field")
@@ -196,7 +227,7 @@ class PlaylistRoutes:
         @self.router.get("/{playlist_id}", response_model=Dict[str, Any])
         async def get_playlist(playlist_id: str, config=Depends(get_config)):
             """Get a playlist by ID"""
-            playlist_service = PlaylistService(config)
+            playlist_service = PlaylistService()
             playlist = playlist_service.get_playlist_by_id(playlist_id)
             if not playlist:
                 raise HTTPException(status_code=404, detail="Playlist not found")
@@ -205,7 +236,7 @@ class PlaylistRoutes:
         @self.router.delete("/{playlist_id}", response_model=Dict[str, Any])
         async def delete_playlist(playlist_id: str, config=Depends(get_config)):
             """Delete a playlist and its files"""
-            playlist_service = PlaylistService(config)
+            playlist_service = PlaylistService()
             try:
                 deleted = playlist_service.delete_playlist(playlist_id)
                 return deleted
@@ -219,7 +250,7 @@ class PlaylistRoutes:
             config=Depends(get_config)
         ):
             """Upload files to a specific playlist (with progress, no websocket emit here)"""
-            playlist_service = PlaylistService(config)
+            playlist_service = PlaylistService()
             playlist = playlist_service.get_playlist_by_id(playlist_id)
             if not playlist:
                 raise HTTPException(status_code=404, detail="Playlist not found")
@@ -273,7 +304,7 @@ class PlaylistRoutes:
             order = body.get('order', [])
             if not order or not isinstance(order, list):
                 raise HTTPException(status_code=400, detail="Invalid order")
-            playlist_service = PlaylistService(config)
+            playlist_service = PlaylistService()
             playlist = playlist_service.get_playlist_by_id(playlist_id)
             if not playlist:
                 raise HTTPException(status_code=404, detail="Playlist not found")
@@ -292,7 +323,7 @@ class PlaylistRoutes:
             track_numbers = body.get('tracks', [])
             if not track_numbers or not isinstance(track_numbers, list):
                 raise HTTPException(status_code=400, detail="Invalid track numbers")
-            playlist_service = PlaylistService(config)
+            playlist_service = PlaylistService()
             playlist = playlist_service.get_playlist_by_id(playlist_id)
             if not playlist:
                 raise HTTPException(status_code=404, detail="Playlist not found")
@@ -310,7 +341,7 @@ class PlaylistRoutes:
             """Start playing a specific playlist"""
             if not audio:
                 raise HTTPException(status_code=503, detail="Audio system not available")
-            playlist_service = PlaylistService(config)
+            playlist_service = PlaylistService()
             success = playlist_service.start_playlist(playlist_id, audio)
             if not success:
                 raise HTTPException(status_code=400, detail="Failed to start playlist")
@@ -326,7 +357,7 @@ class PlaylistRoutes:
             """Play a specific track from a playlist"""
             if not audio:
                 raise HTTPException(status_code=503, detail="Audio system not available")
-            playlist_service = PlaylistService(config)
+            playlist_service = PlaylistService()
             success = playlist_service.play_track(playlist_id, track_number, audio)
             if not success:
                 raise HTTPException(status_code=400, detail="Failed to play track")
@@ -338,13 +369,11 @@ class PlaylistRoutes:
             action: str = Body(..., embed=True)
         ):
             """Control the currently playing playlist with immediate response"""
-            # Get the audio directly from the cached instance or app container
             audio = self._get_cached_audio(request)
-            
+
             if not audio:
                 raise HTTPException(status_code=503, detail="Audio system not available")
-            
-            # Direct mapping to audio functions for immediate execution
+
             actions = {
                 'play': audio.resume,
                 'resume': audio.resume,
@@ -353,15 +382,12 @@ class PlaylistRoutes:
                 'previous': audio.previous_track,
                 'stop': audio.stop
             }
-            
+
             if action not in actions:
                 raise HTTPException(status_code=400, detail="Invalid action")
-                
-            # Execute without waiting for notification callbacks to complete
+
             action_func = actions[action]
             action_func()
-            
-            # Return immediately without waiting for side effects
+
             return {"status": "success", "action": action}
-        
-        # Controls setup will be handled by app startup event
+

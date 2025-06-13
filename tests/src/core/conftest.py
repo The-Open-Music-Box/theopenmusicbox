@@ -7,7 +7,8 @@ from pathlib import Path
 import tempfile
 import os
 
-from app.src.config import IConfig, TestConfig, ConfigFactory, ConfigType
+from app.src.config import config as global_config
+from app.src.config.app_config import AppConfig
 from app.src.services.playlist_service import PlaylistService
 from app.src.module.audio_player.audio_player import AudioPlayer
 from app.src.model.track import Track
@@ -16,7 +17,7 @@ from app.src.model.track import Track
 @pytest.fixture
 def mock_config():
     """Fixture providing a test configuration."""
-    config = MagicMock(spec=IConfig)
+    config = MagicMock(spec=AppConfig)
     config.db_file = ":memory:"  # Use in-memory SQLite
     config.upload_folder = "/tmp/test_upload"
     return config
@@ -27,12 +28,13 @@ def real_temp_config():
     """Fixture providing a real configuration with temporary directories."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         # Create a test configuration with the temporary directory
-        config = ConfigFactory.get_config(ConfigType.TEST, base_path=tmp_dir)
+        config = AppConfig()
+        # Override config values for testing
+        config._upload_folder = os.path.join(tmp_dir, 'uploads')
+        config._db_file = os.path.join(tmp_dir, 'test.db')
         # Create the upload folder
         os.makedirs(config.upload_folder, exist_ok=True)
         yield config
-    # Reset the factory after the test
-    ConfigFactory.reset()
 
 
 @pytest.fixture

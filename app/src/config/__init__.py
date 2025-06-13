@@ -1,17 +1,8 @@
 """
-Configuration package for the application.
+Configuration package for TheOpenMusicBox application.
+Provides a unified configuration system with environment variable support.
 """
-from app.src.config.config_interface import IConfig
-from app.src.config.standard_config import StandardConfig
-from app.src.config.test_config import TestConfig
-from app.src.config.dev_config import DevConfig
-from app.src.config.config_factory import ConfigFactory, ConfigType
+from app.src.config.app_config import config
 
-# Define Config as an alias to StandardConfig for backward compatibility
-Config = StandardConfig
-
-# Export main classes and functions
-__all__ = ['IConfig', 'StandardConfig', 'TestConfig', 'DevConfig', 'ConfigFactory', 'ConfigType', 'Config']
-
-# For backward compatibility with existing code
-config_singleton = ConfigFactory.get_config()
+# Export public symbols
+__all__ = ['config']

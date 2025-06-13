@@ -39,21 +39,35 @@ class YouTubeRoutes:
             url = download_req.url
             if not url:
                 logger.log(LogLevel.WARNING, "YouTubeRoutes: Invalid YouTube URL provided")
-                raise HTTPException(status_code=400, detail="Invalid YouTube URL")
+                error_data = {"error": "Invalid YouTube URL", "status": "error"}
+                return JSONResponse(content=error_data, status_code=400)
 
             try:
                 # Get container from app state
                 container = getattr(request.app, "container", None)
                 if not container:
                     logger.log(LogLevel.ERROR, "YouTubeRoutes: Container not available")
-                    raise HTTPException(status_code=500, detail="Application container not available")
+                    error_data = {"error": "Application container not available", "status": "error"}
+                    return JSONResponse(content=error_data, status_code=500)
 
                 service = YouTubeService(self.socketio, container.config)
                 # Call the asynchronous method which handles the download in a non-blocking way
                 result = await service.process_download(url)
-                return result
+                
+                # Utiliser JSONResponse explicitement pour garantir un Content-Type correct
+                response = JSONResponse(content=result, status_code=200)
+                
+                # Ajouter des en-têtes anti-cache
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+                
+                return response
 
             except Exception as e:
                 error_msg = str(e)
                 logger.log(LogLevel.ERROR, f"YouTubeRoutes: Download failed: {error_msg}", exc_info=True)
-                raise HTTPException(status_code=500, detail=error_msg)
+                
+                # Utiliser JSONResponse pour l'erreur au lieu de HTTPException
+                error_data = {"error": error_msg, "status": "error"}
+                return JSONResponse(content=error_data, status_code=500)
