@@ -1,5 +1,5 @@
 """
-Assertion helpers for TheMusicBox tests.
+Assertion helpers for TheOpenMusicBox tests.
 
 This module provides standardized assertion functions to ensure consistent
 test validation across the test suite.
@@ -9,7 +9,7 @@ test validation across the test suite.
 def assert_success_response(response, message=None):
     """
     Assert that an API response indicates success.
-    
+
     Args:
         response: The FastAPI TestClient response object
         message: Optional expected message in the response
@@ -22,7 +22,7 @@ def assert_success_response(response, message=None):
 def assert_error_response(response, status_code, error_message=None):
     """
     Assert that an API response indicates an error.
-    
+
     Args:
         response: The FastAPI TestClient response object
         status_code: Expected HTTP status code
@@ -36,7 +36,7 @@ def assert_error_response(response, status_code, error_message=None):
 def assert_nfc_status(response, expected_status):
     """
     Assert that an NFC status response contains the expected status.
-    
+
     Args:
         response: The FastAPI TestClient response object
         expected_status: Expected status string (e.g., 'listening', 'stopped')
@@ -48,7 +48,7 @@ def assert_nfc_status(response, expected_status):
 def assert_playback_status(response, expected_status):
     """
     Assert that a playback status response contains the expected status.
-    
+
     Args:
         response: The FastAPI TestClient response object
         expected_status: Expected status string (e.g., 'playing', 'paused', 'stopped')

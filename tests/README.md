@@ -1,8 +1,8 @@
-# TheMusicBox Test Documentation
+# TheOpenMusicBox Test Documentation
 
 ## Overview
 
-This document provides comprehensive guidance on the test suite for TheMusicBox application. The test suite is designed to ensure the reliability and correctness of the application's core functionality, including playlist management, NFC tag detection, and audio playback.
+This document provides comprehensive guidance on the test suite for TheOpenMusicBox application. The test suite is designed to ensure the reliability and correctness of the application's core functionality, including playlist management, NFC tag detection, and audio playback.
 
 ## Test Categories
 
@@ -132,7 +132,7 @@ The test environment is configured through the `ConfigType.TEST` configuration, 
 
 ## Best Practices
 
-When writing tests for TheMusicBox, follow these best practices:
+When writing tests for TheOpenMusicBox, follow these best practices:
 
 1. **Use appropriate markers**: Categorize your tests with the appropriate markers to make them easier to find and run.
 2. **Use fixtures**: Use the provided fixtures to set up test data and dependencies.

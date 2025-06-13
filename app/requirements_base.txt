@@ -1,4 +1,4 @@
-# Core cross-platform dependencies for TheMusicBox
+# Core cross-platform dependencies for TheOpenMusicBox
 # FastAPI and related
 fastapi>=0.100.0
 uvicorn[standard]>=0.23.0

@@ -1,5 +1,5 @@
 """
-Core package initialization for TheMusicBox backend.
+Core package initialization for TheOpenMusicBox backend.
 Contains core application logic and dependency management.
 """
 

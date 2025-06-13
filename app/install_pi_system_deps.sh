@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script d'installation des dépendances système pour TheMusicBox sur Raspberry Pi
+# Script d'installation des dépendances système pour TheOpenMusicBox sur Raspberry Pi
 # À exécuter AVANT pip install -r requirements_pi.txt
 set -e
 
