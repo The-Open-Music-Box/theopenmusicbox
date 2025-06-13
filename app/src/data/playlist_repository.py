@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.config import Config
+from app.src.config import config
 
 logger = ImprovedLogger(__name__)
 
@@ -15,18 +15,16 @@ class PlaylistRepository:
     Responsible only for low-level CRUD operations without business logic.
     """
 
-    def __init__(self, config: Config):
+    def __init__(self, config_obj=None):
         """
         Initializes the repository with the database path from the configuration.
 
         Args:
-            config: Application configuration instance with a 'db_file' attribute.
-        Raises:
-            AttributeError: If 'db_file' is not found in the config object.
+            config_obj: Optional configuration object (defaults to global config)
         """
-        if not hasattr(config, 'db_file'):
-            raise AttributeError("Config object must have a 'db_file' attribute.")
-        self.db_path = Path(config.db_file)
+        from app.src.config import config as global_config
+        self.config = config_obj or global_config
+        self.db_path = Path(self.config.db_file)
         self._ensure_db_directory()
         self._init_db()
 

@@ -1,7 +1,7 @@
 import socketio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.src.config import config_singleton
+from app.src.config import config
 from app.src.core.container_async import ContainerAsync
 from app.src.core.application import Application
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
@@ -12,14 +12,18 @@ import traceback
 logger = ImprovedLogger(__name__)
 
 # Load config
-env_config = config_singleton
+env_config = config
 
 # Dependency injection container
 container = ContainerAsync(env_config)
 
 # CORS
 # Read CORS origins from the config (.env)
-cors_origins = [origin.strip() for origin in env_config.cors_allowed_origins.split(';') if origin.strip()]
+# Handle both string and list types for cors_allowed_origins
+if isinstance(env_config.cors_allowed_origins, str):
+    cors_origins = [origin.strip() for origin in env_config.cors_allowed_origins.split(';') if origin.strip()]
+else:
+    cors_origins = env_config.cors_allowed_origins
 
 # Socket.IO AsyncServer - use the same origins list as for CORS
 sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=cors_origins)
