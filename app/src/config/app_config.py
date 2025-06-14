@@ -40,6 +40,7 @@ class AppConfig:
         'use_mock_hardware': False,
         'app_module': 'app.main:app_sio',
         'uvicorn_reload': False,
+        'auto_pause_enabled': False,
     }
 
     def __init__(self):
@@ -77,7 +78,7 @@ class AppConfig:
         """Ensure required directories exist."""
         # Get the app directory path (parent of src)
         app_dir = Path(__file__).parent.parent.parent
-        
+
         # Create upload directory if it doesn't exist
         upload_dir = Path(self._values['upload_folder'])
         if not upload_dir.is_absolute():

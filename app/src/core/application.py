@@ -15,6 +15,7 @@ from app.src.services.nfc_service import NFCService
 from app.src.module.nfc.nfc_factory import get_nfc_handler
 from app.src.module.audio_player.audio_factory import get_audio_player
 from app.src.services.notification_service import PlaybackSubject
+from app.src.config.nfc_config import NFCConfig
 
 # MARK: - Constants
 PROGRESS_LOG_INTERVAL = 10  # Log track progress every 10%
@@ -47,10 +48,17 @@ class Application:
         # Synchronize playlists at startup with protection against blocking
         self._sync_playlists()
 
-        # Initialize playlist controller (async version)
+        # Create NFC config with auto-pause setting from app config
+        nfc_config = NFCConfig()
+
+        # Apply auto-pause setting directly from app config (already converted to proper type)
+        nfc_config.auto_pause_enabled = self._config.get('auto_pause_enabled')
+
+        # Initialize playlist controller (async version) with config
         self._playlist_controller = PlaylistController(
             None,
-            self._playlists
+            self._playlists,
+            nfc_config
         )
 
         # Initialize NFC components in constructor (basic setup)
@@ -66,6 +74,10 @@ class Application:
         """
         # Initialize NFC components using the dedicated method
         await self._setup_nfc()
+
+        # Initialize audio components
+        self._setup_audio()
+
         return self
 
     # MARK: - NFC Event Handling
@@ -118,10 +130,10 @@ class Application:
                 upload_folder = Path(self._config.config.upload_folder)
             else:
                 raise AttributeError("Config object must have an 'upload_folder' attribute or a 'config' property with 'upload_folder'.")
-            
+
             # Get the app directory path (parent of src)
             app_dir = Path(__file__).parent.parent.parent
-            
+
             # Make relative paths absolute from the app directory
             if not upload_folder.is_absolute():
                 upload_folder = app_dir / upload_folder
@@ -230,12 +242,12 @@ class Application:
                         container.set_nfc_service(self._nfc_service)
                     elif hasattr(container, '_nfc_service'):
                         container._nfc_service = self._nfc_service
-                        
+
                     if hasattr(container, 'set_nfc_handler'):
                         container.set_nfc_handler(self._nfc_handler)
                     elif hasattr(container, '_nfc_handler'):
                         container._nfc_handler = self._nfc_handler
-                        
+
                     logger.log(LogLevel.INFO, "Updated container's NFC service")
 
             # Always ensure bi-directional link between playlist controller and NFC service
@@ -257,7 +269,7 @@ class Application:
                 playlists_loaded = self._nfc_service.has_playlists_loaded()
             elif hasattr(self._nfc_service, '_playlists'):
                 playlists_loaded = bool(getattr(self._nfc_service, '_playlists', None))
-                
+
             if not playlists_loaded:
                 playlists = self._playlists.get_all_playlists(page=1, page_size=1000)
                 self._nfc_service.load_mapping(playlists)

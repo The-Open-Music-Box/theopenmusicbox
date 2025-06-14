@@ -36,7 +36,7 @@ class PlaylistController:
         self._playlist_service = playlist_service
         self._nfc_service = None
         self._current_tag = None
-        self._auto_pause_enabled = False
+        self._auto_pause_flag = None
         self._tag_last_seen = 0
         self._tag_presence_time = 0
         self._tag_absence_time = 0
@@ -56,9 +56,6 @@ class PlaylistController:
         # Variables for manual control management
         self._last_manual_action_time = 0
         self._manual_action_priority_window = self._config.manual_action_priority_window
-
-        # Flag to disable automatic pause when tag is removed
-        self._auto_pause_enabled = False
 
         # Async monitoring
         self._monitor_task = None
@@ -127,14 +124,14 @@ class PlaylistController:
             if has_playlist and (previous_tag is None or tag_uid != previous_tag):
                 logger.log(LogLevel.INFO, "CASE A: New or different tag with playlist - loading and starting playlist from beginning")
                 self._playlist_service.play_playlist_with_validation(playlist_data, self._audio)
-                self._auto_pause_enabled = True
+                self._auto_pause_flag = True
                 return
 
             # CASE B: Same tag with finished playlist (restart from beginning)
             if has_playlist and tag_uid == previous_tag and is_finished:
                 logger.log(LogLevel.INFO, "CASE B: Same tag with finished playlist - restarting playlist from beginning")
                 self._playlist_service.play_playlist_with_validation(playlist_data, self._audio)
-                self._auto_pause_enabled = True
+                self._auto_pause_flag = True
                 return
 
             # CASE C: Same tag, playback PAUSED (resume at paused position)
@@ -142,14 +139,14 @@ class PlaylistController:
                 logger.log(LogLevel.INFO, "CASE C: Same tag with playlist detected while PAUSED - resuming playback at paused position")
                 if self._audio:
                     self._audio.resume()
-                self._auto_pause_enabled = True
+                self._auto_pause_flag = True
                 return
 
             # CASE D: Same tag, playback STOPPED (restart playlist from beginning)
             if has_playlist and tag_uid == previous_tag and not is_playing and not is_paused:
                 logger.log(LogLevel.INFO, "CASE D: Same tag with playlist detected while STOPPED - restarting playlist from beginning")
                 self._playlist_service.play_playlist_with_validation(playlist_data, self._audio)
-                self._auto_pause_enabled = True
+                self._auto_pause_flag = True
                 return
 
             # CASE E: Tag not associated with any playlist
@@ -160,7 +157,7 @@ class PlaylistController:
             # Safety: Same tag, already playing (continue, no state change)
             if has_playlist and tag_uid == previous_tag and is_playing:
                 logger.log(LogLevel.DEBUG, "Same tag detected during playback - continuing (no action)")
-                self._auto_pause_enabled = True
+                self._auto_pause_flag = True
                 return
 
             # Fallback: Log as unhandled
@@ -292,37 +289,73 @@ class PlaylistController:
         if not success:
             logger.log(LogLevel.WARNING, f"Failed to start playlist: {playlist_data.get('title', playlist_data.get('id'))}")
 
+    def _should_auto_pause(self) -> bool:
+        """
+        Determine if auto-pause should be applied based on config and internal state.
+
+        Returns:
+            bool: True if auto-pause should be applied, False otherwise
+        """
+        # Check if auto-pause is enabled in configuration
+        if not self._config.auto_pause_enabled:
+            return False
+
+        # Check if we have the required components to auto-pause
+        if not self._audio or not hasattr(self._audio, 'is_playing'):
+            return False
+
+        # Check if internal flow flag is set
+        if not self._auto_pause_flag:
+            return False
+
+        # Check if audio is currently playing
+        return self._audio.is_playing
+
+    def _perform_auto_pause(self, tag_present_duration: float) -> None:
+        """
+        Perform auto-pause operation and log appropriately.
+
+        Args:
+            tag_present_duration: Duration (seconds) the tag was present before removal
+        """
+        self._audio.pause()
+        logger.log(LogLevel.INFO, f"Auto-paused playback because tag was removed (tag present for {tag_present_duration:.2f}s)")
+
+        # Reset auto-pause flag after use
+        self._auto_pause_flag = False
+
     def handle_tag_absence(self) -> None:
         """
-        Handle the absence (removal) of an NFC tag. Auto-pause playback if enabled.
+        Handle the absence (removal) of an NFC tag.
+        May auto-pause playback based on configuration.
         """
         # Utiliser un verrou pour éviter les problèmes de concurrence
         with self._pause_lock:
-            # Vérifier si nous avons un lecteur audio, si l'auto-pause est activée
-            # et si le lecteur est en train de jouer
+            # Record time of tag absence
             current_time = time.time()
             self._tag_absence_time = current_time
 
-            if self._auto_pause_enabled and self._audio:
-                if hasattr(self._audio, 'is_playing') and self._audio.is_playing:
-                    # Calculer précisément combien de temps le tag était présent
-                    tag_present_duration = current_time - self._tag_presence_time
+            # Calculate how long the tag was present
+            tag_present_duration = current_time - self._tag_presence_time
 
-                    # Mettre en pause la lecture
-                    self._audio.pause()
-                    logger.log(LogLevel.INFO, f"Auto-paused playback because tag was removed (tag present for {tag_present_duration:.2f}s)")
+            # Check if auto-pause should be applied
+            if self._should_auto_pause():
+                self._perform_auto_pause(tag_present_duration)
+                return
 
-                    # Désactiver la pause automatique jusqu'à la prochaine détection de tag
-                    self._auto_pause_enabled = False
-                else:
-                    logger.log(LogLevel.DEBUG, "Tag removed but playback already paused or stopped")
+            # Auto-pause not applied, playback continues
+            # Check if audio is playing
+            is_playing = self._audio and hasattr(self._audio, 'is_playing') and self._audio.is_playing
+
+            if is_playing:
+                logger.log(LogLevel.INFO, f"Tag removed but playback continues. Tag was present for {tag_present_duration:.2f}s")
+            elif not self._audio:
+                logger.log(LogLevel.WARNING, "Tag removed but no audio player available")
             else:
-                if not self._auto_pause_enabled:
-                    logger.log(LogLevel.DEBUG, "Tag removed but auto-pause is disabled")
-                elif not self._audio:
-                    logger.log(LogLevel.WARNING, "Tag removed but no audio player available")
-                else:
-                    logger.log(LogLevel.DEBUG, "Tag removed but no action taken")
+                logger.log(LogLevel.DEBUG, "Tag removed while playback was already paused or stopped")
+
+            # Always reset auto-pause flag
+            self._auto_pause_flag = False
 
 
     async def _start_tag_monitor(self) -> None:
