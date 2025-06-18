@@ -20,7 +20,7 @@ from app.src.core.application import Application
 print("[TheOpenMusicBox] Starting application in PRODUCTION mode")
 
 # Get production configuration
-config = ConfigFactory.get_config(ConfigType.STANDARD)
+config = ConfigFactory.create_config(ConfigType.PRODUCTION)
 
 if config.use_mock_hardware:
     print("[TheOpenMusicBox] WARNING: Mock hardware is enabled in production!")

@@ -41,14 +41,28 @@ if not is_venv_active():
 
 
 # Ensure app directory is in path
-sys.path.append(str(Path(__file__).resolve().parent))
+project_root = str(Path(__file__).resolve().parent)
+sys.path.insert(0, project_root)
+
+# Debug information
+print(f"[TheOpenMusicBox] Project root: {project_root}")
+print(f"[TheOpenMusicBox] Python path: {sys.path}")
+print(f"[TheOpenMusicBox] Checking for app module...")
+
+# Check if app module is accessible
+try:
+    import app
+    print(f"[TheOpenMusicBox] app module found at: {app.__file__}")
+except ImportError as e:
+    print(f"[TheOpenMusicBox] Error importing app module: {e}")
+    sys.exit(1)
 
 from app.src.config.config_factory import ConfigFactory, ConfigType
 
 print("[TheOpenMusicBox] Starting tests with TEST configuration")
 
 # Get test configuration
-config = ConfigFactory.get_config(ConfigType.TEST)
+config = ConfigFactory.create_config(ConfigType.TEST)
 
 if not config.use_mock_hardware:
     print("[TheOpenMusicBox] WARNING: Mock hardware is not enabled in test configuration!")

@@ -19,7 +19,7 @@ from app.src.core.application import Application
 print("[TheOpenMusicBox] Starting application in DEVELOPMENT mode")
 
 # Get development configuration with mock hardware
-config = ConfigFactory.get_config(ConfigType.DEV)
+config = ConfigFactory.create_config(ConfigType.DEVELOPMENT)
 
 if not config.use_mock_hardware:
     print("[TheOpenMusicBox] WARNING: Mock hardware is not enabled!")

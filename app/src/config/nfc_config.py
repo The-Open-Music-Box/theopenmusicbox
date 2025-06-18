@@ -24,4 +24,4 @@ class NFCConfig:
     pause_threshold: float = 3.0
 
     # Auto-pause configuration
-    auto_pause_enabled: bool
+    auto_pause_enabled: bool = True
