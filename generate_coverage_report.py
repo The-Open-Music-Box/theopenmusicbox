@@ -1,14 +1,14 @@
 #!/usr/bin/env python
-"""
-Generate test coverage reports for TheOpenMusicBox application.
+"""Generate test coverage reports for TheOpenMusicBox application.
 
-This script runs the test suite with coverage reporting enabled and generates
-both HTML and console reports to help identify areas that need more testing.
+This script runs the test suite with coverage reporting enabled and
+generates both HTML and console reports to help identify areas that need
+more testing.
 """
-import os
-import sys
-import subprocess
 import argparse
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -19,19 +19,19 @@ def parse_args():
         "--format",
         choices=["html", "term", "xml", "all"],
         default="all",
-        help="Coverage report format (default: all)"
+        help="Coverage report format (default: all)",
     )
     parser.add_argument(
         "--min-coverage",
         type=int,
         default=70,
-        help="Minimum required coverage percentage (default: 70)"
+        help="Minimum required coverage percentage (default: 70)",
     )
     parser.add_argument(
         "--markers",
         type=str,
         default=None,
-        help="Only run tests with these markers (e.g., 'api and not slow')"
+        help="Only run tests with these markers (e.g., 'api and not slow')",
     )
     return parser.parse_args()
 
@@ -72,14 +72,22 @@ def run_coverage(args):
 
     # Check for coverage percentage
     if args.format == "all" or args.format == "term":
-        coverage_line = next((line for line in result.stdout.split('\n')
-                             if "TOTAL" in line and "%" in line), None)
+        coverage_line = next(
+            (
+                line
+                for line in result.stdout.split("\n")
+                if "TOTAL" in line and "%" in line
+            ),
+            None,
+        )
         if coverage_line:
             try:
-                coverage_pct = int(coverage_line.split('%')[0].split()[-1])
+                coverage_pct = int(coverage_line.split("%")[0].split()[-1])
                 print(f"\nTotal coverage: {coverage_pct}%")
                 if coverage_pct < args.min_coverage:
-                    print(f"WARNING: Coverage is below the minimum threshold of {args.min_coverage}%")
+                    print(
+                        f"WARNING: Coverage is below the minimum threshold of {args.min_coverage}%"
+                    )
                     return 1
             except (ValueError, IndexError):
                 print("Could not parse coverage percentage")
