@@ -1,6 +1,8 @@
 import re
 from typing import Any, Dict
+
 from colorama import Fore, Style
+
 
 class BaseLogFormatter:
     def __init__(self):
@@ -8,10 +10,10 @@ class BaseLogFormatter:
         self._startup_phase = None
 
     def _simplify_component_name(self, name: str) -> str:
-        return name.split('.')[-1]
+        return name.split(".")[-1]
 
     def _extract_component(self, message: str) -> str:
-        match = re.search(r'Initializing (\w+)', message)
+        match = re.search(r"Initializing (\w+)", message)
         return match.group(1) if match else ""
 
     def format_extra(self, extra: Dict[str, Any]) -> str:
@@ -19,8 +21,9 @@ class BaseLogFormatter:
             return ""
 
         relevant_info = {
-            k: v for k, v in extra.items()
-            if k not in ['component', 'operation'] or 'error' in k
+            k: v
+            for k, v in extra.items()
+            if k not in ["component", "operation"] or "error" in k
         }
 
         if not relevant_info:

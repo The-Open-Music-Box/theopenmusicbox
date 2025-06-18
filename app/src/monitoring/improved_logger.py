@@ -1,9 +1,10 @@
-from typing import Optional, Dict, Any
 import logging
+from typing import Any, Dict, Optional
 
 from .logging.log_base_formatter import BaseLogFormatter
 from .logging.log_colored_formatter import ColoredLogFormatter
 from .logging.log_level import LogLevel
+
 
 class ImprovedLogger:
     _instance = None
@@ -19,7 +20,7 @@ class ImprovedLogger:
         self.logger.handlers = []
         self.logger.propagate = False
         handler = logging.StreamHandler()
-        formatter = ColoredLogFormatter('%(levelname)s | %(name)s | %(message)s')
+        formatter = ColoredLogFormatter("%(levelname)s | %(name)s | %(message)s")
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
         self.logger.setLevel(logging.INFO)
@@ -36,7 +37,13 @@ class ImprovedLogger:
             return ""
         return BaseLogFormatter().format_extra(extra)
 
-    def log(self, level: LogLevel, message: str, exc_info: Optional[Exception] = None, **kwargs):
+    def log(
+        self,
+        level: LogLevel,
+        message: str,
+        exc_info: Optional[Exception] = None,
+        **kwargs,
+    ):
         if exc_info and isinstance(exc_info, OSError):
             message = "Hardware not available"
             exc_info = None
