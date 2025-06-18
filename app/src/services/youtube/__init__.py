@@ -1,7 +1,4 @@
-from .service import YouTubeService
 from .downloader import YouTubeDownloader
+from .service import YouTubeService
 
-__all__ = [
-    'YouTubeService',
-    'YouTubeDownloader'
-]
+__all__ = ["YouTubeService", "YouTubeDownloader"]

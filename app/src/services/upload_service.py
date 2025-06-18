@@ -1,24 +1,28 @@
-from pathlib import Path
 import os
+from pathlib import Path
 from typing import Dict, Tuple
-from werkzeug.utils import secure_filename
+
 from mutagen import File as MutagenFile
 from mutagen.easyid3 import EasyID3
+from werkzeug.utils import secure_filename
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.helpers.exceptions import InvalidFileError, ProcessingError
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 
-ALLOWED_EXTENSIONS = {'mp3', 'wav', 'flac', 'ogg', 'm4a'}
+ALLOWED_EXTENSIONS = {"mp3", "wav", "flac", "ogg", "m4a"}
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+
 
 class UploadService:
     def __init__(self, upload_folder: str):
         self.upload_folder = Path(upload_folder)
 
     def _allowed_file(self, filename: str) -> bool:
-        return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+        return (
+            "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+        )
 
     def _check_file_size(self, file) -> bool:
         file.seek(0, os.SEEK_END)
@@ -26,7 +30,7 @@ class UploadService:
         file.seek(0)
         return size <= MAX_FILE_SIZE
 
-    def _extract_metadata(self, file_path: Path) -> Dict:
+    def extract_metadata(self, file_path: Path) -> Dict:
         """Extract metadata from an audio file."""
         try:
             audio = MutagenFile(str(file_path), easy=True)
@@ -37,17 +41,20 @@ class UploadService:
                 "title": audio.get("title", [Path(file_path).stem])[0],
                 "artist": audio.get("artist", ["Unknown"])[0],
                 "album": audio.get("album", ["Unknown"])[0],
-                "duration": audio.info.length if hasattr(audio.info, 'length') else 0
+                "duration": audio.info.length if hasattr(audio.info, "length") else 0,
             }
             return metadata
 
         except Exception as e:
-            logger.log(LogLevel.WARNING, f"Could not extract metadata from {file_path}: {str(e)}")
+            logger.log(
+                LogLevel.WARNING,
+                f"Could not extract metadata from {file_path}: {str(e)}",
+            )
             return {
                 "title": Path(file_path).stem,
                 "artist": "Unknown",
                 "album": "Unknown",
-                "duration": 0
+                "duration": 0,
             }
 
     def process_upload(self, file, playlist_path: str) -> Tuple[str, Dict]:
@@ -59,10 +66,14 @@ class UploadService:
             raise InvalidFileError("No file provided")
 
         if not self._allowed_file(file.filename):
-            raise InvalidFileError(f"File type not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}")
+            raise InvalidFileError(
+                f"File type not allowed. Allowed types: {', '.join(ALLOWED_EXTENSIONS)}"
+            )
 
         if not self._check_file_size(file):
-            raise InvalidFileError(f"File too large. Maximum size: {MAX_FILE_SIZE/1024/1024}MB")
+            raise InvalidFileError(
+                f"File too large. Maximum size: {MAX_FILE_SIZE/1024/1024}MB"
+            )
 
         # Secure the filename
         filename = secure_filename(file.filename)
@@ -77,7 +88,7 @@ class UploadService:
             file.save(str(file_path))
 
             # Extraire les métadonnées
-            metadata = self._extract_metadata(file_path)
+            metadata = self.extract_metadata(file_path)
 
             return filename, metadata
 
