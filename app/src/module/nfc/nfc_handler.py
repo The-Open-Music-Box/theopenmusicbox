@@ -1,15 +1,21 @@
 from typing import Generic, TypeVar
+
 from .nfc_hardware import NFCHardware
 
-T = TypeVar('T', bound=NFCHardware)
+T = TypeVar("T", bound=NFCHardware)
+
 
 class NFCHandler(Generic[T]):
-    """NFC handler that abstracts the underlying hardware (MockNFC or PN532I2CNFC).
-    This class ensures that all hardware access goes through the proper interfaces.
+    """NFC handler that abstracts the underlying hardware (MockNFC or
+    PN532I2CNFC).
+
+    This class ensures that all hardware access goes through the proper
+    interfaces.
     """
+
     def __init__(self, hardware: T):
         """Initialise le handler avec le matériel spécifié.
-        
+
         Args:
             hardware: Instance du matériel NFC (mock ou réel)
         """
@@ -17,24 +23,31 @@ class NFCHandler(Generic[T]):
 
     @property
     def tag_subject(self):
-        """Accède au subject RxPy qui émet les événements de détection de tag."""
+        """Accède au subject RxPy qui émet les événements de détection de
+        tag."""
         if hasattr(self._hardware, "tag_subject"):
             return self._hardware.tag_subject
-        raise AttributeError("Underlying hardware does not have a tag_subject property.")
+        raise AttributeError(
+            "Underlying hardware does not have a tag_subject property."
+        )
 
     async def start_nfc_reader(self) -> None:
         """Démarre le lecteur NFC de manière asynchrone."""
         if hasattr(self._hardware, "start_nfc_reader"):
             await self._hardware.start_nfc_reader()
         else:
-            raise NotImplementedError("Underlying hardware does not support start_nfc_reader().")
+            raise NotImplementedError(
+                "Underlying hardware does not support start_nfc_reader()."
+            )
 
     async def stop_nfc_reader(self) -> None:
         """Arrête le lecteur NFC de manière asynchrone."""
         if hasattr(self._hardware, "stop_nfc_reader"):
             await self._hardware.stop_nfc_reader()
         else:
-            raise NotImplementedError("Underlying hardware does not support stop_nfc_reader().")
+            raise NotImplementedError(
+                "Underlying hardware does not support stop_nfc_reader()."
+            )
 
     async def read_tag(self) -> str:
         """Lit un tag NFC de manière asynchrone."""
@@ -47,7 +60,9 @@ class NFCHandler(Generic[T]):
         if hasattr(self._hardware, "write_tag"):
             await self._hardware.write_tag(data)
         else:
-            raise NotImplementedError("Underlying hardware does not support write_tag().")
+            raise NotImplementedError(
+                "Underlying hardware does not support write_tag()."
+            )
 
     async def cleanup(self) -> None:
         """Clean up hardware resources asynchronously."""
@@ -55,10 +70,10 @@ class NFCHandler(Generic[T]):
             await self._hardware.cleanup()
         else:
             raise NotImplementedError("Underlying hardware does not support cleanup().")
-            
+
     def is_running(self) -> bool:
         """Check if the NFC reader is currently running.
-        
+
         Returns:
             True if the reader is running, False otherwise
         """

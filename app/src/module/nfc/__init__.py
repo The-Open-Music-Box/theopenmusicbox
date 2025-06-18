@@ -1,5 +1,4 @@
-"""
-NFC Reader module for contactless tag detection and reading.
+"""NFC Reader module for contactless tag detection and reading.
 
 This module provides a platform-independent interface for NFC operations,
 with implementations for both Raspberry Pi hardware (PN532 via I2C)
@@ -13,6 +12,4 @@ and mock. Features include:
 
 from .nfc_factory import get_nfc_handler
 
-__all__ = [
-    'get_nfc_handler'
-]
+__all__ = ["get_nfc_handler"]
