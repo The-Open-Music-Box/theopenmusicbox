@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-"""
-Development starter script that explicitly uses DevConfig.
-"""
+"""Development starter script that explicitly uses DevConfig."""
 import os
 import sys
-import uvicorn
 from pathlib import Path
+
+import uvicorn
+
+from app.src.config.config_factory import ConfigFactory, ConfigType
 
 # Ensure app directory is in path
 sys.path.append(str(Path(__file__).resolve().parent))
@@ -13,8 +14,6 @@ sys.path.append(str(Path(__file__).resolve().parent))
 # Force stdout to be unbuffered
 sys.stdout.reconfigure(line_buffering=True)
 
-from app.src.config.config_factory import ConfigFactory, ConfigType
-from app.src.core.application import Application
 
 print("[TheOpenMusicBox] Starting application in DEVELOPMENT mode")
 

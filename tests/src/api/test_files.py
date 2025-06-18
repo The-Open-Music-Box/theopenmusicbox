@@ -1,7 +1,7 @@
-import os
-import sys
 from fastapi.testclient import TestClient
+
 from app.main import app
+
 
 # --- List Files ---
 def test_list_files():
@@ -14,12 +14,18 @@ def test_list_files():
     assert "playlists" in data
     assert isinstance(data["playlists"], list)
 
+
 # --- Upload File (invalid) ---
+
+
 def create_playlist_and_get_id(client):
-    response = client.post("/api/playlists/", json={"title": "Test Playlist for Upload"})
+    response = client.post(
+        "/api/playlists/", json={"title": "Test Playlist for Upload"}
+    )
     assert response.status_code == 200
     playlist_id = response.json()["id"]
     return playlist_id
+
 
 def test_upload_file_no_file():
     with TestClient(app) as client:

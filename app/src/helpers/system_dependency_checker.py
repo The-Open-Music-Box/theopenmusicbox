@@ -9,31 +9,30 @@ from app.src.monitoring.improved_logger import ImprovedLogger
 
 logger = ImprovedLogger(__name__)
 
+
 @dataclass
 class DependencyError:
     name: str
     message: str
 
+
 class SystemDependencyChecker:
     @staticmethod
     def check_ffmpeg() -> Optional[DependencyError]:
-        ffmpeg_path = shutil.which('ffmpeg')
+        ffmpeg_path = shutil.which("ffmpeg")
         if not ffmpeg_path:
             return DependencyError(
-                name="ffmpeg",
-                message="FFmpeg binary not found in PATH"
+                name="ffmpeg", message="FFmpeg binary not found in PATH"
             )
 
         try:
-            subprocess.run(['ffmpeg', '-version'],
-                         capture_output=True,
-                         text=True,
-                         check=True)
+            subprocess.run(
+                ["ffmpeg", "-version"], capture_output=True, text=True, check=True
+            )
             return None
         except Exception as e:
             return DependencyError(
-                name="ffmpeg",
-                message=f"Error executing FFmpeg: {str(e)}"
+                name="ffmpeg", message=f"Error executing FFmpeg: {str(e)}"
             )
 
     @staticmethod

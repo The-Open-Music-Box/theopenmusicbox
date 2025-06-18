@@ -1,17 +1,14 @@
-"""
-Specific fixtures for core module tests.
-"""
-import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
-from pathlib import Path
-import tempfile
-import os
+"""Specific fixtures for core module tests."""
 
-from app.src.config import config as global_config
+import os
+import tempfile
+from unittest.mock import MagicMock
+
+import pytest
+
 from app.src.config.app_config import AppConfig
-from app.src.services.playlist_service import PlaylistService
-from app.src.module.audio_player.audio_player import AudioPlayer
 from app.src.model.track import Track
+from app.src.services.playlist_service import PlaylistService
 
 
 @pytest.fixture
@@ -30,8 +27,8 @@ def real_temp_config():
         # Create a test configuration with the temporary directory
         config = AppConfig()
         # Override config values for testing
-        config._upload_folder = os.path.join(tmp_dir, 'uploads')
-        config._db_file = os.path.join(tmp_dir, 'test.db')
+        config._upload_folder = os.path.join(tmp_dir, "uploads")
+        config._db_file = os.path.join(tmp_dir, "test.db")
         # Create the upload folder
         os.makedirs(config.upload_folder, exist_ok=True)
         yield config
@@ -45,13 +42,13 @@ def mock_playlist_service():
         "id": "test_id",
         "title": "Test Playlist",
         "path": "/fake/path",
-        "tracks": [{"id": "track1", "number": 1, "title": "Test Track"}]
+        "tracks": [{"id": "track1", "number": 1, "title": "Test Track"}],
     }
     service.sync_with_filesystem.return_value = {
         "playlists_added": 1,
         "playlists_updated": 0,
         "tracks_added": 1,
-        "tracks_removed": 0
+        "tracks_removed": 0,
     }
     return service
 

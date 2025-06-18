@@ -1,156 +1,141 @@
-"""
-Audio Backend Interface
+"""Audio Backend Interface.
 
 This module defines the abstraction layer for audio playback systems.
-Different implementations (pygame, other libraries) can be provided
-as long as they implement this interface.
+Different implementations (pygame, other libraries) can be provided as
+long as they implement this interface.
 """
 
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Callable, Optional, Any
+from typing import Callable
 
 
 class AudioBackend(ABC):
-    """Interface for audio playback systems"""
+    """Interface for audio playback systems."""
 
     @abstractmethod
     def initialize(self) -> bool:
-        """Initialize the audio system
-        
+        """Initialize the audio system.
+
         Returns:
             bool: True if initialization was successful
         """
-        pass
 
     @abstractmethod
     def shutdown(self) -> bool:
-        """Shut down the audio system and free all resources
-        
+        """Shut down the audio system and free all resources.
+
         Returns:
             bool: True if shutdown was successful
         """
-        pass
 
     @abstractmethod
     def load(self, file_path: Path) -> bool:
-        """Load an audio file for playback
-        
+        """Load an audio file for playback.
+
         Args:
             file_path: Path to the audio file
-            
+
         Returns:
             bool: True if loading was successful
         """
-        pass
 
     @abstractmethod
     def play(self) -> bool:
-        """Start playing the loaded audio
-        
+        """Start playing the loaded audio.
+
         Returns:
             bool: True if playback started successfully
         """
-        pass
 
     @abstractmethod
     def pause(self) -> bool:
-        """Pause the currently playing audio
-        
+        """Pause the currently playing audio.
+
         Returns:
             bool: True if pausing was successful
         """
-        pass
 
     @abstractmethod
     def resume(self) -> bool:
-        """Resume playback from a paused state
-        
+        """Resume playback from a paused state.
+
         Returns:
             bool: True if resuming was successful
         """
-        pass
 
     @abstractmethod
     def stop(self) -> bool:
-        """Stop playback and unload the current audio file
-        
+        """Stop playback and unload the current audio file.
+
         Returns:
             bool: True if stopping was successful
         """
-        pass
 
     @abstractmethod
     def set_position(self, position_seconds: float) -> bool:
-        """Set the playback position
-        
+        """Set the playback position.
+
         Args:
             position_seconds: Position in seconds
-            
+
         Returns:
             bool: True if setting position was successful
         """
-        pass
 
     @abstractmethod
     def get_position(self) -> float:
-        """Get the current playback position in seconds
-        
+        """Get the current playback position in seconds.
+
         Returns:
             float: Current position in seconds
         """
-        pass
 
     @abstractmethod
     def set_volume(self, volume: int) -> bool:
-        """Set the playback volume
-        
+        """Set the playback volume.
+
         Args:
             volume: Volume level (0-100)
-            
+
         Returns:
             bool: True if setting volume was successful
         """
-        pass
 
     @abstractmethod
     def get_volume(self) -> int:
-        """Get the current volume
-        
+        """Get the current volume.
+
         Returns:
             int: Current volume (0-100)
         """
-        pass
 
     @abstractmethod
     def is_playing(self) -> bool:
-        """Check if audio is currently playing
-        
+        """Check if audio is currently playing.
+
         Returns:
             bool: True if audio is playing
         """
-        pass
 
     @abstractmethod
     def register_end_event_callback(self, callback: Callable[[], None]) -> bool:
-        """Register a callback to be called when playback ends
-        
+        """Register a callback to be called when playback ends.
+
         Args:
             callback: Function to call when playback ends
-            
+
         Returns:
             bool: True if registration was successful
         """
-        pass
 
     @abstractmethod
     def get_duration(self, file_path: Path) -> float:
-        """Get the duration of an audio file in seconds
-        
+        """Get the duration of an audio file in seconds.
+
         Args:
             file_path: Path to the audio file
-            
+
         Returns:
             float: Duration in seconds
         """
-        pass

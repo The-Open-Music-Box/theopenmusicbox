@@ -46,3 +46,5 @@ htmlcov/
 *.db
 uploads/
 static/
+pydocstyle_report.txt
+isort_report.txt

@@ -1,31 +1,38 @@
-from enum import Enum
-from typing import Optional, Dict, Any
 from dataclasses import dataclass
+from enum import Enum
+from typing import Any, Dict, Optional
+
 
 class ErrorSeverity(Enum):
-    """Error severity levels"""
+    """Error severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
     FATAL = "fatal"
 
+
 class ErrorCategory(Enum):
-    """Main error categories"""
+    """Main error categories."""
+
     HARDWARE = "hardware"
     CONFIGURATION = "configuration"
     TIMEOUT = "timeout"
 
+
 @dataclass
 class ErrorContext:
-    """Enriched context for exceptions"""
+    """Enriched context for exceptions."""
+
     category: ErrorCategory
     component: str
     operation: str
     details: Optional[Dict[str, Any]] = None
     error_code: Optional[int] = None
 
+
 class AppError(Exception):
-    """Unified base exception for the application"""
+    """Unified base exception for the application."""
 
     def __init__(
         self,
@@ -42,7 +49,7 @@ class AppError(Exception):
             component=component,
             operation=operation,
             details=details,
-            error_code=error_code
+            error_code=error_code,
         )
         self.severity = severity
         self.message = message
@@ -63,7 +70,7 @@ class AppError(Exception):
             component=component,
             operation=operation,
             severity=ErrorSeverity.HIGH,
-            **kwargs
+            **kwargs,
         )
 
     @classmethod
@@ -74,24 +81,26 @@ class AppError(Exception):
             component="configuration",
             operation=f"validate_{config_key}",
             severity=ErrorSeverity.FATAL,
-            **kwargs
+            **kwargs,
         )
 
     @classmethod
-    def timeout_error(cls, component: str, operation: str, timeout_value: float, **kwargs):
+    def timeout_error(
+        cls, component: str, operation: str, timeout_value: float, **kwargs
+    ):
         return cls(
             message=f"Operation timed out after {timeout_value}s",
             category=ErrorCategory.TIMEOUT,
             component=component,
             operation=operation,
             details={"timeout_value": timeout_value},
-            **kwargs
+            **kwargs,
         )
 
+
 class InvalidFileError(Exception):
-    """Exception raised when a file is invalid"""
-    pass
+    """Exception raised when a file is invalid."""
+
 
 class ProcessingError(Exception):
-    """Exception raised during file processing"""
-    pass
+    """Exception raised during file processing."""

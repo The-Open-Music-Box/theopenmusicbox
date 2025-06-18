@@ -1,12 +1,12 @@
-"""
-Test utilities for TheOpenMusicBox.
+"""Test utilities for TheOpenMusicBox.
 
-This module provides utility functions and classes to assist with testing
-various components of the application.
+This module provides utility functions and classes to assist with
+testing various components of the application.
 """
+
 import asyncio
-from unittest.mock import MagicMock
 import uuid
+from unittest.mock import MagicMock
 
 
 class AsyncTestHelper:
@@ -14,8 +14,7 @@ class AsyncTestHelper:
 
     @staticmethod
     async def wait_for_condition(condition_func, timeout=1.0, interval=0.05):
-        """
-        Wait for a condition to become true.
+        """Wait for a condition to become true.
 
         Args:
             condition_func: A function that returns True when the condition is met
@@ -37,8 +36,7 @@ class MockHelpers:
 
     @staticmethod
     def create_playlist(playlist_id=None, title="Test Playlist", track_count=2):
-        """
-        Create a mock playlist with the specified number of tracks.
+        """Create a mock playlist with the specified number of tracks.
 
         Args:
             playlist_id: Optional playlist ID (generated if not provided)
@@ -53,15 +51,17 @@ class MockHelpers:
 
         tracks = []
         for i in range(1, track_count + 1):
-            tracks.append({
-                "number": i,
-                "title": f"Track {i}",
-                "filename": f"track_{i}.mp3",
-                "duration": "3:00",
-                "artist": "Test Artist",
-                "album": "Test Album",
-                "play_counter": 0
-            })
+            tracks.append(
+                {
+                    "number": i,
+                    "title": f"Track {i}",
+                    "filename": f"track_{i}.mp3",
+                    "duration": "3:00",
+                    "artist": "Test Artist",
+                    "album": "Test Album",
+                    "play_counter": 0,
+                }
+            )
 
         return {
             "id": playlist_id,
@@ -69,13 +69,12 @@ class MockHelpers:
             "type": "playlist",
             "path": f"{title.lower().replace(' ', '_')}",
             "created_at": "2025-01-01T00:00:00Z",
-            "tracks": tracks
+            "tracks": tracks,
         }
 
     @staticmethod
     def create_mock_audio_player():
-        """
-        Create a mock audio player with common methods.
+        """Create a mock audio player with common methods.
 
         Returns:
             MagicMock configured as an audio player
@@ -91,8 +90,7 @@ class MockHelpers:
 
     @staticmethod
     def create_mock_nfc_service():
-        """
-        Create a mock NFC service.
+        """Create a mock NFC service.
 
         Returns:
             MagicMock configured as an NFC service
@@ -104,8 +102,7 @@ class MockHelpers:
 
 
 class EventCollector:
-    """
-    Collect events for testing asynchronous event-based code.
+    """Collect events for testing asynchronous event-based code.
 
     This class helps test code that emits events asynchronously by
     collecting the events and providing methods to wait for them.
@@ -117,8 +114,7 @@ class EventCollector:
         self.event_received = asyncio.Event()
 
     def callback(self, event):
-        """
-        Callback to be used as an event handler.
+        """Callback to be used as an event handler.
 
         Args:
             event: The event data
@@ -127,8 +123,7 @@ class EventCollector:
         self.event_received.set()
 
     async def wait_for_event(self, timeout=1.0):
-        """
-        Wait for an event to be received.
+        """Wait for an event to be received.
 
         Args:
             timeout: Maximum time to wait in seconds

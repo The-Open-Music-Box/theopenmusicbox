@@ -1,10 +1,12 @@
-"""
-Configuration parameters for NFC hardware and detection logic.
+"""Configuration parameters for NFC hardware and detection logic.
 
-This module provides a dedicated configuration class for NFC-related settings,
-allowing for centralized management and injection of these parameters.
+This module provides a dedicated configuration class for NFC-related
+settings, allowing for centralized management and injection of these
+parameters.
 """
+
 from dataclasses import dataclass
+
 
 @dataclass
 class NFCConfig:

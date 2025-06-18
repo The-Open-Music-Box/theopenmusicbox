@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
+
 from .track import Track
+
 
 @dataclass
 class Playlist:
-    """
-    Represents a playlist of audio tracks.
+    """Represents a playlist of audio tracks.
 
     Attributes:
         name: Name of the playlist
@@ -14,6 +15,7 @@ class Playlist:
         id: Optional unique identifier
         nfc_tag_id: Optional NFC tag associated with the playlist
     """
+
     name: str
     tracks: List[Track] = field(default_factory=list)
     description: Optional[str] = None
@@ -21,9 +23,8 @@ class Playlist:
     nfc_tag_id: Optional[str] = None
 
     @classmethod
-    def from_files(cls, name: str, file_paths: List[str], **kwargs) -> 'Playlist':
-        """
-        Create a playlist from a list of file paths.
+    def from_files(cls, name: str, file_paths: List[str], **kwargs) -> "Playlist":
+        """Create a playlist from a list of file paths.
 
         Args:
             name: Name of the playlist
@@ -40,8 +41,7 @@ class Playlist:
         return cls(name=name, tracks=tracks, **kwargs)
 
     def get_track(self, number: int) -> Optional[Track]:
-        """
-        Get track by number (1-based index).
+        """Get track by number (1-based index).
 
         Args:
             number: Track number to retrieve
@@ -55,8 +55,7 @@ class Playlist:
             return None
 
     def add_track(self, track: Track) -> None:
-        """
-        Add a track to the playlist.
+        """Add a track to the playlist.
 
         Args:
             track: Track to add
@@ -71,8 +70,7 @@ class Playlist:
         self.tracks.sort(key=lambda t: t.number)
 
     def remove_track(self, track_number: int) -> Optional[Track]:
-        """
-        Remove a track by number and return it.
+        """Remove a track by number and return it.
 
         Args:
             track_number: Number of the track to remove

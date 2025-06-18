@@ -1,38 +1,46 @@
-"""
-Pygame Audio Backend Implementation
+"""Pygame Audio Backend Implementation.
 
-This module implements the AudioBackend interface using pygame for audio playback.
+This module implements the AudioBackend interface using pygame for audio
+playback.
 """
 
+import functools
 import os
 import time
-import functools
-import pygame
 from pathlib import Path
-from typing import Callable, Optional, Dict, Any
+from typing import Callable, Dict
+
+import pygame
 from mutagen.mp3 import MP3
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.module.audio_player.audio_backend import AudioBackend
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 
 
 def handle_pygame_error(func):
     """Decorator to handle pygame errors consistently."""
+
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
         try:
             return func(self, *args, **kwargs)
         except pygame.error as e:
             if "video system not initialized" in str(e):
-                logger.log(LogLevel.WARNING, f"Video system error in {func.__name__}, reinitializing pygame...")
+                logger.log(
+                    LogLevel.WARNING,
+                    f"Video system error in {func.__name__}, reinitializing pygame...",
+                )
                 self._reinitialize_pygame()
                 # Try again after reinitialization
                 try:
                     return func(self, *args, **kwargs)
                 except Exception as retry_e:
-                    logger.log(LogLevel.ERROR, f"Error after reinitialization in {func.__name__}: {str(retry_e)}")
+                    logger.log(
+                        LogLevel.ERROR,
+                        f"Error after reinitialization in {func.__name__}: {str(retry_e)}",
+                    )
                     return False
             else:
                 logger.log(LogLevel.ERROR, f"Pygame error in {func.__name__}: {str(e)}")
@@ -40,20 +48,21 @@ def handle_pygame_error(func):
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error in {func.__name__}: {str(e)}")
             return False
+
     return wrapper
 
 
 class PygameAudioBackend(AudioBackend):
-    """Implementation of AudioBackend using pygame"""
+    """Implementation of AudioBackend using pygame."""
 
     # MARK: - Initialization and Setup
 
     def __init__(self):
-        """Initialize the pygame audio backend"""
+        """Initialize the pygame audio backend."""
         # Set environment variables BEFORE any pygame initialization
-        os.environ['SDL_AUDIODRIVER'] = 'alsa'   # Explicitly use ALSA
-        os.environ['SDL_AUDIODEV'] = 'hw:1'      # Target WM8960 (card 1)
-        os.environ['SDL_VIDEODRIVER'] = 'dummy'  # Disable video mode
+        os.environ["SDL_AUDIODRIVER"] = "alsa"  # Explicitly use ALSA
+        os.environ["SDL_AUDIODEV"] = "hw:1"  # Target WM8960 (card 1)
+        os.environ["SDL_VIDEODRIVER"] = "dummy"  # Disable video mode
 
         self._initialized = False
         self._end_event_callback = None
@@ -65,7 +74,7 @@ class PygameAudioBackend(AudioBackend):
         self._music_end_event = None
 
     def initialize(self) -> bool:
-        """Initialize the pygame audio system"""
+        """Initialize the pygame audio system."""
         try:
             # Initialize the mixer module with specific parameters for Raspberry Pi
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
@@ -90,7 +99,9 @@ class PygameAudioBackend(AudioBackend):
             except Exception as e:
                 logger.log(LogLevel.WARNING, f"Could not set default volume: {str(e)}")
 
-            logger.log(LogLevel.INFO, "✓ Pygame audio backend initialized (audio-only mode)")
+            logger.log(
+                LogLevel.INFO, "✓ Pygame audio backend initialized (audio-only mode)"
+            )
             return True
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Failed to initialize pygame audio: {str(e)}")
@@ -99,7 +110,7 @@ class PygameAudioBackend(AudioBackend):
     # MARK: - Lifecycle Methods
 
     def shutdown(self) -> bool:
-        """Shut down the pygame audio system"""
+        """Shut down the pygame audio system."""
         try:
             if self._initialized:
                 pygame.mixer.quit()
@@ -115,7 +126,7 @@ class PygameAudioBackend(AudioBackend):
 
     @handle_pygame_error
     def load(self, file_path: Path) -> bool:
-        """Load an audio file for playback"""
+        """Load an audio file for playback."""
         if not self._initialized:
             logger.log(LogLevel.WARNING, "Cannot load file - pygame not initialized")
             return False
@@ -129,7 +140,7 @@ class PygameAudioBackend(AudioBackend):
 
     @handle_pygame_error
     def play(self) -> bool:
-        """Start playing the loaded audio"""
+        """Start playing the loaded audio."""
         try:
             if not self._initialized:
                 logger.log(LogLevel.WARNING, "Cannot play - pygame not initialized")
@@ -146,17 +157,21 @@ class PygameAudioBackend(AudioBackend):
             except pygame.error as e:
                 # If we get a video system error, try to reinitialize pygame
                 if "video system not initialized" in str(e):
-                    logger.log(LogLevel.WARNING, "Video system error, reinitializing pygame...")
+                    logger.log(
+                        LogLevel.WARNING, "Video system error, reinitializing pygame..."
+                    )
                     # Reinitialize pygame with only the audio system
                     pygame.mixer.quit()
                     pygame.quit()
 
                     # Set environment variables again
-                    os.environ['SDL_VIDEODRIVER'] = 'dummy'
+                    os.environ["SDL_VIDEODRIVER"] = "dummy"
                     # SDL_AUDIODRIVER is not set here to allow auto-detection
 
                     # Initialize mixer first, then pygame
-                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                    pygame.mixer.init(
+                        frequency=44100, size=-16, channels=2, buffer=1024
+                    )
                     pygame.init()
 
                     # Set the volume again
@@ -182,7 +197,7 @@ class PygameAudioBackend(AudioBackend):
 
     @handle_pygame_error
     def pause(self) -> bool:
-        """Pause the currently playing audio"""
+        """Pause the currently playing audio."""
         if not self._initialized or not self.is_playing():
             return False
 
@@ -201,7 +216,7 @@ class PygameAudioBackend(AudioBackend):
 
     @handle_pygame_error
     def resume(self) -> bool:
-        """Resume playback from a paused state"""
+        """Resume playback from a paused state."""
         try:
             if not self._initialized:
                 return False
@@ -218,17 +233,22 @@ class PygameAudioBackend(AudioBackend):
                 except pygame.error as e:
                     # If we get a video system error, try to reinitialize pygame
                     if "video system not initialized" in str(e):
-                        logger.log(LogLevel.WARNING, "Video system error during resume, reinitializing pygame...")
+                        logger.log(
+                            LogLevel.WARNING,
+                            "Video system error during resume, reinitializing pygame...",
+                        )
                         # Reinitialize pygame with only the audio system
                         pygame.mixer.quit()
                         pygame.quit()
 
                         # Set environment variables again
-                        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+                        os.environ["SDL_VIDEODRIVER"] = "dummy"
                         # SDL_AUDIODRIVER is not set here to allow auto-detection
 
                         # Initialize mixer first, then pygame
-                        pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                        pygame.mixer.init(
+                            frequency=44100, size=-16, channels=2, buffer=1024
+                        )
                         pygame.init()
 
                         # Set the volume again
@@ -240,16 +260,24 @@ class PygameAudioBackend(AudioBackend):
                             pygame.mixer.music.play(start=self._paused_position)
                             # Update the start time to account for the new position
                             self._start_time = time.time() - self._paused_position
-                            logger.log(LogLevel.INFO, f"Resumed from position: {self._paused_position:.2f}s (reloaded)")
+                            logger.log(
+                                LogLevel.INFO,
+                                f"Resumed from position: {self._paused_position:.2f}s (reloaded)",
+                            )
                             return True
                     else:
                         # If it's not a video system error, re-raise it
                         raise
 
                 # Adjust start time to account for the pause duration
-                pause_duration = time.time() - (self._start_time + self._paused_position)
+                pause_duration = time.time() - (
+                    self._start_time + self._paused_position
+                )
                 self._start_time += pause_duration
-                logger.log(LogLevel.INFO, f"Resumed from position: {self._paused_position:.2f}s")
+                logger.log(
+                    LogLevel.INFO,
+                    f"Resumed from position: {self._paused_position:.2f}s",
+                )
                 return True
             return False
         except Exception as e:
@@ -258,7 +286,7 @@ class PygameAudioBackend(AudioBackend):
 
     @handle_pygame_error
     def stop(self) -> bool:
-        """Stop playback and unload the current audio file"""
+        """Stop playback and unload the current audio file."""
         if not self._initialized:
             return False
 
@@ -278,7 +306,7 @@ class PygameAudioBackend(AudioBackend):
 
     @handle_pygame_error
     def set_position(self, position_seconds: float) -> bool:
-        """Set the playback position"""
+        """Set the playback position."""
         try:
             if not self._initialized or not self._current_file:
                 return False
@@ -302,17 +330,22 @@ class PygameAudioBackend(AudioBackend):
             except pygame.error as e:
                 # If we get a video system error, try to reinitialize pygame
                 if "video system not initialized" in str(e):
-                    logger.log(LogLevel.WARNING, "Video system error during position setting, reinitializing pygame...")
+                    logger.log(
+                        LogLevel.WARNING,
+                        "Video system error during position setting, reinitializing pygame...",
+                    )
                     # Reinitialize pygame with only the audio system
                     pygame.mixer.quit()
                     pygame.quit()
 
                     # Set environment variables again
-                    os.environ['SDL_VIDEODRIVER'] = 'dummy'
+                    os.environ["SDL_VIDEODRIVER"] = "dummy"
                     # SDL_AUDIODRIVER is not set here to allow auto-detection
 
                     # Initialize mixer first, then pygame
-                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                    pygame.mixer.init(
+                        frequency=44100, size=-16, channels=2, buffer=1024
+                    )
                     pygame.init()
 
                     # Set the volume again
@@ -336,7 +369,7 @@ class PygameAudioBackend(AudioBackend):
             return False
 
     def get_position(self) -> float:
-        """Get the current playback position in seconds"""
+        """Get the current playback position in seconds."""
         if not self._initialized or not self._current_file:
             return 0.0
 
@@ -350,33 +383,45 @@ class PygameAudioBackend(AudioBackend):
     # MARK: - Volume Control
 
     @handle_pygame_error
-    def set_volume(self, volume: int) -> bool: # Expects 0-100
-        """Set the playback volume"""
+    def set_volume(self, volume: int) -> bool:  # Expects 0-100
+        """Set the playback volume."""
         if not self._initialized:
-            logger.log(LogLevel.WARNING, "PygameAudioBackend not initialized, cannot set volume.")
+            logger.log(
+                LogLevel.WARNING,
+                "PygameAudioBackend not initialized, cannot set volume.",
+            )
             return False
 
         # Make sure the mixer is initialized
         if not pygame.mixer.get_init():
-            logger.log(LogLevel.WARNING, "Pygame mixer not initialized, attempting to reinitialize before setting volume...")
+            logger.log(
+                LogLevel.WARNING,
+                "Pygame mixer not initialized, attempting to reinitialize before setting volume...",
+            )
             # Attempt re-initialization, but proceed cautiously
-            if not self.initialize(): # This will re-run init with proper SDL_AUDIODEV
-                 logger.log(LogLevel.ERROR, "Failed to reinitialize Pygame mixer, cannot set volume.")
-                 return False
+            if not self.initialize():  # This will re-run init with proper SDL_AUDIODEV
+                logger.log(
+                    LogLevel.ERROR,
+                    "Failed to reinitialize Pygame mixer, cannot set volume.",
+                )
+                return False
 
         # Convert from 0-100 to 0.0-1.0
         volume_float = max(0.0, min(1.0, volume / 100.0))
 
         # Store the volume (0-100) in the instance variable
-        self._volume = volume # This _volume is specific to PygameAudioBackend instance
+        self._volume = volume  # This _volume is specific to PygameAudioBackend instance
 
         # Set the pygame mixer volume
         pygame.mixer.music.set_volume(volume_float)
-        logger.log(LogLevel.INFO, f"PygameAudioBackend: Set internal volume to {self._volume}%, pygame mixer volume to {volume_float:.2f}")
+        logger.log(
+            LogLevel.INFO,
+            f"PygameAudioBackend: Set internal volume to {self._volume}%, pygame mixer volume to {volume_float:.2f}",
+        )
         return True
 
-    def get_volume(self) -> int: # Returns 0-100
-        """Get the current volume"""
+    def get_volume(self) -> int:  # Returns 0-100
+        """Get the current volume."""
         if not self._initialized:
             return 0
 
@@ -390,8 +435,11 @@ class PygameAudioBackend(AudioBackend):
         except pygame.error as e:
             # If we get a video system error, return default volume
             if "video system not initialized" in str(e):
-                logger.log(LogLevel.WARNING, "Video system error during get_volume, returning default volume")
-                return self._volume if hasattr(self, '_volume') else 100
+                logger.log(
+                    LogLevel.WARNING,
+                    "Video system error during get_volume, returning default volume",
+                )
+                return self._volume if hasattr(self, "_volume") else 100
             # For other errors, return default but log them
             logger.log(LogLevel.ERROR, f"Error getting volume: {str(e)}")
             return 0
@@ -402,7 +450,7 @@ class PygameAudioBackend(AudioBackend):
     # MARK: - Status Methods
 
     def is_playing(self) -> bool:
-        """Check if audio is currently playing"""
+        """Check if audio is currently playing."""
         if not self._initialized:
             return False
 
@@ -415,7 +463,9 @@ class PygameAudioBackend(AudioBackend):
         except pygame.error as e:
             # If we get a video system error, return False
             if "video system not initialized" in str(e):
-                logger.log(LogLevel.WARNING, "Video system error during is_playing check")
+                logger.log(
+                    LogLevel.WARNING, "Video system error during is_playing check"
+                )
                 return False
             # For other errors, also return False but log them
             logger.log(LogLevel.ERROR, f"Error checking playback status: {str(e)}")
@@ -427,7 +477,7 @@ class PygameAudioBackend(AudioBackend):
     # MARK: - Event Handling and Metadata
 
     def register_end_event_callback(self, callback: Callable[[], None]) -> bool:
-        """Register a callback to be called when playback ends"""
+        """Register a callback to be called when playback ends."""
         if not self._initialized:
             return False
 
@@ -435,7 +485,7 @@ class PygameAudioBackend(AudioBackend):
         return True
 
     def get_duration(self, file_path: Path) -> float:
-        """Get the duration of an audio file in seconds"""
+        """Get the duration of an audio file in seconds."""
         file_path_str = str(file_path)
 
         # Check if duration is cached
@@ -444,7 +494,7 @@ class PygameAudioBackend(AudioBackend):
 
         try:
             duration = 0.0
-            if file_path_str.lower().endswith('.mp3'):
+            if file_path_str.lower().endswith(".mp3"):
                 audio = MP3(file_path_str)
                 duration = audio.info.length
 
@@ -463,8 +513,8 @@ class PygameAudioBackend(AudioBackend):
             pygame.quit()
 
             # Set environment variables again
-            os.environ['SDL_VIDEODRIVER'] = 'dummy'
-            os.environ['SDL_AUDIODRIVER'] = 'alsa'
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
+            os.environ["SDL_AUDIODRIVER"] = "alsa"
 
             # Initialize mixer with specific parameters
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
@@ -488,7 +538,7 @@ class PygameAudioBackend(AudioBackend):
             return False
 
     def process_events(self):
-        """Process pygame events to detect track end"""
+        """Process pygame events to detect track end."""
         if not self._initialized:
             return
 
@@ -499,7 +549,9 @@ class PygameAudioBackend(AudioBackend):
                     self._end_event_callback()
         except pygame.error as e:
             if "video system not initialized" in str(e):
-                logger.log(LogLevel.WARNING, "Video system error during event processing")
+                logger.log(
+                    LogLevel.WARNING, "Video system error during event processing"
+                )
                 self._reinitialize_pygame()
             else:
                 logger.log(LogLevel.ERROR, f"Error processing events: {str(e)}")

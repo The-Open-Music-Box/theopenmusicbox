@@ -1,28 +1,30 @@
 import sqlite3
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, List, Optional
 from uuid import uuid4
 
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.config import config
 
 logger = ImprovedLogger(__name__)
 
+
 class PlaylistRepository:
-    """
-    Repository for accessing playlist and track data in the database.
-    Responsible only for low-level CRUD operations without business logic.
+    """Repository for accessing playlist and track data in the database.
+
+    Responsible only for low-level CRUD operations without business
+    logic.
     """
 
     def __init__(self, config_obj=None):
-        """
-        Initializes the repository with the database path from the configuration.
+        """Initializes the repository with the database path from the
+        configuration.
 
         Args:
             config_obj: Optional configuration object (defaults to global config)
         """
         from app.src.config import config as global_config
+
         self.config = config_obj or global_config
         self.db_path = Path(self.config.db_file)
         self._ensure_db_directory()
@@ -37,7 +39,8 @@ class PlaylistRepository:
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
                 conn.execute("PRAGMA foreign_keys = ON")
-                conn.execute('''
+                conn.execute(
+                    """
                 CREATE TABLE IF NOT EXISTS playlists (
                     id TEXT PRIMARY KEY,
                     type TEXT NOT NULL,
@@ -47,9 +50,11 @@ class PlaylistRepository:
                     created_at TEXT NOT NULL,
                     last_played TEXT
                 )
-                ''')
+                """
+                )
 
-                conn.execute('''
+                conn.execute(
+                    """
                 CREATE TABLE IF NOT EXISTS tracks (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     playlist_id TEXT NOT NULL,
@@ -62,10 +67,15 @@ class PlaylistRepository:
                     play_counter INTEGER DEFAULT 0,
                     FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
                 )
-                ''')
+                """
+                )
 
-                conn.execute('CREATE INDEX IF NOT EXISTS idx_playlists_nfc_tag ON playlists(nfc_tag_id)')
-                conn.execute('CREATE INDEX IF NOT EXISTS idx_tracks_playlist ON tracks(playlist_id)')
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_playlists_nfc_tag ON playlists(nfc_tag_id)"
+                )
+                conn.execute(
+                    "CREATE INDEX IF NOT EXISTS idx_tracks_playlist ON tracks(playlist_id)"
+                )
 
                 conn.commit()
                 logger.log(LogLevel.INFO, f"Database initialized at {self.db_path}")
@@ -77,9 +87,10 @@ class PlaylistRepository:
         """Converts a SQLite row to a dictionary."""
         return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
-    def get_all_playlists(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
-        """
-        Retrieves all playlists with their tracks.
+    def get_all_playlists(
+        self, limit: int = 50, offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Retrieves all playlists with their tracks.
 
         Returns:
             List of dictionaries representing the playlists
@@ -88,21 +99,23 @@ class PlaylistRepository:
             with sqlite3.connect(str(self.db_path)) as conn:
                 conn.row_factory = self._dict_factory
                 playlists = conn.execute(
-                    "SELECT * FROM playlists LIMIT ? OFFSET ?",
-                    (limit, offset)
+                    "SELECT * FROM playlists LIMIT ? OFFSET ?", (limit, offset)
                 ).fetchall()
 
                 for playlist in playlists:
-                    playlist['tracks'] = self._get_tracks_for_playlist(conn, playlist['id'], limit, offset)
+                    playlist["tracks"] = self._get_tracks_for_playlist(
+                        conn, playlist["id"], limit, offset
+                    )
 
                 return playlists
         except sqlite3.Error as e:
             logger.log(LogLevel.ERROR, f"Error fetching playlists: {str(e)}")
             return []
 
-    def _get_tracks_for_playlist(self, conn, playlist_id: str, limit: int = 1000, offset: int = 0) -> List[Dict[str, Any]]:
-        """
-        Retrieves the tracks of a playlist.
+    def _get_tracks_for_playlist(
+        self, conn, playlist_id: str, limit: int = 1000, offset: int = 0
+    ) -> List[Dict[str, Any]]:
+        """Retrieves the tracks of a playlist.
 
         Args:
             conn: SQLite connection
@@ -113,12 +126,13 @@ class PlaylistRepository:
         """
         return conn.execute(
             "SELECT * FROM tracks WHERE playlist_id = ? ORDER BY number LIMIT ? OFFSET ?",
-            (playlist_id, limit, offset)
+            (playlist_id, limit, offset),
         ).fetchall()
 
-    def get_playlist_by_id(self, playlist_id: str, track_limit: int = 1000, track_offset: int = 0) -> Optional[Dict[str, Any]]:
-        """
-        Retrieves a playlist by its ID.
+    def get_playlist_by_id(
+        self, playlist_id: str, track_limit: int = 1000, track_offset: int = 0
+    ) -> Optional[Dict[str, Any]]:
+        """Retrieves a playlist by its ID.
 
         Args:
             playlist_id: Playlist ID
@@ -131,22 +145,24 @@ class PlaylistRepository:
                 conn.row_factory = self._dict_factory
 
                 playlist = conn.execute(
-                    "SELECT * FROM playlists WHERE id = ?",
-                    (playlist_id,)
+                    "SELECT * FROM playlists WHERE id = ?", (playlist_id,)
                 ).fetchone()
 
                 if not playlist:
                     return None
 
-                playlist['tracks'] = self._get_tracks_for_playlist(conn, playlist_id, limit=track_limit, offset=track_offset)
+                playlist["tracks"] = self._get_tracks_for_playlist(
+                    conn, playlist_id, limit=track_limit, offset=track_offset
+                )
                 return playlist
         except sqlite3.Error as e:
-            logger.log(LogLevel.ERROR, f"Error fetching playlist {playlist_id}: {str(e)}")
+            logger.log(
+                LogLevel.ERROR, f"Error fetching playlist {playlist_id}: {str(e)}"
+            )
             return None
 
     def get_playlist_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieves a playlist by its NFC tag.
+        """Retrieves a playlist by its NFC tag.
 
         Args:
             nfc_tag_id: NFC tag ID
@@ -159,22 +175,23 @@ class PlaylistRepository:
                 conn.row_factory = self._dict_factory
 
                 playlist = conn.execute(
-                    "SELECT * FROM playlists WHERE nfc_tag_id = ?",
-                    (nfc_tag_id,)
+                    "SELECT * FROM playlists WHERE nfc_tag_id = ?", (nfc_tag_id,)
                 ).fetchone()
 
                 if not playlist:
                     return None
 
-                playlist['tracks'] = self._get_tracks_for_playlist(conn, playlist['id'])
+                playlist["tracks"] = self._get_tracks_for_playlist(conn, playlist["id"])
                 return playlist
         except sqlite3.Error as e:
-            logger.log(LogLevel.ERROR, f"Error fetching playlist by NFC tag {nfc_tag_id}: {str(e)}")
+            logger.log(
+                LogLevel.ERROR,
+                f"Error fetching playlist by NFC tag {nfc_tag_id}: {str(e)}",
+            )
             return None
 
     def create_playlist(self, playlist_data: Dict[str, Any]) -> Optional[str]:
-        """
-        Creates a new playlist.
+        """Creates a new playlist.
 
         Args:
             playlist_data: Data of the playlist to create
@@ -185,39 +202,43 @@ class PlaylistRepository:
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
                 # Insertion de la playlist
-                playlist_id = playlist_data.get('id') or str(uuid4())
+                playlist_id = playlist_data.get("id") or str(uuid4())
 
                 conn.execute(
-                    '''
+                    """
                     INSERT INTO playlists (id, type, nfc_tag_id, title, path, created_at, last_played)
                     VALUES (?, ?, ?, ?, ?, ?, ?)
-                    ''',
+                    """,
                     (
                         playlist_id,
-                        playlist_data.get('type', 'playlist'),
-                        playlist_data.get('nfc_tag_id'),
-                        playlist_data['title'],
-                        playlist_data['path'],
-                        playlist_data.get('created_at', datetime.now(timezone.utc).isoformat()),
-                        playlist_data.get('last_played')
-                    )
+                        playlist_data.get("type", "playlist"),
+                        playlist_data.get("nfc_tag_id"),
+                        playlist_data["title"],
+                        playlist_data["path"],
+                        playlist_data.get(
+                            "created_at", datetime.now(timezone.utc).isoformat()
+                        ),
+                        playlist_data.get("last_played"),
+                    ),
                 )
 
                 # Insertion des pistes
-                if 'tracks' in playlist_data and playlist_data['tracks']:
-                    for track in playlist_data['tracks']:
+                if "tracks" in playlist_data and playlist_data["tracks"]:
+                    for track in playlist_data["tracks"]:
                         self._insert_track(conn, playlist_id, track)
 
                 conn.commit()
-                logger.log(LogLevel.INFO, f"Created playlist: {playlist_data['title']} (ID: {playlist_id})")
+                logger.log(
+                    LogLevel.INFO,
+                    f"Created playlist: {playlist_data['title']} (ID: {playlist_id})",
+                )
                 return playlist_id
         except sqlite3.Error as e:
             logger.log(LogLevel.ERROR, f"Error creating playlist: {str(e)}")
             return None
 
     def _insert_track(self, conn, playlist_id: str, track_data: Dict[str, Any]) -> None:
-        """
-        Inserts a track into the database.
+        """Inserts a track into the database.
 
         Args:
             conn: SQLite connection
@@ -225,25 +246,24 @@ class PlaylistRepository:
             track_data: Data of the track
         """
         conn.execute(
-            '''
+            """
             INSERT INTO tracks (playlist_id, number, title, filename, duration, artist, album, play_counter)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''',
+            """,
             (
                 playlist_id,
-                track_data['number'],
-                track_data.get('title', f"Track {track_data['number']}"),
-                track_data['filename'],
-                track_data.get('duration', ''),
-                track_data.get('artist', 'Unknown'),
-                track_data.get('album', 'Unknown'),
-                track_data.get('play_counter', 0)
-            )
+                track_data["number"],
+                track_data.get("title", f"Track {track_data['number']}"),
+                track_data["filename"],
+                track_data.get("duration", ""),
+                track_data.get("artist", "Unknown"),
+                track_data.get("album", "Unknown"),
+                track_data.get("play_counter", 0),
+            ),
         )
 
     def update_playlist(self, playlist_id: str, updated_data: Dict[str, Any]) -> bool:
-        """
-        Updates the information of a playlist.
+        """Updates the information of a playlist.
 
         Args:
             playlist_id: Playlist ID
@@ -256,8 +276,7 @@ class PlaylistRepository:
             with sqlite3.connect(str(self.db_path)) as conn:
                 # Check that the playlist exists
                 playlist = conn.execute(
-                    "SELECT id FROM playlists WHERE id = ?",
-                    (playlist_id,)
+                    "SELECT id FROM playlists WHERE id = ?", (playlist_id,)
                 ).fetchone()
 
                 if not playlist:
@@ -265,7 +284,7 @@ class PlaylistRepository:
                     return False
 
                 # Mise à jour des champs autorisés
-                allowed_fields = ['title', 'nfc_tag_id', 'last_played']
+                allowed_fields = ["title", "nfc_tag_id", "last_played"]
                 update_parts = []
                 params = []
 
@@ -275,7 +294,9 @@ class PlaylistRepository:
                         params.append(updated_data[field])
 
                 if update_parts:
-                    query = f"UPDATE playlists SET {', '.join(update_parts)} WHERE id = ?"
+                    query = (
+                        f"UPDATE playlists SET {', '.join(update_parts)} WHERE id = ?"
+                    )
                     params.append(playlist_id)
                     conn.execute(query, params)
                     conn.commit()
@@ -284,12 +305,13 @@ class PlaylistRepository:
 
                 return False
         except sqlite3.Error as e:
-            logger.log(LogLevel.ERROR, f"Error updating playlist {playlist_id}: {str(e)}")
+            logger.log(
+                LogLevel.ERROR, f"Error updating playlist {playlist_id}: {str(e)}"
+            )
             return False
 
     def replace_tracks(self, playlist_id: str, tracks: List[Dict[str, Any]]) -> bool:
-        """
-        Replaces all tracks of a playlist.
+        """Replaces all tracks of a playlist.
 
         Args:
             playlist_id: Playlist ID
@@ -302,8 +324,7 @@ class PlaylistRepository:
             with sqlite3.connect(str(self.db_path)) as conn:
                 # Check that the playlist exists
                 playlist = conn.execute(
-                    "SELECT id FROM playlists WHERE id = ?",
-                    (playlist_id,)
+                    "SELECT id FROM playlists WHERE id = ?", (playlist_id,)
                 ).fetchone()
 
                 if not playlist:
@@ -318,15 +339,20 @@ class PlaylistRepository:
                     self._insert_track(conn, playlist_id, track)
 
                 conn.commit()
-                logger.log(LogLevel.INFO, f"Replaced tracks for playlist {playlist_id} ({len(tracks)} tracks)")
+                logger.log(
+                    LogLevel.INFO,
+                    f"Replaced tracks for playlist {playlist_id} ({len(tracks)} tracks)",
+                )
                 return True
         except sqlite3.Error as e:
-            logger.log(LogLevel.ERROR, f"Error replacing tracks for playlist {playlist_id}: {str(e)}")
+            logger.log(
+                LogLevel.ERROR,
+                f"Error replacing tracks for playlist {playlist_id}: {str(e)}",
+            )
             return False
 
     def delete_playlist(self, playlist_id: str) -> bool:
-        """
-        Deletes a playlist and all its tracks.
+        """Deletes a playlist and all its tracks.
 
         Args:
             playlist_id: Playlist ID
@@ -338,8 +364,7 @@ class PlaylistRepository:
             with sqlite3.connect(str(self.db_path)) as conn:
                 # Check that the playlist exists
                 playlist = conn.execute(
-                    "SELECT id FROM playlists WHERE id = ?",
-                    (playlist_id,)
+                    "SELECT id FROM playlists WHERE id = ?", (playlist_id,)
                 ).fetchone()
 
                 if not playlist:
@@ -352,12 +377,13 @@ class PlaylistRepository:
                 logger.log(LogLevel.INFO, f"Deleted playlist: {playlist_id}")
                 return True
         except sqlite3.Error as e:
-            logger.log(LogLevel.ERROR, f"Error deleting playlist {playlist_id}: {str(e)}")
+            logger.log(
+                LogLevel.ERROR, f"Error deleting playlist {playlist_id}: {str(e)}"
+            )
             return False
 
     def update_track_counter(self, playlist_id: str, track_number: int) -> bool:
-        """
-        Increments the play counter of a track.
+        """Increments the play counter of a track.
 
         Args:
             playlist_id: Playlist ID
@@ -370,7 +396,7 @@ class PlaylistRepository:
             with sqlite3.connect(str(self.db_path)) as conn:
                 conn.execute(
                     "UPDATE tracks SET play_counter = play_counter + 1 WHERE playlist_id = ? AND number = ?",
-                    (playlist_id, track_number)
+                    (playlist_id, track_number),
                 )
                 conn.commit()
                 return True
@@ -379,8 +405,7 @@ class PlaylistRepository:
             return False
 
     def associate_nfc_tag(self, playlist_id: str, nfc_tag_id: str) -> bool:
-        """
-        Associates an NFC tag with a playlist.
+        """Associates an NFC tag with a playlist.
 
         Args:
             playlist_id: Playlist ID
@@ -394,28 +419,33 @@ class PlaylistRepository:
                 # Check if the tag is already associated with another playlist
                 existing = conn.execute(
                     "SELECT id FROM playlists WHERE nfc_tag_id = ? AND id != ?",
-                    (nfc_tag_id, playlist_id)
+                    (nfc_tag_id, playlist_id),
                 ).fetchone()
 
                 if existing:
-                    logger.log(LogLevel.WARNING, f"NFC tag {nfc_tag_id} already associated with playlist {existing[0]}")
+                    logger.log(
+                        LogLevel.WARNING,
+                        f"NFC tag {nfc_tag_id} already associated with playlist {existing[0]}",
+                    )
                     return False
 
                 # Associate the tag with the playlist
                 conn.execute(
                     "UPDATE playlists SET nfc_tag_id = ? WHERE id = ?",
-                    (nfc_tag_id, playlist_id)
+                    (nfc_tag_id, playlist_id),
                 )
                 conn.commit()
-                logger.log(LogLevel.INFO, f"Associated NFC tag {nfc_tag_id} with playlist {playlist_id}")
+                logger.log(
+                    LogLevel.INFO,
+                    f"Associated NFC tag {nfc_tag_id} with playlist {playlist_id}",
+                )
                 return True
         except sqlite3.Error as e:
             logger.log(LogLevel.ERROR, f"Error associating NFC tag: {str(e)}")
             return False
 
     def disassociate_nfc_tag(self, playlist_id: str) -> bool:
-        """
-        Removes the association of an NFC tag with a playlist.
+        """Removes the association of an NFC tag with a playlist.
 
         Args:
             playlist_id: Playlist ID
@@ -427,10 +457,12 @@ class PlaylistRepository:
             with sqlite3.connect(str(self.db_path)) as conn:
                 conn.execute(
                     "UPDATE playlists SET nfc_tag_id = NULL WHERE id = ?",
-                    (playlist_id,)
+                    (playlist_id,),
                 )
                 conn.commit()
-                logger.log(LogLevel.INFO, f"Disassociated NFC tag from playlist {playlist_id}")
+                logger.log(
+                    LogLevel.INFO, f"Disassociated NFC tag from playlist {playlist_id}"
+                )
                 return True
         except sqlite3.Error as e:
             logger.log(LogLevel.ERROR, f"Error disassociating NFC tag: {str(e)}")

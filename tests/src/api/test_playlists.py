@@ -1,7 +1,7 @@
 import uuid
-import pytest
 
 # Fixtures are defined in conftest.py
+
 
 def test_list_playlists_empty(test_client_with_mock_db):
     client = test_client_with_mock_db
@@ -12,6 +12,7 @@ def test_list_playlists_empty(test_client_with_mock_db):
     assert isinstance(data, dict)
     assert "playlists" in data
     assert isinstance(data["playlists"], list)
+
 
 def test_create_and_get_playlist(test_client_with_mock_db):
     client = test_client_with_mock_db
@@ -29,6 +30,7 @@ def test_create_and_get_playlist(test_client_with_mock_db):
     assert fetched["id"] == playlist_id
     assert fetched["title"] == playlist_title
 
+
 def test_delete_playlist(test_client_with_mock_db):
     client = test_client_with_mock_db
     playlist_title = f"Delete Playlist {uuid.uuid4()}"
@@ -44,7 +46,9 @@ def test_delete_playlist(test_client_with_mock_db):
     assert response.status_code == 404
 
 
-def test_playback_track_switch(test_client_with_mock_db, dummy_audio, mock_playlist_with_tracks):
+def test_playback_track_switch(
+    test_client_with_mock_db, dummy_audio, mock_playlist_with_tracks
+):
     client = test_client_with_mock_db
     audio = dummy_audio
     playlist_id = mock_playlist_with_tracks
@@ -53,37 +57,43 @@ def test_playback_track_switch(test_client_with_mock_db, dummy_audio, mock_playl
     # Simulate a 'next' action
     client.post("/api/playlists/control", json={"action": "next"})
     # Check that the correct audio calls were made
-    assert audio.calls[0][0] == 'play'
-    assert audio.calls[1][0] == 'next'
+    assert audio.calls[0][0] == "play"
+    assert audio.calls[1][0] == "next"
 
 
-def test_playback_pause_resume(test_client_with_mock_db, dummy_audio, mock_playlist_with_tracks):
+def test_playback_pause_resume(
+    test_client_with_mock_db, dummy_audio, mock_playlist_with_tracks
+):
     client = test_client_with_mock_db
     audio = dummy_audio
     playlist_id = mock_playlist_with_tracks
     client.post(f"/api/playlists/{playlist_id}/play/1")
     client.post("/api/playlists/control", json={"action": "pause"})
     client.post("/api/playlists/control", json={"action": "resume"})
-    assert audio.calls[0][0] == 'play'
-    assert audio.calls[1][0] == 'pause'
-    assert audio.calls[2][0] == 'resume'
+    assert audio.calls[0][0] == "play"
+    assert audio.calls[1][0] == "pause"
+    assert audio.calls[2][0] == "resume"
 
 
-def test_playback_stop(test_client_with_mock_db, dummy_audio, mock_playlist_with_tracks):
+def test_playback_stop(
+    test_client_with_mock_db, dummy_audio, mock_playlist_with_tracks
+):
     client = test_client_with_mock_db
     audio = dummy_audio
     playlist_id = mock_playlist_with_tracks
     client.post(f"/api/playlists/{playlist_id}/play/1")
     client.post("/api/playlists/control", json={"action": "stop"})
-    assert audio.calls[0][0] == 'play'
-    assert audio.calls[1][0] == 'stop'
+    assert audio.calls[0][0] == "play"
+    assert audio.calls[1][0] == "stop"
 
 
-def test_playback_previous(test_client_with_mock_db, dummy_audio, mock_playlist_with_tracks):
+def test_playback_previous(
+    test_client_with_mock_db, dummy_audio, mock_playlist_with_tracks
+):
     client = test_client_with_mock_db
     audio = dummy_audio
     playlist_id = mock_playlist_with_tracks
     client.post(f"/api/playlists/{playlist_id}/play/2")  # Simulate playing track 2
     client.post("/api/playlists/control", json={"action": "previous"})
-    assert audio.calls[0][0] == 'play'
-    assert audio.calls[1][0] == 'previous'
+    assert audio.calls[0][0] == "play"
+    assert audio.calls[1][0] == "previous"

@@ -1,21 +1,23 @@
-from app.src.config import config
+from app.src.module.audio_player.audio_factory import get_audio_player
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.services.nfc_service import NFCService
 from app.src.services.notification_service import PlaybackSubject
 from app.src.services.playlist_service import PlaylistService
-from app.src.module.audio_player.audio_factory import get_audio_player
-from app.src.services.nfc_service import NFCService
 
 logger = ImprovedLogger(__name__)
 
-class ContainerAsync:
-    """
-    Asynchronous dependency injection container for backend services.
 
-    Provides access to configuration, NFC, LED, playback subject, playlist service, and audio player.
-    Handles initialization and cleanup of async resources required by the application.
+class ContainerAsync:
+    """Asynchronous dependency injection container for backend services.
+
+    Provides access to configuration, NFC, LED, playback subject,
+    playlist service, and audio player. Handles initialization and
+    cleanup of async resources required by the application.
     """
+
     def __init__(self, config_obj=None):
         from app.src.config import config as global_config
+
         self._config = config_obj or global_config
         self._nfc_handler = None
         self._nfc_service = None
@@ -39,28 +41,30 @@ class ContainerAsync:
     # set_init_socketio method removed as it was unused
 
     def set_socketio(self, socketio):
-        """Update the NFCService with the Socket.IO instance"""
+        """Update the NFCService with the Socket.IO instance."""
         if self._nfc_service:
             self._nfc_service.socketio = socketio
 
     @property
     def audio(self):
-        """
-        Returns a working AudioPlayer instance for playback.
+        """Returns a working AudioPlayer instance for playback.
+
         - On macOS/dev: returns a MockAudioPlayer (simulated playback)
         - On Raspberry Pi: returns the real hardware player
         """
         return self._audio
 
     async def initialize_async(self):
-        """
-        Initialize async resources that require coroutines.
-        This method should be called after the container creation but before using any async resources.
+        """Initialize async resources that require coroutines.
+
+        This method should be called after the container creation but
+        before using any async resources.
         """
         try:
             # Initialiser le NFC de manière asynchrone
-            from app.src.module.nfc.nfc_factory import get_nfc_handler
             import asyncio
+
+            from app.src.module.nfc.nfc_factory import get_nfc_handler
 
             # Create a lock asyncio for the I2C bus
             bus_lock = asyncio.Lock()
@@ -72,7 +76,7 @@ class ContainerAsync:
             # It will be linked with the playlist controller in Application._setup_nfc
             self._nfc_service = NFCService(
                 socketio=None,  # Will be set by main.py's set_socketio call
-                nfc_handler=self._nfc_handler
+                nfc_handler=self._nfc_handler,
             )
 
             # Start the NFC reader
@@ -82,16 +86,24 @@ class ContainerAsync:
             playlists = self._playlist_service.get_all_playlists(page=1, page_size=1000)
             self._nfc_service.load_mapping(playlists)
 
-            logger.log(LogLevel.INFO, f"NFC handler and service fully initialized: {type(self._nfc_handler).__name__}")
+            logger.log(
+                LogLevel.INFO,
+                f"NFC handler and service fully initialized: {type(self._nfc_handler).__name__}",
+            )
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Could not initialize NFC handler: {e}")
             import traceback
-            logger.log(LogLevel.DEBUG, f"NFC initialization error details: {traceback.format_exc()}")
+
+            logger.log(
+                LogLevel.DEBUG,
+                f"NFC initialization error details: {traceback.format_exc()}",
+            )
 
     async def cleanup_async(self):
-        """
-        Clean up all async resources before application shutdown.
-        Extend this method to close DB connections, stop background tasks, etc.
+        """Clean up all async resources before application shutdown.
+
+        Extend this method to close DB connections, stop background
+        tasks, etc.
         """
         logger.log(LogLevel.INFO, "Starting async resource cleanup...")
 

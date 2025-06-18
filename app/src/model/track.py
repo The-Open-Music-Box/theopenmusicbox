@@ -2,10 +2,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
+
 @dataclass
 class Track:
-    """
-    Represents an audio track in a playlist.
+    """Represents an audio track in a playlist.
 
     Attributes:
         number: Position in the playlist (1-based)
@@ -16,6 +16,7 @@ class Track:
         artist: Optional artist name
         album: Optional album name
     """
+
     number: int
     title: str
     filename: str
@@ -31,9 +32,8 @@ class Track:
         return self.path.exists()
 
     @classmethod
-    def from_file(cls, file_path: str, number: int = 1) -> 'Track':
-        """
-        Create a track from a file path.
+    def from_file(cls, file_path: str, number: int = 1) -> "Track":
+        """Create a track from a file path.
 
         Args:
             file_path: Path to the audio file
@@ -43,12 +43,7 @@ class Track:
             A new Track instance
         """
         path = Path(file_path)
-        return cls(
-            number=number,
-            title=path.stem,
-            filename=path.name,
-            path=path
-        )
+        return cls(number=number, title=path.stem, filename=path.name, path=path)
 
     def __str__(self) -> str:
         """Return a string representation of the track."""

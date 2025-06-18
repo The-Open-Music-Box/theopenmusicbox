@@ -1,5 +1,5 @@
-"""
-Test helpers package for TheOpenMusicBox.
+"""Test helpers package for TheOpenMusicBox.
 
-This package contains utility functions and classes to assist with testing.
+This package contains utility functions and classes to assist with
+testing.
 """

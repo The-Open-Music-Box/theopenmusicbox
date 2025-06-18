@@ -1,12 +1,15 @@
-import pygame
 import os
 import time
-from typing import Optional
+
+import pygame
+
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 
 # MARK: - Audio Engine Class
+
+
 class AudioEngine:
     """Handles low-level Pygame audio initialization and playback."""
 
@@ -19,8 +22,8 @@ class AudioEngine:
         """Initialize Pygame for audio playback."""
         try:
             # Disable unnecessary components to avoid XDG_RUNTIME_DIR errors
-            os.environ['SDL_VIDEODRIVER'] = 'dummy'  # Disable video mode
-            os.environ['SDL_AUDIODRIVER'] = 'alsa'   # Force ALSA for Raspberry Pi
+            os.environ["SDL_VIDEODRIVER"] = "dummy"  # Disable video mode
+            os.environ["SDL_AUDIODRIVER"] = "alsa"  # Force ALSA for Raspberry Pi
 
             # Initialize only the required pygame subsystems
             pygame.init()  # Minimal initialization
@@ -58,7 +61,11 @@ class AudioEngine:
 
     def ensure_initialized(self) -> bool:
         """Ensure Pygame is properly initialized, reinitializing if needed."""
-        if not self._initialized or not pygame.get_init() or not pygame.mixer.get_init():
+        if (
+            not self._initialized
+            or not pygame.get_init()
+            or not pygame.mixer.get_init()
+        ):
             return self.reinitialize()
         return True
 
@@ -75,13 +82,18 @@ class AudioEngine:
                 return True
             except Exception as e:
                 attempts += 1
-                logger.log(LogLevel.WARNING, f"Load attempt {attempts} failed: {e}. Retrying...")
+                logger.log(
+                    LogLevel.WARNING,
+                    f"Load attempt {attempts} failed: {e}. Retrying...",
+                )
                 time.sleep(0.1)
 
                 # Reinitialize mixer on the second attempt
                 if attempts == 2:
                     pygame.mixer.quit()
-                    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                    pygame.mixer.init(
+                        frequency=44100, size=-16, channels=2, buffer=1024
+                    )
 
         logger.log(LogLevel.ERROR, "All load attempts failed")
         return False
