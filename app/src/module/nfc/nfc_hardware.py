@@ -8,12 +8,26 @@ class NFCHardware(Protocol):
     interface.
     """
 
-    async def initialize(self) -> None: ...
+    async def initialize(self) -> None:
+        """Initialise le matériel NFC.
 
-    async def read_nfc(self) -> Optional[bytes]: ...
+        Returns:
+            None
+        """
+        pass
 
-    async def start_nfc_reader(self) -> None: ...
+    async def read_nfc(self) -> Optional[bytes]:
+        """Lit les données NFC et retourne les octets lus, ou None."""
+        pass
 
-    async def stop_nfc_reader(self) -> None: ...
+    async def start_nfc_reader(self) -> None:
+        """Démarre le lecteur NFC."""
+        pass
 
-    async def cleanup(self) -> None: ...
+    async def stop_nfc_reader(self) -> None:
+        """Arrête le lecteur NFC."""
+        pass
+
+    async def cleanup(self) -> None:
+        """Nettoie et libère les ressources du matériel NFC."""
+        pass

@@ -1,6 +1,5 @@
 [pydocstyle]
-# Ignore module docstrings (D100) and package docstrings (D104)
-ignore = D100,D104,D107
+ignore = D203,D204,D212,D406,D407,D409,D213,D413,D100,D104,D107
 
 # Add specific rules to enforce
 add-select = D101,D102,D103,D200,D205,D400
