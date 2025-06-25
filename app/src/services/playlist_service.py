@@ -1,9 +1,11 @@
-"""
-playlist_service.py
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+"""playlist_service.py.
 
-Service layer for playlist management in TheMusicBox backend.
-Provides business logic for playlist CRUD, NFC association, filesystem sync,
-and integration with YouTube downloads and audio playback.
+Service layer for playlist management in TheMusicBox backend. Provides
+business logic for playlist CRUD, NFC association, filesystem sync, and
+integration with YouTube downloads and audio playback.
 """
 
 import threading
@@ -22,13 +24,13 @@ logger = ImprovedLogger(__name__)
 
 
 class PlaylistService:
-    """
-    Service for managing playlists with business logic.
+    """Service for managing playlists with business logic.
 
     This service acts as an intermediary between the presentation layer
-    (such as API routes or UI) and the data access layer for playlist-related operations.
-    It provides methods for playlist CRUD, NFC tag association, filesystem synchronization,
-    and integration with YouTube downloads and audio playback.
+    (such as API routes or UI) and the data access layer for playlist-
+    related operations. It provides methods for playlist CRUD, NFC tag
+    association, filesystem synchronization, and integration with
+    YouTube downloads and audio playback.
     """
 
     # Supported audio file extensions
@@ -40,8 +42,7 @@ class PlaylistService:
     SYNC_OPERATION_TIMEOUT = 2.0
 
     def __init__(self, config_obj=None):
-        """
-        Initialize the PlaylistService instance.
+        """Initialize the PlaylistService instance.
 
         Args:
             config_obj: Optional configuration object. If not provided, uses the global config.
@@ -54,11 +55,11 @@ class PlaylistService:
         self._sync_lock = threading.RLock()
 
     def create_playlist(self, title: str) -> dict:
-        """
-        Create a new empty playlist with the given title.
+        """Create a new empty playlist with the given title.
 
         Args:
             title: The title of the new playlist.
+
         Returns:
             Dictionary representing the created playlist.
         """
@@ -74,13 +75,14 @@ class PlaylistService:
         return playlist_data
 
     def delete_playlist(self, playlist_id: str) -> dict:
-        """
-        Delete a playlist by its ID.
+        """Delete a playlist by its ID.
 
         Args:
             playlist_id: The ID of the playlist to delete.
+
         Returns:
             Dictionary with deletion status.
+
         Raises:
             ValueError: If the playlist is not found.
         """
@@ -89,13 +91,15 @@ class PlaylistService:
             raise ValueError(f"Playlist with id {playlist_id} not found")
         return {"id": playlist_id, "deleted": True}
 
-    def get_all_playlists(self, page: int = 1, page_size: int = 50) -> List[Dict[str, Any]]:
-        """
-        Retrieve all playlists with pagination support.
+    def get_all_playlists(
+        self, page: int = 1, page_size: int = 50
+    ) -> List[Dict[str, Any]]:
+        """Retrieve all playlists with pagination support.
 
         Args:
             page: Page number (1-based).
             page_size: Number of playlists per page.
+
         Returns:
             List of dictionaries representing playlists.
         """
@@ -105,13 +109,13 @@ class PlaylistService:
     def get_playlist_by_id(
         self, playlist_id: str, track_page: int = 1, track_page_size: int = 1000
     ) -> Optional[Dict[str, Any]]:
-        """
-        Retrieve a playlist by its ID with optional track pagination.
+        """Retrieve a playlist by its ID with optional track pagination.
 
         Args:
             playlist_id: Playlist ID.
             track_page: Page number for tracks (1-based).
             track_page_size: Number of tracks per page.
+
         Returns:
             Dictionary representing the playlist or None if not found.
         """
@@ -121,34 +125,34 @@ class PlaylistService:
         )
 
     def get_playlist_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Retrieve a playlist by its associated NFC tag ID.
+        """Retrieve a playlist by its associated NFC tag ID.
 
         Args:
             nfc_tag_id: NFC tag ID.
+
         Returns:
             Dictionary representing the playlist or None if not found.
         """
         return self.repository.get_playlist_by_nfc_tag(nfc_tag_id)
 
     def associate_nfc_tag(self, playlist_id: str, nfc_tag_id: str) -> bool:
-        """
-        Associate an NFC tag with a playlist.
+        """Associate an NFC tag with a playlist.
 
         Args:
             playlist_id: Playlist ID.
             nfc_tag_id: NFC tag ID to associate.
+
         Returns:
             True if the association succeeded, False otherwise.
         """
         return self.repository.associate_nfc_tag(playlist_id, nfc_tag_id)
 
     def disassociate_nfc_tag(self, playlist_id: str) -> bool:
-        """
-        Remove the association of an NFC tag from a playlist.
+        """Remove the association of an NFC tag from a playlist.
 
         Args:
             playlist_id: Playlist ID.
+
         Returns:
             True if the dissociation succeeded, False otherwise.
         """
@@ -185,7 +189,9 @@ class PlaylistService:
 
             # Check if there are any audio files
             if not audio_files:
-                logger.log(LogLevel.WARNING, f"No audio files found in folder: {folder_path}")
+                logger.log(
+                    LogLevel.WARNING, f"No audio files found in folder: {folder_path}"
+                )
                 return None
 
             # Determine the relative path with respect to the parent of the uploads
@@ -341,7 +347,9 @@ class PlaylistService:
                 # 1. Check that the uploads folder exists
                 if not self.upload_folder.exists():
                     self.upload_folder.mkdir(parents=True, exist_ok=True)
-                    logger.log(LogLevel.INFO, f"Created upload folder: {self.upload_folder}")
+                    logger.log(
+                        LogLevel.INFO, f"Created upload folder: {self.upload_folder}"
+                    )
 
                 # 2. Retrieve existing playlists
                 db_playlists = self.repository.get_all_playlists()
@@ -357,7 +365,9 @@ class PlaylistService:
                 if time.time() - start_time < self.SYNC_TOTAL_TIMEOUT:
                     self._add_new_playlists(disk_playlists, db_playlists_by_path, stats)
                 else:
-                    logger.log(LogLevel.WARNING, "Skipping new playlists due to timeout")
+                    logger.log(
+                        LogLevel.WARNING, "Skipping new playlists due to timeout"
+                    )
 
                 elapsed = time.time() - start_time
                 logger.log(
@@ -368,10 +378,14 @@ class PlaylistService:
                 return stats
 
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error during playlist synchronization: {str(e)}")
+                logger.log(
+                    LogLevel.ERROR, f"Error during playlist synchronization: {str(e)}"
+                )
                 import traceback
 
-                logger.log(LogLevel.DEBUG, f"Sync error details: {traceback.format_exc()}")
+                logger.log(
+                    LogLevel.DEBUG, f"Sync error details: {traceback.format_exc()}"
+                )
                 return stats
 
     def _scan_filesystem_with_timeout(self) -> Dict[str, List[Path]]:
@@ -402,14 +416,20 @@ class PlaylistService:
                         folder_scan_start = time.time()
                         for f in item.iterdir():
                             # Timeout per folder
-                            if time.time() - folder_scan_start > self.SYNC_OPERATION_TIMEOUT:
+                            if (
+                                time.time() - folder_scan_start
+                                > self.SYNC_OPERATION_TIMEOUT
+                            ):
                                 logger.log(
                                     LogLevel.WARNING,
                                     f"Partial scan of {rel_path} due to timeout",
                                 )
                                 break
 
-                            if f.is_file() and f.suffix.lower() in self.SUPPORTED_AUDIO_EXTENSIONS:
+                            if (
+                                f.is_file()
+                                and f.suffix.lower() in self.SUPPORTED_AUDIO_EXTENSIONS
+                            ):
                                 audio_files.append(f)
 
                         if audio_files:
@@ -485,7 +505,9 @@ class PlaylistService:
 
         for path, files in disk_playlists.items():
             if time.time() - start_time > self.SYNC_TOTAL_TIMEOUT:
-                logger.log(LogLevel.WARNING, "New playlists timeout reached, stopping adds")
+                logger.log(
+                    LogLevel.WARNING, "New playlists timeout reached, stopping adds"
+                )
                 break
 
             # If the playlist already exists, skip to the next
@@ -499,7 +521,9 @@ class PlaylistService:
                     stats["playlists_added"] += 1
                     stats["tracks_added"] += len(files)
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"Error creating playlist from {path}: {str(e)}")
+                logger.log(
+                    LogLevel.ERROR, f"Error creating playlist from {path}: {str(e)}"
+                )
 
     # === Conversion methods ===
 
@@ -558,9 +582,13 @@ class PlaylistService:
                 rel_path = folder_path.relative_to(self.upload_folder.parent)
             except ValueError:
                 # If failed, use the playlist name as the relative path
-                rel_path = Path(self.config.upload_folder) / playlist.name.lower().replace(" ", "_")
+                rel_path = Path(
+                    self.config.upload_folder
+                ) / playlist.name.lower().replace(" ", "_")
         else:
-            rel_path = Path(self.config.upload_folder) / playlist.name.lower().replace(" ", "_")
+            rel_path = Path(self.config.upload_folder) / playlist.name.lower().replace(
+                " ", "_"
+            )
 
         # Build the playlist dictionary to match the repository format
         playlist_data = {
@@ -588,13 +616,18 @@ class PlaylistService:
 
         return playlist_data
 
-    def play_playlist_with_validation(self, playlist_data: Dict[str, Any], audio) -> bool:
-        """Play a playlist using the audio player, with validation and metadata
-        update.
+    def play_playlist_with_validation(
+        self, playlist_data: Dict[str, Any], audio
+    ) -> bool:
+        """Play a playlist using the audio player, with validation and metadata update.
+
+        This function plays a playlist using the provided audio player, with validation and metadata update.
 
         Args:
             playlist_data: Dictionary containing playlist data to play.
             audio: Audio player instance.
+
+
         Returns:
             True if playback started successfully, False otherwise.
         """
@@ -639,16 +672,18 @@ class PlaylistService:
             import traceback
 
             logger.log(LogLevel.ERROR, f"Error playing playlist: {str(e)}")
-            logger.log(LogLevel.DEBUG, f"Playlist error details: {traceback.format_exc()}")
+            logger.log(
+                LogLevel.DEBUG, f"Playlist error details: {traceback.format_exc()}"
+            )
             return False
 
     def start_playlist(self, playlist_id: str, audio) -> bool:
-        """Start playback of the specified playlist using the provided audio
-        system, with validation.
+        """Start playback of the specified playlist using the provided audio system, with validation.
 
         Args:
             playlist_id: ID of the playlist to play.
             audio: Audio player instance.
+
         Returns:
             True if playback started successfully, False otherwise.
         """
@@ -670,9 +705,13 @@ class PlaylistService:
         """
         playlist_data = self.get_playlist_by_id(playlist_id)
         if not playlist_data or not playlist_data.get("tracks"):
-            logger.log(LogLevel.WARNING, f"Playlist or tracks not found for id: {playlist_id}")
+            logger.log(
+                LogLevel.WARNING, f"Playlist or tracks not found for id: {playlist_id}"
+            )
             return False
-        track = next((t for t in playlist_data["tracks"] if t["number"] == track_number), None)
+        track = next(
+            (t for t in playlist_data["tracks"] if t["number"] == track_number), None
+        )
         if not track:
             logger.log(
                 LogLevel.WARNING,
@@ -735,8 +774,12 @@ class PlaylistService:
             return playlist_id
 
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error adding playlist from YouTube data: {str(e)}")
+            logger.log(
+                LogLevel.ERROR, f"Error adding playlist from YouTube data: {str(e)}"
+            )
             import traceback
 
-            logger.log(LogLevel.DEBUG, f"Add playlist error details: {traceback.format_exc()}")
+            logger.log(
+                LogLevel.DEBUG, f"Add playlist error details: {traceback.format_exc()}"
+            )
             raise

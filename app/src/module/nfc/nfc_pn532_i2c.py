@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import asyncio
 import time
 from typing import Optional
@@ -46,11 +50,9 @@ class PN532I2CNFC(NFCHardware):
         )
 
     async def initialize(self) -> None:
-        """Asynchronous initialization method, to be called after instance
-        creation.
+        """Initialize the NFC hardware asynchronously.
 
-        Initializes the hardware and prepares the NFC reader for
-        operation.
+        Prepare the hardware and get the NFC reader ready for operation.
         """
         try:
             await self._initialize_hardware()
@@ -131,10 +133,9 @@ class PN532I2CNFC(NFCHardware):
             return None
 
     async def _nfc_reader_loop(self) -> None:
-        """Main loop for NFC tag reading.
+        """Poll for NFC tags and emit detection events.
 
-        Continuously polls the NFC hardware for tag presence and handles
-        errors.
+        This is the main reader loop that runs until stopped.
         """
         logger.log(LogLevel.INFO, "Starting reader loop")
         error_count = 0

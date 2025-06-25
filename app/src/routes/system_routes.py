@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 # back/app/src/routes/system_routes.py
 from typing import Any, Dict
 
@@ -10,6 +14,11 @@ logger = ImprovedLogger(__name__)
 
 
 class SystemRoutes:
+    """Registers and manages system-level API routes for TheOpenMusicBox backend.
+
+    This class sets up FastAPI endpoints for system functions such as health checks and volume control.
+    It ensures all routes are registered with the FastAPI app and provides dependency injection for audio services.
+    """
     def __init__(self, app: FastAPI):
         self.app = app
         # Using /api as prefix, so endpoints will be /api/volume
@@ -17,6 +26,7 @@ class SystemRoutes:
         self._register_routes()
 
     def register(self):
+        """Register the system API routes with the FastAPI application."""
         # Enregistrer les routes système importantes directement sur l'app FastAPI
         # pour éviter les problèmes potentiels avec le routeur
 
@@ -127,11 +137,12 @@ class SystemRoutes:
         self.app.include_router(self.router)
 
     def _register_routes(self):
+        """Register all system-related API routes with the FastAPI router."""
         @self.router.post("/volume", response_model=Dict[str, Any])
         async def set_system_volume(
             volume: int = Body(..., embed=True, ge=0, le=100), audio=Depends(get_audio)
         ):
-            """Set the system audio volume (0-100)"""
+            """Set the system audio volume (0-100)."""
             if not audio:
                 raise HTTPException(
                     status_code=503, detail="Audio system not available"
@@ -173,8 +184,12 @@ class SystemRoutes:
 
         @self.router.get("/health", response_model=Dict[str, Any])
         async def api_health_check(request: Request):
-            """Consolidated health check endpoint for the entire
-            application."""
+            """
+            Perform a consolidated health check for the entire application.
+
+            Returns:
+                dict: Health status and subsystem availability.
+            """
             logger.log(LogLevel.INFO, "API: Health check requested")
 
             # Get container from app state

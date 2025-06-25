@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import logging
 
 from colorama import Fore, Style
@@ -8,11 +12,13 @@ from .log_filter import LogFilter
 
 
 class ColoredLogFormatter(BaseLogFormatter, logging.Formatter):
+    """Formatter for colored log output with level and component highlighting."""
     def __init__(self, fmt=None, datefmt=None):
         BaseLogFormatter.__init__(self)
         logging.Formatter.__init__(self, fmt, datefmt)
 
     def format(self, record):
+        """Format the log record with color and symbols for output."""
         if not LogFilter.should_log(record.msg):
             return ""
         record.msg = LogFilter.clean_message(record.msg)

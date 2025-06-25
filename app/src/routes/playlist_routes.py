@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 from typing import Any, Dict, List
 
 from fastapi import (
@@ -39,6 +43,7 @@ class PlaylistRoutes:
         self._register_routes()
 
     def register(self):
+        """Register playlist-related API routes with the FastAPI app."""
         @self.app.get("/api/playlists")
         async def get_playlists_direct(
             page: int = 1, page_size: int = 50, config=Depends(get_config)
@@ -147,7 +152,10 @@ class PlaylistRoutes:
             )
 
     def _cleanup_controls(self):
-        """Clean up resources associated with physical controls."""
+        """Clean up resources associated with physical controls.
+
+        Unsubscribes from control events and releases resources.
+        """
         try:
             if self.controls_subscription:
                 self.controls_subscription.dispose()
@@ -319,8 +327,14 @@ class PlaylistRoutes:
             files: List[UploadFile] = File(...),
             config=Depends(get_config),
         ):
-            """Upload files to a specific playlist (with progress, no websocket
-            emit here)"""
+            """Upload files to a specific playlist.
+
+            Handles file uploads for a playlist, with progress reporting (no websocket emit here).
+
+            Returns:
+                Dict[str, Any]: Upload status and file metadata.
+
+            """
             playlist_service = PlaylistService()
             playlist = playlist_service.get_playlist_by_id(playlist_id)
             if not playlist:
@@ -365,7 +379,16 @@ class PlaylistRoutes:
         async def reorder_tracks(
             playlist_id: str, body: dict = Body(...), config=Depends(get_config)
         ):
-            """Reorder tracks in a playlist."""
+            """Reorder tracks in a playlist.
+
+            Args:
+                playlist_id (str): ID of the playlist to reorder.
+                body (dict): Dictionary containing the new track order.
+
+            Returns:
+                Dict[str, Any]: Status of the reorder operation.
+
+            """
             order = body.get("order", [])
             if not order or not isinstance(order, list):
                 raise HTTPException(status_code=400, detail="Invalid order")
@@ -434,8 +457,14 @@ class PlaylistRoutes:
         async def control_playlist(
             request: Request, action: str = Body(..., embed=True)
         ):
-            """Control the currently playing playlist with immediate
-            response."""
+            """Control the currently playing playlist with immediate response.
+
+            Allows play, pause, next, previous, and stop actions for the current playlist.
+
+            Returns:
+                Dict[str, Any]: Status and action performed.
+
+            """
             audio = self._get_cached_audio(request)
 
             if not audio:
@@ -459,3 +488,4 @@ class PlaylistRoutes:
             action_func()
 
             return {"status": "success", "action": action}
+

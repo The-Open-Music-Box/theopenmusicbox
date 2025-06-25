@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
@@ -17,8 +21,8 @@ class PlaylistRepository:
     """
 
     def __init__(self, config_obj=None):
-        """Initializes the repository with the database path from the
-        configuration.
+        """
+        Initialize the repository with the database path from the configuration.
 
         Args:
             config_obj: Optional configuration object (defaults to global config)
@@ -31,11 +35,11 @@ class PlaylistRepository:
         self._init_db()
 
     def _ensure_db_directory(self) -> None:
-        """Ensures that the parent directory of the DB exists."""
+        """Ensure that the parent directory of the DB exists."""
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def _init_db(self) -> None:
-        """Initializes the database structure if necessary."""
+        """Initialize the database structure if necessary."""
         try:
             with sqlite3.connect(str(self.db_path)) as conn:
                 conn.execute("PRAGMA foreign_keys = ON")
@@ -84,13 +88,14 @@ class PlaylistRepository:
             raise
 
     def _dict_factory(self, cursor, row):
-        """Converts a SQLite row to a dictionary."""
+        """Convert a SQLite row to a dictionary."""
         return {col[0]: row[idx] for idx, col in enumerate(cursor.description)}
 
     def get_all_playlists(
         self, limit: int = 50, offset: int = 0
     ) -> List[Dict[str, Any]]:
-        """Retrieves all playlists with their tracks.
+        """
+        Retrieve all playlists with their tracks.
 
         Returns:
             List of dictionaries representing the playlists
@@ -115,7 +120,8 @@ class PlaylistRepository:
     def _get_tracks_for_playlist(
         self, conn, playlist_id: str, limit: int = 1000, offset: int = 0
     ) -> List[Dict[str, Any]]:
-        """Retrieves the tracks of a playlist.
+        """
+        Retrieve the tracks of a playlist.
 
         Args:
             conn: SQLite connection
@@ -132,7 +138,8 @@ class PlaylistRepository:
     def get_playlist_by_id(
         self, playlist_id: str, track_limit: int = 1000, track_offset: int = 0
     ) -> Optional[Dict[str, Any]]:
-        """Retrieves a playlist by its ID.
+        """
+        Retrieve a playlist by its ID.
 
         Args:
             playlist_id: Playlist ID
@@ -162,7 +169,8 @@ class PlaylistRepository:
             return None
 
     def get_playlist_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieves a playlist by its NFC tag.
+        """
+        Retrieve a playlist by its NFC tag.
 
         Args:
             nfc_tag_id: NFC tag ID
@@ -191,7 +199,8 @@ class PlaylistRepository:
             return None
 
     def create_playlist(self, playlist_data: Dict[str, Any]) -> Optional[str]:
-        """Creates a new playlist.
+        """
+        Create a new playlist.
 
         Args:
             playlist_data: Data of the playlist to create
@@ -238,7 +247,8 @@ class PlaylistRepository:
             return None
 
     def _insert_track(self, conn, playlist_id: str, track_data: Dict[str, Any]) -> None:
-        """Inserts a track into the database.
+        """
+        Insert a track into the database.
 
         Args:
             conn: SQLite connection
@@ -263,7 +273,8 @@ class PlaylistRepository:
         )
 
     def update_playlist(self, playlist_id: str, updated_data: Dict[str, Any]) -> bool:
-        """Updates the information of a playlist.
+        """
+        Update the information of a playlist.
 
         Args:
             playlist_id: Playlist ID
@@ -311,7 +322,8 @@ class PlaylistRepository:
             return False
 
     def replace_tracks(self, playlist_id: str, tracks: List[Dict[str, Any]]) -> bool:
-        """Replaces all tracks of a playlist.
+        """
+        Replace all tracks of a playlist.
 
         Args:
             playlist_id: Playlist ID
@@ -352,7 +364,8 @@ class PlaylistRepository:
             return False
 
     def delete_playlist(self, playlist_id: str) -> bool:
-        """Deletes a playlist and all its tracks.
+        """
+        Delete a playlist and all its tracks.
 
         Args:
             playlist_id: Playlist ID
@@ -445,7 +458,8 @@ class PlaylistRepository:
             return False
 
     def disassociate_nfc_tag(self, playlist_id: str) -> bool:
-        """Removes the association of an NFC tag with a playlist.
+        """
+        Remove the association of an NFC tag with a playlist.
 
         Args:
             playlist_id: Playlist ID

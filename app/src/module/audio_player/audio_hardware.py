@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
 """Audio Player Protocol Definition.
 
 Defines the interface (Protocol) for all audio player hardware implementations.
@@ -14,8 +17,9 @@ from typing import Protocol
 
 
 class AudioPlayerHardware(Protocol):
-    """Protocol for audio player hardware implementations. Implementations must
-    provide public properties `is_playing` and `is_paused` to fully describe
+    """Protocol for audio player hardware implementations.
+
+    Implementations must provide public properties `is_playing` and `is_paused` to fully describe
     playback state. No private or protected member access should be used for
     state detection. All methods here must be implemented by any concrete audio
     player class. Used by the AudioPlayer wrapper to ensure consistent and safe
@@ -56,6 +60,7 @@ class AudioPlayerHardware(Protocol):
 
         Args:
             playlist: The playlist object to set for playback.
+
         Returns:
             True if the playlist was set and playback started, False otherwise.
         """
@@ -68,8 +73,11 @@ class AudioPlayerHardware(Protocol):
 
     @property
     def is_paused(self) -> bool:
-        """Return True if the player is paused (not playing, but a track is
-        loaded)."""
+        """Return True if the player is paused (not playing, but a track is loaded).
+
+        Returns:
+            bool: True if the player is paused, False otherwise.
+        """
         ...
 
     def play_track(self, track_number: int) -> bool:
@@ -77,6 +85,7 @@ class AudioPlayerHardware(Protocol):
 
         Args:
             track_number: The 1-based index of the track to play.
+
         Returns:
             True if the track was played successfully, False otherwise.
         """

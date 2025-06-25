@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import asyncio
 import os
 import sys
@@ -7,15 +11,16 @@ from .nfc_hardware import NFCHardware
 
 
 async def get_nfc_handler(bus_lock: asyncio.Lock) -> NFCHandler[NFCHardware]:
-    """Returns an NFCHandler with the provided bus_lock injected into the
-    hardware module. This lock must be created and managed by the
-    application/container.
+    """
+    Return an NFCHandler with the provided bus_lock injected into the hardware module.
+
+    This lock must be created and managed by the application/container.
 
     Args:
         bus_lock: asyncio.Lock instance for thread-safe bus access
 
     Returns:
-        Initialized NFCHandler instance with proper hardware backend
+        Initialized NFCHandler instance with proper hardware backend.
     """
     if (
         os.environ.get("USE_MOCK_HARDWARE", "").lower() == "true"

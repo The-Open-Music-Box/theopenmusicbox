@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import os
 import subprocess
 import time
@@ -19,17 +23,20 @@ logger = ImprovedLogger(__name__)
 
 
 class AudioPlayerWM8960(BaseAudioPlayer, AudioPlayerHardware):
-    """AudioPlayerWM8960 implements the audio player hardware interface for the
-    WM8960 codec. Playback state is managed and exposed through public
-    properties `is_playing` and `is_paused`.
+    """Implement the audio player hardware interface for the WM8960 codec.
 
-    This implementation uses an audio backend abstraction layer to avoid
-    direct dependency on specific audio libraries like pygame.
+    Playback state is managed and exposed through public properties `is_playing` and `is_paused`.
+    This implementation uses an audio backend abstraction layer to avoid direct dependency on specific audio libraries like pygame.
     """
 
     # MARK: - Initialization and Setup
 
     def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
+        """Initialize the WM8960 audio player implementation.
+
+        Args:
+            playback_subject: Optional notification subject for playback events.
+        """
         super().__init__(playback_subject)
         self._audio_cache = {}
         self._alsa_process = None
@@ -184,9 +191,8 @@ class AudioPlayerWM8960(BaseAudioPlayer, AudioPlayerHardware):
                 logger.log(LogLevel.ERROR, f"Error pausing playback: {str(e)}")
                 return False
 
-    def resume(self) -> bool:
-        """Resume playback with fallback to reloading if unpause fails
-        silently."""
+    def resume(self) -> None:
+        """Resume playback if paused."""
         with self._state_lock:
             if not self.is_paused or not self._current_track:
                 logger.log(LogLevel.WARNING, "No paused playback to resume")
@@ -418,9 +424,8 @@ class AudioPlayerWM8960(BaseAudioPlayer, AudioPlayerHardware):
             logger.log(LogLevel.ERROR, f"All fallback attempts failed: {str(e)}")
             return False
 
-    def play_current_from_position(self, position_seconds: float) -> bool:
-        """Play the current track from a specific position with robust error
-        handling."""
+    def play_current_from_position(self, position: float) -> None:
+        """Play the current track from a specific position (in seconds)."""
         with self._state_lock:
             if not self._current_track or not self._playlist:
                 logger.log(LogLevel.WARNING, "No current track to resume")
@@ -429,12 +434,10 @@ class AudioPlayerWM8960(BaseAudioPlayer, AudioPlayerHardware):
             saved_track = self._current_track
 
             try:
-                position_seconds = self._validate_position(
-                    position_seconds, saved_track.path
-                )
+                position = self._validate_position(position, saved_track.path)
                 if not self._prepare_audio_backend():
                     return False
-                return self._load_and_play_from_position(saved_track, position_seconds)
+                return self._load_and_play_from_position(saved_track, position)
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"Error playing from position: {str(e)}")
                 return self._attempt_fallback_playback()
@@ -479,8 +482,12 @@ class AudioPlayerWM8960(BaseAudioPlayer, AudioPlayerHardware):
 
     # MARK: - Playlist Management (Most methods are inherited from BaseAudioPlayer)
 
-    def set_volume(self, volume: int) -> bool:
-        """Set volume (0-100)"""
+    def set_volume(self, volume: int) -> None:
+        """Set the playback volume (0-100).
+
+        Args:
+            volume: Volume level (0-100).
+        """
         with self._state_lock:
             # First update the internal volume value via the parent class
             super().set_volume(volume)  # This always returns True and sets self._volume

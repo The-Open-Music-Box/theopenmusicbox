@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
 """Unified configuration system for TheOpenMusicBox application.
 
 Loads settings exclusively from .env file.
@@ -175,18 +178,19 @@ class AppConfig:
 
     @property
     def socketio_port(self) -> int:
-        """Port for Socket.IO server."""
-        return int(self._values.get("socketio_port", 5004))
+        """Port for Socket.IO server (required)."""
 
     @property
     def upload_folder(self) -> str:
-        """Directory for uploaded files."""
-        return self._values.get("upload_folder", "uploads")
+        """Directory for uploaded files (required).
+        
+        Returns the absolute path to the upload folder, ensuring it resolves correctly
+        regardless of the working directory at runtime.
+        """
 
     @property
     def db_file(self) -> str:
-        """Path to SQLite database file."""
-        return self._values.get("db_file", "database/app.db")
+        """Path to SQLite database file (required)."""
 
     @property
     def cors_allowed_origins(self) -> list:

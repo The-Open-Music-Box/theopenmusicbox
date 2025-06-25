@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 from pathlib import Path
 from typing import Dict
 from uuid import uuid4
@@ -12,6 +16,7 @@ logger = ImprovedLogger(__name__)
 
 
 class YouTubeService:
+    """Service for handling YouTube download requests and playlist creation."""
 
     def __init__(self, socketio=None, config=None):
         self.socketio = socketio

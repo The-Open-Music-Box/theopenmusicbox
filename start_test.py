@@ -13,6 +13,7 @@ from app.src.config.config_factory import ConfigFactory, ConfigType
 
 # Check if we're already in a virtual environment
 def is_venv_active():
+    """Check if a virtual environment is currently active."""
     return hasattr(sys, "real_prefix") or (
         hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
     )

@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
 """Pygame Audio Backend Implementation.
 
 This module implements the AudioBackend interface using pygame for audio
@@ -20,7 +23,7 @@ logger = ImprovedLogger(__name__)
 
 
 def handle_pygame_error(func):
-    """Decorator to handle pygame errors consistently."""
+    """Decorate a function to handle pygame errors consistently."""
 
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):

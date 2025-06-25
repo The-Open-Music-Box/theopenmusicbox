@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 # MARK: - Imports
 import asyncio
 import os
@@ -26,13 +30,14 @@ logger = ImprovedLogger(__name__)
 
 
 class Application:
-    """Main application class that manages initialization and lifecycle of
-    various components."""
+    """Main application class for TheOpenMusicBox backend.
+
+    Manages initialization and lifecycle of various components.
+    """
 
     # MARK: - Initialization
     def __init__(self, config):
-        """Initialize the application with async config only (legacy DI
-        container removed).
+        """Initialize the Application instance.
 
         Args:
             config: Configuration object
@@ -66,8 +71,9 @@ class Application:
         logger.log(LogLevel.INFO, "Application initialized successfully")
 
     async def initialize_async(self):
-        """
-        Asynchronous initialization - to be called from lifespan context
+        """Initialize application resources asynchronously.
+
+        Asynchronous initialization - to be called from lifespan context.
         """
         # Initialize NFC components using the dedicated method
         await self._setup_nfc()
@@ -79,6 +85,15 @@ class Application:
 
     # MARK: - NFC Event Handling
     async def handle_nfc_event(self, tag_data):
+        """Handle an NFC event triggered by tag detection.
+
+        Handles NFC tag events (scan or absence) by routing them to the
+        PlaylistController. This method provides a public API, encapsulating
+        the interaction with _playlist_controller.
+
+        Args:
+            tag_data: The data associated with the NFC tag event.
+        """
         """Handles NFC tag events (scan or absence) by routing them to the
         PlaylistController. This method provides a public API, encapsulating
         the interaction with _playlist_controller.

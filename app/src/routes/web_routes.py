@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -10,12 +14,18 @@ logger = ImprovedLogger(__name__)
 
 
 class WebRoutes:
+    """Registers and manages web (static file) routes for TheOpenMusicBox backend.
+
+    This class sets up FastAPI endpoints for serving static files, SPA index, and health check
+    endpoints. It ensures proper SPA routing and static asset delivery for the web client.
+    """
     def __init__(self, app: FastAPI):
         self.app = app
         self.router = None
         # We'll set up static file serving in register()
 
     def register(self):
+        """Register web routes with the FastAPI application."""
         """Register web routes with FastAPI app."""
         try:
             logger.log(LogLevel.INFO, "WebRoutes: Registering web routes")
@@ -30,6 +40,7 @@ class WebRoutes:
             raise
 
     def _init_routes(self):
+        """Initialize web routes for serving static files and SPA routing."""
         """Initialize web routes for serving static files and health check."""
         # Mount static files directory if it exists
         try:

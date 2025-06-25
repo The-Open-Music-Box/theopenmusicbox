@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 from app.src.module.audio_player.audio_factory import get_audio_player
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.services.nfc_service import NFCService
@@ -28,14 +32,17 @@ class ContainerAsync:
 
     @property
     def config(self):
+        """Return the configuration object for the container."""
         return self._config
 
     @property
     def playback_subject(self):
+        """Return the playback subject instance."""
         return self._playback_subject
 
     @property
     def nfc(self):
+        """Return the NFC handler instance."""
         return self._nfc_service
 
     # set_init_socketio method removed as it was unused

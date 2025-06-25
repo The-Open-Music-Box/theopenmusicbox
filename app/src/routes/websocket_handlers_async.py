@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import socketio
 
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
@@ -7,6 +11,12 @@ logger = ImprovedLogger(__name__)
 
 
 class WebSocketHandlersAsync:
+    """Registers and manages asynchronous WebSocket event handlers for TheOpenMusicBox backend.
+
+    This class sets up all Socket.IO event handlers for playback status, playlist control,
+    NFC association, and client connection management. It provides dependency injection for
+    NFC services and ensures event routing for all real-time features.
+    """
     def __init__(self, sio: socketio.AsyncServer, app, nfc_service=None):
         self.sio = sio
         self.app = app
@@ -22,6 +32,7 @@ class WebSocketHandlersAsync:
         )
 
     def register(self):
+        """Register all asynchronous Socket.IO event handlers for this backend."""
         @self.sio.event
         async def connect(sid, environ):
             logger.log(LogLevel.INFO, f"Client connected: {sid}")

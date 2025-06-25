@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
 """Audio Player Abstraction Module.
 
 This module defines the AudioPlayer wrapper class, which acts as the unified entry point for all audio playback operations in the application.
@@ -34,11 +37,12 @@ class AudioPlayer(Generic[T]):
     """
 
     def __init__(self, hardware: T):
-        """Initialize the audio player abstraction with a specific hardware
-        implementation.
+        """Initialize the audio player abstraction with a specific hardware implementation.
 
         Args:
-            hardware: An implementation of AudioPlayerHardware (real or mock)
+            hardware: The hardware implementation to delegate playback operations to.
+
+        An implementation of AudioPlayerHardware (real or mock).
         """
         self._hardware = hardware
 
@@ -139,8 +143,10 @@ class AudioPlayer(Generic[T]):
 
     @property
     def is_paused(self) -> bool:
-        """Return True if the player is paused (not playing, but a track is
-        loaded).
+        """Check if the player is paused.
+
+        Returns:
+            bool: True if the player is paused (not playing, but a track is loaded), False otherwise.
 
         Delegates to the hardware implementation.
         """

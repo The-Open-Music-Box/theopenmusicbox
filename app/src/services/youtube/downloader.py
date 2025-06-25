@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import asyncio
 from pathlib import Path
 from typing import Any, Callable, Dict
@@ -10,6 +14,7 @@ logger = ImprovedLogger(__name__)
 
 
 class YouTubeDownloader:
+    """Downloader service for handling YouTube video/audio downloads using yt-dlp."""
     def __init__(self, upload_folder: str, progress_callback: Callable = None):
         self.upload_folder = Path(upload_folder)
         self.progress_callback = progress_callback

@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import asyncio
 import threading
 import time
@@ -15,10 +19,10 @@ logger = ImprovedLogger(__name__)
 
 
 class PlaylistController:
-    """Controller to manage the interaction between NFC tags and playlist
-    playback.
+    """
+    Manage the interaction between NFC tags and playlist playback.
 
-    This class links NFC tag detection events to the audio system for playing associated playlists.
+    This controller links NFC tag detection events to the audio system for playing associated playlists.
     It ensures real-time response to tag scans and handles playback control logic.
 
     Playback state is determined strictly through the public properties `is_playing` and `is_paused` on the audio player.
@@ -97,8 +101,8 @@ class PlaylistController:
     def handle_tag_scanned(
         self, tag_uid: str, tag_data: Optional[Dict[str, Any]] = None
     ) -> None:
-        """Handle a tag scan event strictly according to architecture use cases
-        (A-E).
+        """
+        Handle a tag scan event strictly according to architecture use cases (A-E).
 
         See README_ARCHITECTURE.md for detailed expected behaviors.
         """
@@ -257,31 +261,12 @@ class PlaylistController:
             return True
         return False
 
-    def _extract_tag_info(
-        self, tag_uid: str, tag_data: Optional[Dict[str, Any]] = None
-    ) -> str:
-        """Extract and format tag information for logging purposes.
-
-        Args:
-            tag_uid: The UID of the scanned tag
-            tag_data: Optional additional data about the tag
-
-        Returns:
-            str: Formatted tag information string
-        """
-        if not tag_data:
-            return ""
-
-        playlist_id = tag_data.get("playlist_id")
-        name = tag_data.get("name", "Unknown")
-        return f" (Playlist: {name}, ID: {playlist_id})"
-
     def _get_audio_player_state(self) -> str:
-        """Récupère l'état actuel du lecteur audio sous forme de chaîne pour le
-        débogage.
+        """
+        Return the current state of the audio player as a string for debugging.
 
         Returns:
-            str: Une représentation textuelle de l'état du lecteur audio
+        str: Textual representation of the audio player state
         """
         if not self._audio:
             return "Audio player not initialized"
@@ -351,8 +336,8 @@ class PlaylistController:
             return False
 
     def _play_playlist(self, playlist_data: Dict[str, Any]) -> None:
-        """Play a playlist using the audio player, with robust validation and
-        metadata update.
+        """
+        Play a playlist using the audio player, with robust validation and metadata update.
 
         Args:
             playlist_data (Dict[str, Any]): Dictionary containing playlist data to play.
@@ -367,8 +352,8 @@ class PlaylistController:
             )
 
     def _should_auto_pause(self) -> bool:
-        """Determine if auto-pause should be applied based on config and
-        internal state.
+        """
+        Determine if auto-pause should be applied based on config and internal state.
 
         Returns:
             bool: True if auto-pause should be applied, False otherwise
@@ -449,8 +434,9 @@ class PlaylistController:
             self._auto_pause_flag = False
 
     async def _start_tag_monitor(self) -> None:
-        """Start an async task to monitor NFC tag presence and automatically
-        pause playback if the tag is removed."""
+        """
+        Start an async task to monitor NFC tag presence and automatically pause playback if the tag is removed.
+        """
         self._stop_monitor.clear()
 
         async def monitor_tags():
@@ -492,8 +478,8 @@ class PlaylistController:
     def update_playback_status_callback(
         self, track: Optional[Track] = None, status: str = "unknown"
     ) -> None:
-        """Callback for playback status updates. Should be called by the audio
-        system when track playback status changes.
+        """
+        Update playback status callback from the audio player.
 
         Args:
             track (Optional[Track]): The track currently playing.
@@ -521,11 +507,11 @@ class PlaylistController:
                 )
 
     def handle_manual_action(self, action: str) -> None:
-        """Handle manual control actions (play/pause/next/prev/stop). This is
-        called when a user directly interacts with the UI.
+        """
+        Handle manual playback control actions (from UI or physical controls).
 
         Args:
-            action (str): Action to perform (play, pause, next, prev, stop).
+            action (str): Control action ('play', 'pause', 'next', 'prev', etc.)
         """
         # Record the timestamp of the manual action
         self._last_manual_action_time = time.time()

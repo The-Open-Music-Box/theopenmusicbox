@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -11,10 +15,12 @@ logger = ImprovedLogger(__name__)
 
 
 class YouTubeDownloadRequest(BaseModel):
+    """Request model for YouTube video download requests."""
     url: str
 
 
 class YouTubeRoutes:
+    """Register and manage YouTube-related API routes for TheOpenMusicBox backend."""
     def __init__(self, app: FastAPI, socketio):
         self.app = app
         self.socketio = socketio

@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import traceback
 from contextlib import asynccontextmanager
 
@@ -37,6 +41,7 @@ sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=cors_origins)
 
 @asynccontextmanager
 async def lifespan(fastapi_app):
+    """Application lifespan event handler for FastAPI startup and shutdown."""
     try:
         # Async resource initialization
         await container.initialize_async()

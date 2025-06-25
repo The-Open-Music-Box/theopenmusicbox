@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import JSONResponse
 
@@ -39,6 +43,12 @@ def get_nfc_service(request: Request) -> NFCService:
 
 
 class NFCRoutes:
+    """Registers and manages NFC-related API routes for TheOpenMusicBox backend.
+
+    This class sets up all FastAPI endpoints for NFC tag observation, association, listening,
+    status monitoring, and test simulation. It ensures all routes are registered with the FastAPI app
+    and provides dependency injection for configuration and NFC services.
+    """
     def __init__(self, app, socketio, nfc_service: NFCService):
         self.app = app
         self.socketio = socketio
@@ -47,11 +57,13 @@ class NFCRoutes:
         self._register_routes()
 
     def register(self):
+        """Register the NFC API routes with the FastAPI application."""
         logger.log(LogLevel.INFO, "NFCRoutes: Registering NFC routes")
         self.app.include_router(self.router)
         logger.log(LogLevel.INFO, "NFCRoutes: NFC routes registered successfully")
 
     def _register_routes(self):
+        """Register all NFC-related API routes with the FastAPI router."""
         @self.router.post("/observe")
         async def observe_nfc(
             request: Request,
@@ -99,7 +111,7 @@ class NFCRoutes:
             config=Depends(get_config),
             nfc_service: NFCService = Depends(get_nfc_service),
         ):
-            """Associate an NFC tag to a playlist (with override option)"""
+            """Associate an NFC tag to a playlist (with override option)."""
             try:
                 data = await request.json()
                 playlist_id = data.get("playlist_id")
@@ -174,7 +186,7 @@ class NFCRoutes:
         async def cancel_nfc_observation(
             request: Request, nfc_service: NFCService = Depends(get_nfc_service)
         ):
-            """Cancel NFC observation (by user or timeout)"""
+            """Cancel NFC observation (by user or timeout)."""
             try:
                 # Utiliser la méthode asynchrone stop_listening
                 await nfc_service.stop_listening()
@@ -259,7 +271,7 @@ class NFCRoutes:
         async def simulate_tag_detection(
             request: Request, nfc_service: NFCService = Depends(get_nfc_service)
         ):
-            """Simulate NFC tag detection (for testing)"""
+            """Simulate NFC tag detection (for testing)."""
             try:
                 data = await request.json()
                 if not data or "tag_id" not in data:

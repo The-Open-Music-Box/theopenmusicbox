@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import re
 from typing import Any, Dict
 
@@ -5,6 +9,7 @@ from colorama import Fore, Style
 
 
 class BaseLogFormatter:
+    """Base formatter for log records with extra context and color support."""
     def __init__(self):
         self._last_component = None
         self._startup_phase = None
@@ -17,6 +22,7 @@ class BaseLogFormatter:
         return match.group(1) if match else ""
 
     def format_extra(self, extra: Dict[str, Any]) -> str:
+        """Format extra log record information for display."""
         if not extra:
             return ""
 

@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
 """Tag detection manager for handling NFC tag detection logic.
 
 This module provides a dedicated class for managing tag detection state
@@ -38,14 +41,13 @@ class TagDetectionManager:
         self.removal_threshold = removal_threshold
 
     def process_tag_detection(self, uid_string: str) -> Optional[Dict[str, Any]]:
-        """Process a raw tag detection and determine if it should emit an
-        event.
+        """Process a raw tag detection and determine if an event should be emitted.
 
         Args:
-            uid_string: The UID string of the detected tag
+            uid_string: The UID string of the detected tag.
 
         Returns:
-            Tag data dictionary if an event should be emitted, None otherwise
+            Tag data dictionary if an event should be emitted, None otherwise.
         """
         current_time = time.time()
         emit_event = False

@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import os
 from pathlib import Path
 from typing import Dict, Tuple
@@ -16,22 +20,34 @@ MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 
 
 class UploadService:
+    """Service for handling audio file uploads and metadata extraction."""
+
     def __init__(self, upload_folder: str):
+        """Initialize the UploadService with the given upload folder."""
         self.upload_folder = Path(upload_folder)
 
     def _allowed_file(self, filename: str) -> bool:
+        """Return True if the filename is an allowed audio type."""
         return (
             "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
         )
 
     def _check_file_size(self, file) -> bool:
+        """Return True if the file size is within the allowed maximum."""
         file.seek(0, os.SEEK_END)
         size = file.tell()
         file.seek(0)
         return size <= MAX_FILE_SIZE
 
     def extract_metadata(self, file_path: Path) -> Dict:
-        """Extract metadata from an audio file."""
+        """Extract metadata from an audio file.
+
+        Args:
+            file_path: Path to the audio file.
+
+        Returns:
+            Dictionary with metadata fields: title, artist, album, duration.
+        """
         try:
             audio = MutagenFile(str(file_path), easy=True)
             if audio is None:
@@ -58,9 +74,19 @@ class UploadService:
             }
 
     def process_upload(self, file, playlist_path: str) -> Tuple[str, Dict]:
-        """
-        Process an uploaded file
-        Returns: (filename, metadata)
+        """Process an uploaded file and extract its metadata.
+
+        Args:
+            file: File-like object to upload.
+            playlist_path: Destination playlist folder.
+
+        Returns:
+            Tuple of (filename, metadata dictionary).
+
+        
+        Raises:
+            InvalidFileError: If the file is invalid or not allowed.
+            ProcessingError: If there is an error during processing.
         """
         if not file or not file.filename:
             raise InvalidFileError("No file provided")
@@ -98,7 +124,12 @@ class UploadService:
             raise ProcessingError(f"Error processing file: {str(e)}")
 
     def cleanup_failed_upload(self, playlist_path: str, filename: str):
-        """Clean up files in case of failure."""
+        """Clean up files in case of failure.
+
+        Args:
+            playlist_path: Path to the playlist folder.
+            filename: Name of the file to remove.
+        """
         try:
             file_path = self.upload_folder / playlist_path / filename
             if file_path.exists():

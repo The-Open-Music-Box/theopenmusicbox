@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
 """Base Audio Player Implementation.
 
 This module provides a base class for audio player implementations to
@@ -59,11 +62,10 @@ class BaseAudioPlayer:
 
     @property
     def is_paused(self) -> bool:
-        """Return True if the player is paused (not playing, but a track is
-        loaded).
+        """Check if the player is paused.
 
         Returns:
-            bool: True if paused, False otherwise.
+            bool: True if the player is paused (not playing, but a track is loaded), False otherwise.
         """
         with self._state_lock:
             return not self._is_playing and self._current_track is not None
@@ -295,8 +297,12 @@ class BaseAudioPlayer:
                 extra={"error": str(e)},
             )
 
-    def _send_notification(self, status: str) -> None:
-        """Internal method to send actual notification in a separate thread."""
+    def _send_notification(self, status: str):
+        """Send playback status notification to observers.
+
+        Args:
+            status: Playback status string (e.g., 'playing', 'paused', 'stopped')
+        """
         try:
             # Gather info with minimal lock time
             playlist_info = None

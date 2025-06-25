@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
 """Dependency providers for FastAPI DI (Depends pattern).
 
 Provides config, container, audio, playback_subject, etc.
@@ -35,8 +38,10 @@ def get_container(request: Request):
 
 
 def get_audio(container=Depends(get_container)):
+    """Retrieve the audio player instance from the container."""
     return container.audio
 
 
 def get_playback_subject(container=Depends(get_container)):
+    """Retrieve the playback subject instance from the container."""
     return container.playback_subject

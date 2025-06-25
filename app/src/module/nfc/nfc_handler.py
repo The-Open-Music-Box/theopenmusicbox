@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 from typing import Generic, TypeVar
 
 from .nfc_hardware import NFCHardware
@@ -6,25 +10,26 @@ T = TypeVar("T", bound=NFCHardware)
 
 
 class NFCHandler(Generic[T]):
-    """NFC handler that abstracts the underlying hardware (MockNFC or
-    PN532I2CNFC).
+    """NFC handler that abstracts the underlying hardware (MockNFC or PN532I2CNFC).
 
-    This class ensures that all hardware access goes through the proper
-    interfaces.
+    Ensure that all hardware access goes through the proper interfaces.
     """
 
     def __init__(self, hardware: T):
-        """Initialise le handler avec le matériel spécifié.
+        """Initialize the handler with the specified NFC hardware.
 
         Args:
-            hardware: Instance du matériel NFC (mock ou réel)
+            hardware: Instance of the NFC hardware (mock or real).
         """
         self._hardware = hardware
 
     @property
     def tag_subject(self):
-        """Accède au subject RxPy qui émet les événements de détection de
-        tag."""
+        """Get the RxPy subject that emits tag detection events.
+
+        Returns:
+            The RxPy subject for tag events.
+        """
         if hasattr(self._hardware, "tag_subject"):
             return self._hardware.tag_subject
         raise AttributeError(

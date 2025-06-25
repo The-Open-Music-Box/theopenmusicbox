@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import asyncio
 import threading
 import time
@@ -9,11 +13,14 @@ logger = ImprovedLogger(__name__)
 
 
 class DownloadNotifier:
+    """Notifier for download progress events via Socket.IO."""
+
     def __init__(self, socketio, download_id: str):
         self.socketio = socketio
         self.download_id = download_id
 
     async def notify(self, status: str, **data):
+        """Emit a download progress event with the given status and data."""
         await self.socketio.emit(
             "download_progress",
             {"download_id": self.download_id, "status": status, **data},
@@ -21,12 +28,18 @@ class DownloadNotifier:
 
 
 class PlaybackEvent:
+    """Event representing playback status or progress."""
+
     def __init__(self, event_type: str, data: Dict[str, Any]):
         self.event_type = event_type
         self.data = data
 
 
 class PlaybackSubject:
+    """Subject for broadcasting playback events to Socket.IO clients.
+
+    Implements a singleton pattern for managing playback status and progress events.
+    """
     # Global static instance for direct reference
     _instance = None
     _lock = threading.RLock()
@@ -34,16 +47,19 @@ class PlaybackSubject:
 
     @classmethod
     def set_socketio(cls, socketio):
+        """Set the global Socket.IO instance for event emission."""
         cls._socketio = socketio
 
     @classmethod
     def get_instance(cls):
+        """Return the singleton instance of PlaybackSubject."""
         with cls._lock:
             if cls._instance is None:
                 cls._instance = PlaybackSubject()
             return cls._instance
 
     def __init__(self):
+        """Initialize the PlaybackSubject singleton instance."""
         self._last_status_event = None
         self._last_progress_event = None
         self._last_progress_emit_time = (
@@ -63,11 +79,12 @@ class PlaybackSubject:
     def notify_playback_status(
         self, status: str, playlist_info: Dict = None, track_info: Dict = None
     ):
-        """
-        Emit a playback status event
-        status: 'playing', 'paused', 'stopped'
-        playlist_info: information about current playlist
-        track_info: information about current track
+        """Emit a playback status event.
+
+        Args:
+            status: Playback status ('playing', 'paused', 'stopped').
+            playlist_info: Information about the current playlist.
+            track_info: Information about the current track.
         """
         try:
             event_data = {
@@ -103,14 +120,15 @@ class PlaybackSubject:
         playlist_info: dict = None,
         is_playing: bool = True,
     ):
-        """
-        Emit a track progress event with full info for the frontend
-        elapsed: elapsed time in seconds
-        total: total duration in seconds
-        track_number: track number in playlist
-        track_info: dict with track metadata (title, filename, duration, etc.)
-        playlist_info: dict with playlist metadata (optional)
-        is_playing: bool, if playback is active
+        """Emit a track progress event with full info for the frontend.
+
+        Args:
+            elapsed: Elapsed time in seconds.
+            total: Total duration in seconds.
+            track_number: Track number in playlist.
+            track_info: Dictionary with track metadata.
+            playlist_info: Dictionary with playlist metadata (optional).
+            is_playing: True if playback is active.
         """
         try:
             event_data = {
@@ -139,9 +157,11 @@ class PlaybackSubject:
             )
 
     def get_last_status_event(self):
+        """Return the last emitted playback status event."""
         return self._last_status_event
 
     def get_last_progress_event(self):
+        """Return the last emitted track progress event."""
         return self._last_progress_event
 
     def _emit_socketio_event(self, event_name, event_data):

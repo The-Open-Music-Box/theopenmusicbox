@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import asyncio
 import time
 from typing import Optional
@@ -12,10 +16,9 @@ logger = ImprovedLogger(__name__)
 
 
 class MockNFC(NFCHardware):
-    """Mock implementation of NFCHardware for testing and non-hardware
-    environments.
+    """Mock implementation of NFCHardware for testing and non-hardware environments.
 
-    Simulates NFC tag detection using a timer.
+    Simulate NFC tag detection using a timer.
     """
 
     def __init__(self):
@@ -27,13 +30,18 @@ class MockNFC(NFCHardware):
         logger.log(LogLevel.INFO, "Initialized Mock NFC Reader")
 
     async def initialize(self) -> None:
-        """Méthode d'initialisation asynchrone, pour compatibilité avec
-        PN532I2CNFC."""
+        """Initialize the mock NFC hardware asynchronously.
+
+        This method provides compatibility with PN532I2CNFC but does nothing for the mock.
+        """
         # Rien à initialiser pour le mock
         return
 
     async def _simulate_nfc_scanning(self) -> None:
-        """Simulation de la boucle de lecture NFC."""
+        """Simulate the NFC reading loop.
+
+        This method periodically simulates NFC tag scans.
+        """
         logger.log(LogLevel.INFO, "Starting mock reader loop")
         last_info_log = 0
 
@@ -78,7 +86,11 @@ class MockNFC(NFCHardware):
         logger.log(LogLevel.INFO, "Stopped Mock NFC Reader")
 
     async def read_nfc(self) -> Optional[bytes]:
-        """Simule la lecture d'un tag NFC."""
+        """Simulate reading an NFC tag.
+
+        Returns:
+            Optional[bytes]: The mock tag bytes if detected, otherwise None.
+        """
         if time.time() % 5 < 0.1:
             mock_tag = bytes([0x04, 0xA0, 0x71, 0xA6, 0xDF, 0x61, 0x80])
             self._tag_subject.on_next(
@@ -93,6 +105,11 @@ class MockNFC(NFCHardware):
 
     @property
     def tag_subject(self) -> Subject:
+        """Get the RxPy Subject for tag events.
+
+        Returns:
+            Subject: The subject emitting tag detection events.
+        """
         return self._tag_subject
 
     async def cleanup(self) -> None:

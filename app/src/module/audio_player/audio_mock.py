@@ -1,3 +1,6 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
 """Mock Audio Player Implementation.
 
 This module provides the mock implementation of the AudioPlayerHardware Protocol for use in development and testing environments.
@@ -119,7 +122,7 @@ class MockAudioPlayer(
             return True
 
     def pause(self) -> None:
-        """Pause playback - optimized for immediate response"""
+        """Pause playback if currently playing."""
         # Pre-check to avoid lock if unnecessary
         if not self._is_playing:
             return
@@ -133,10 +136,10 @@ class MockAudioPlayer(
         # Move notification outside the lock to make control immediate
         # This critical modification reduces response time
         self._notify_playback_status("paused")
-        logger.log(LogLevel.INFO, "Mock: Playback paused")
+        logger.log(LogLevel.INFO, "Mock: Playback paused.")
 
     def resume(self) -> None:
-        """Resume playback - optimized for immediate response"""
+        """Resume playback if currently paused."""
         # Pre-check to avoid lock if unnecessary
         if self._is_playing or not self._current_track:
             return
@@ -149,10 +152,10 @@ class MockAudioPlayer(
 
         # Move notification outside the lock to make control immediate
         self._notify_playback_status("playing")
-        logger.log(LogLevel.INFO, "Mock: Playback resumed")
+        logger.log(LogLevel.INFO, "Mock: Playback resumed.")
 
     def stop(self, clear_playlist: bool = True) -> None:
-        """Stop playback - optimized for immediate response"""
+        """Stop playback and reset state."""
         was_playing = False
 
         with self._state_lock:
@@ -167,7 +170,7 @@ class MockAudioPlayer(
         # Move notification outside the lock to make control immediate
         if was_playing:
             self._notify_playback_status("stopped")
-        logger.log(LogLevel.INFO, "Mock: Playback stopped")
+        logger.log(LogLevel.INFO, "Mock: Playback stopped.")
 
     def _check_playback_active(self) -> bool:
         """Check if playback is currently active (mock implementation)."""

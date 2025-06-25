@@ -1,9 +1,11 @@
-"""
-nfc_service.py
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+"""nfc_service.py.
 
-Service layer for NFC tag handling in TheMusicBox backend.
-Provides business logic for NFC tag detection, association, event emission,
-and integration with playlist management and playback.
+Service layer for NFC tag handling in TheMusicBox backend. Provides
+business logic for NFC tag detection, association, event emission, and
+integration with playlist management and playback.
 """
 
 import asyncio
@@ -20,10 +22,11 @@ logger = ImprovedLogger(__name__)
 
 
 class NFCService:
+    """Service for managing NFC tag operations including detection, association, event emission, and playback integration.
+
+    Handles NFC tag detection, association with playlists, event emission to clients, and integration with playback management. Provides asynchronous methods for observing and handling NFC tags, and exposes status and control interfaces for the backend API.
     """
-    Service for managing NFC tag operations, including detection,
-    association with playlists, event emission to clients, and playback integration.
-    """
+
     def __init__(
         self,
         socketio: Optional[AsyncServer] = None,
@@ -55,8 +58,7 @@ class NFCService:
             self._nfc_handler.tag_subject.subscribe(self._on_tag_subject)
 
     def _on_tag_subject(self, tag_data):
-        """
-        Handle tag detection events from the NFC handler.
+        """Handle tag detection events from the NFC handler.
 
         Args:
             tag_data: Tag data received from the NFC handler.
@@ -79,8 +81,7 @@ class NFCService:
             ErrorHandler.log_error(e, "Error handling tag subject event")
 
     def load_mapping(self, mapping: List[Dict[str, Any]]) -> None:
-        """
-        Load the playlist mapping into the service.
+        """Load the playlist mapping into the service.
 
         Args:
             mapping: List of playlist dictionaries.
@@ -88,12 +89,13 @@ class NFCService:
         self._playlists = mapping
 
     async def start_observe(self, playlist_id: Optional[str] = None) -> dict:
-        """
-        Start observation mode for NFC tag detection without a specific playlist.
-        Used for the 'observe' route in the NFC API.
+        """Start observation mode for NFC tag detection.
+
+        Used for the 'observe' route in the NFC API. Starts the NFC hardware in observation mode, optionally with a playlist association.
 
         Args:
             playlist_id: Optional ID of the playlist to associate with scanned tag.
+
         Returns:
             Dictionary with operation status.
         """
@@ -130,8 +132,8 @@ class NFCService:
             return {"status": "error", "message": str(e)}
 
     async def start_nfc_reader(self) -> None:
-        """
-        Start the NFC reader hardware (called by the routes).
+        """Start the NFC reader hardware (called by the routes).
+
         Delegates to start_listening with the current playlist ID.
         """
         try:
@@ -154,8 +156,7 @@ class NFCService:
     async def start_listening(
         self, playlist_id: str, sid: Optional[str] = None
     ) -> None:
-        """
-        Start listening for NFC tag association.
+        """Start listening for NFC tag association.
 
         Args:
             playlist_id: ID of the playlist to associate with scanned tag
@@ -213,9 +214,7 @@ class NFCService:
         )
 
     async def stop_listening(self) -> None:
-        """
-        Stop listening for NFC tags.
-        """
+        """Stop listening for NFC tags."""
         # Stop scan status updates
         await self._stop_scan_status_updates()
 
@@ -241,8 +240,7 @@ class NFCService:
         logger.log(LogLevel.INFO, "Stopped NFC listening")
 
     def get_status(self) -> Dict[str, Any]:
-        """
-        Get the current NFC service status.
+        """Get the current NFC service status.
 
         Returns:
             A dictionary with the current NFC status information
@@ -257,8 +255,7 @@ class NFCService:
     async def handle_tag_detected(
         self, tag_id: str, tag_data: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """
-        Handle detected NFC tag.
+        """Handle detected NFC tag.
 
         Args:
             tag_id: Detected NFC tag ID
@@ -379,9 +376,7 @@ class NFCService:
             }
 
             if self.socketio and self._sid:
-                await self.socketio.emit(
-                    "nfc_status", status_update, room=self._sid
-                )
+                await self.socketio.emit("nfc_status", status_update, room=self._sid)
                 logger.log(
                     LogLevel.INFO,
                     f"Emitted 'already_associated' status to client {self._sid}",
@@ -512,8 +507,7 @@ class NFCService:
         return False
 
     def is_listening(self) -> bool:
-        """
-        Check if service is currently listening for NFC tags.
+        """Check if service is currently listening for NFC tags.
 
         Returns:
             True if in listening mode.
@@ -521,8 +515,7 @@ class NFCService:
         return self.waiting_for_tag
 
     def is_in_association_mode(self) -> bool:
-        """
-        Check if the service is in tag association mode.
+        """Check if the service is in tag association mode.
 
         Returns:
             True if in association mode, False otherwise.
@@ -530,8 +523,7 @@ class NFCService:
         return self._association_mode
 
     async def set_override_mode(self, allow_override: bool = True) -> None:
-        """
-        Set whether to allow overriding existing tag associations.
+        """Set whether to allow overriding existing tag associations.
 
         Args:
             allow_override: Whether to allow overriding existing associations
@@ -546,8 +538,7 @@ class NFCService:
     async def _handle_playback_tag(
         self, tag_id: str, tag_data: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """
-        Handle a tag detected in playback mode (not association mode).
+        """Handle a tag detected in playback mode (not association mode).
 
         Args:
             tag_id: Detected NFC tag ID
@@ -577,9 +568,7 @@ class NFCService:
             return False
 
     async def _start_scan_status_updates(self) -> None:
-        """
-        Start sending periodic scan status updates to connected clients.
-        """
+        """Start sending periodic scan status updates to connected clients."""
         if self._scan_status_task and not self._scan_status_task.done():
             return
 
@@ -614,9 +603,7 @@ class NFCService:
         logger.log(LogLevel.INFO, "Started sending periodic scanning status updates")
 
     async def _stop_scan_status_updates(self) -> None:
-        """
-        Stop sending scan status updates.
-        """
+        """Stop sending scan status updates."""
         if self._scan_status_task and not self._scan_status_task.done():
             self._scan_status_task.cancel()
             try:
@@ -627,8 +614,7 @@ class NFCService:
 
     @property
     def tag_subject(self):
-        """
-        Expose the tag_subject from the underlying NFCHandler.
+        """Expose the tag_subject from the underlying NFCHandler.
 
         Returns:
             The tag_subject from the NFCHandler, or None if no handler is available.
@@ -639,8 +625,7 @@ class NFCService:
 
     @property
     def playback_subject(self) -> Subject:
-        """
-        Get the playback subject for subscribing to playback tag events.
+        """Get the playback subject for subscribing to playback tag events.
 
         Returns:
             The playback Subject instance
@@ -648,8 +633,7 @@ class NFCService:
         return self._playback_subject
 
     def set_playlist_controller(self, playlist_controller):
-        """
-        Set the playlist controller for this NFC service.
+        """Set the playlist controller for this NFC service.
 
         Args:
             playlist_controller: The playlist controller instance.
@@ -659,8 +643,7 @@ class NFCService:
     async def handle_tag_association(
         self, tag_id: str, tag_data: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        Handle a tag detected in association mode.
+        """Handle a tag detected in association mode.
 
         Args:
             tag_id: Detected NFC tag ID

@@ -1,3 +1,7 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
 import logging
 from typing import Any, Dict, Optional
 
@@ -7,6 +11,11 @@ from .logging.log_level import LogLevel
 
 
 class ImprovedLogger:
+    """
+    Thread-safe, context-aware logger for TheOpenMusicBox.
+
+    Provides colored output, error deduplication, and extra context formatting for hardware and application logs.
+    """
     _instance = None
     _error_counts = {}
     MAX_REPEATED_ERRORS = 1
@@ -44,6 +53,15 @@ class ImprovedLogger:
         exc_info: Optional[Exception] = None,
         **kwargs,
     ):
+        """
+        Log a message with the specified level, formatting extra context and handling errors.
+
+        Args:
+            level: LogLevel (severity)
+            message: Log message
+            exc_info: Optional exception for error context
+            **kwargs: Additional context for the log formatter
+        """
         if exc_info and isinstance(exc_info, OSError):
             message = "Hardware not available"
             exc_info = None
