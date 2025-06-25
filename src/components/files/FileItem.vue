@@ -2,7 +2,7 @@
   <div class="flex items-center justify-between gap-x-6 py-5">
     <div class="min-w-0">
       <div class="flex items-start gap-x-3">
-        <p :class="[colors.text.primary, 'text-sm font-semibold leading-6']">{{ file.name }}</p>
+        <p :class="['text-onBackground', 'text-sm font-semibold leading-6']">{{ file.name }}</p>
         <FileStatus :status="file.status" />
       </div>
     </div>
@@ -20,14 +20,13 @@
 
 import FileStatus from './FileStatus.vue'
 import FileActions from './FileActions.vue'
-import type { AudioFile } from '../files/types'
-import { i18n } from '@/i18n'
-import { colors } from '@theme/colors'
+import type { LegacyAudioFile } from './types'
+import { useI18n } from 'vue-i18n'
 
-const { t: $t } = i18n
+const { t } = useI18n()
 
 defineProps<{
   /** The audio file to display */
-  file: AudioFile
+  file: LegacyAudioFile
 }>()
 </script>

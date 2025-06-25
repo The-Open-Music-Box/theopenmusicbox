@@ -1,18 +1,17 @@
 <template>
   <div class="flex justify-center items-center min-h-[60vh] py-8">
-  <div class="w-full max-w-md bg-white border border-gray-200 rounded-xl shadow-lg p-8 relative">
+  <div class="w-full max-w-md bg-surface border border-border rounded-xl shadow-lg p-8 relative">
     <BackgroundDecoration class="absolute inset-0 pointer-events-none z-0" />
     
-    <h2 :class="[colors.text.primary, 'text-3xl font-bold tracking-tight']">
+    <h2 :class="['text-onBackground', 'text-3xl font-bold tracking-tight']">
       {{ t('contact.getInTouch') }}
     </h2>
-    <p :class="[colors.text.secondary, 'mt-6 text-lg leading-8']">
+    <p :class="['text-disabled', 'mt-6 text-lg leading-8']">
       {{ description }}
     </p>
     <ContactDetails :details="contactDetails" />
   </div>
     </div>
-</div>
 </template>
 
 <script setup lang="ts">
@@ -26,7 +25,7 @@ import BackgroundDecoration from './BackgroundDecoration.vue'
 import { useI18n } from 'vue-i18n'
 const { t } = useI18n()
 import ContactDetails from './ContactDetails.vue'
-import { colors } from '@theme/colors'
+// Theme colors are used in template via CSS variables
 
 /**
  * Descriptive text for contact section

@@ -4,11 +4,11 @@
       type="submit"
       :disabled="loading"
       :class="[
-        colors.primary.main,
-        'rounded-md px-3.5 py-2.5 text-center text-sm font-semibold text-white shadow-sm',
-        'hover:' + colors.primary.hover,
+        'bg-primary',
+        'rounded-md px-3.5 py-2.5 text-center text-sm font-semibold text-onPrimary shadow-sm',
+        'hover:bg-primary-light',
         'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
-        'focus-visible:outline-' + colors.primary.main,
+        'focus-visible:outline-focus',
         'disabled:opacity-50 disabled:cursor-not-allowed'
       ]"
     >

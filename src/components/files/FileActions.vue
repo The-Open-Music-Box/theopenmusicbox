@@ -1,25 +1,19 @@
 <template>
   <div class="flex flex-none items-center gap-x-4">
     <button @click="handleAssociate"
-      :class="[
-        colors.primary.main,
-        'inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold text-white shadow-sm',
-        'hover:' + colors.primary.hover,
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
-        'focus-visible:outline-' + colors.primary.main,
-      ]"
+      class="inline-flex w-full justify-center rounded-md px-3 py-2 text-sm font-semibold bg-primary text-onPrimary shadow-sm hover:bg-primary-light focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus"
     >
       {{ t('file.associateTag') }}
     </button>
     <Menu as="div" class="relative flex-none">
-      <MenuButton :class="[colors.text.secondary, '-m-2.5 block p-2.5 hover:' + colors.text.primary]">
+      <MenuButton class="-m-2.5 block p-2.5 text-disabled hover:text-primary">
         <span class="sr-only">{{ t('file.openOptions') }}</span>
         <EllipsisVerticalIcon class="h-5 w-5" aria-hidden="true" />
       </MenuButton>
       <MenuItems>
         <MenuItem v-slot="{ active }">
           <button @click="handleDelete"
-            :class="[active ? 'bg-gray-50' : '', 'block w-full text-left px-3 py-1 text-sm leading-6 ' + colors.text.primary]"
+            :class="[active ? 'bg-background' : '', 'block w-full text-left px-3 py-1 text-sm leading-6 text-onBackground']"
           >
             {{ t('common.delete') }}<span class="sr-only">, {{ file.name }}</span>
           </button>

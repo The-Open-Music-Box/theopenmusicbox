@@ -1,11 +1,11 @@
 <template>
-  <dl :class="[colors.text.secondary, 'mt-10 space-y-4 text-base leading-7']">
+  <dl class="mt-10 space-y-4 text-base leading-7 text-onBackground">
     <div v-for="detail in details" :key="detail.type" class="flex gap-x-4">
       <dt class="flex-none">
         <span class="sr-only">{{ detail.type }}</span>
         <component
           :is="detail.icon"
-          :class="[colors.text.disabled, 'h-7 w-6']"
+          class="h-7 w-6 text-disabled"
           aria-hidden="true"
         />
       </dt>
@@ -13,7 +13,7 @@
         <template v-if="detail.href">
           <a
             :href="detail.href"
-            :class="['hover:' + colors.text.primary]"
+            class="hover:text-primary"
           >{{ detail.content }}</a>
         </template>
         <template v-else>
@@ -33,7 +33,6 @@
  */
 
 import { useI18n } from 'vue-i18n'
-import { colors } from '@theme/colors'
 
 const { t } = useI18n()
 

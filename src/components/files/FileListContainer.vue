@@ -1,8 +1,8 @@
 <template>
   <div>
     <!-- Loading and error states -->
-    <div v-if="isLoading" :class="[colors.text.secondary, 'py-4']">{{ t('common.loading') }}</div>
-    <div v-if="error" :class="[colors.error.main, 'py-2']">{{ error }}</div>
+    <div v-if="isLoading" :class="['text-disabled', 'py-4']">{{ t('common.loading') }}</div>
+    <div v-if="error" :class="['text-error', 'py-2']">{{ error }}</div>
 
     <template v-if="!isLoading && !error">
       <FilesListHeader />
@@ -12,6 +12,7 @@
         @deleteTrack="handleDeleteTrack"
         @select-track="handleSelectTrack"
         @refreshPlaylists="loadPlaylists"
+        @play-playlist="handlePlayPlaylist"
       />
       <DeleteDialog
         :open="showDeleteDialog"
@@ -32,11 +33,11 @@
  * Handles loading, file selection, and track deletion.
  */
 import { onMounted, ref } from 'vue'
-import { useFilesStore } from '../files/composables/useFilesStore'
+import { useFilesStore } from './composables/useFilesStore'
 import FilesListHeader from './FilesListHeader.vue'
 import FilesList from './FilesList.vue'
 import DeleteDialog from '../DeleteDialog.vue'
-import type { PlayList, Track } from '../files/types'
+import type { PlayList, Track } from './types'
 import { useI18n } from 'vue-i18n'
 import { colors } from '@theme/colors'
 
@@ -54,6 +55,7 @@ const emit = defineEmits<{
   (e: 'select-track', data: { track: Track, playlist: PlayList }): void
 }>()
 
+import dataService from '@/services/dataService'
 const { playlists, isLoading, error, loadPlaylists, deleteTrack } = useFilesStore()
 const showDeleteDialog = ref(false)
 const selectedPlaylist = ref<PlayList | null>(null)
@@ -100,6 +102,21 @@ const handleDeleteConfirm = async () => {
     closeDeleteDialog()
   } catch (err) {
     // Error is already handled in the store
+  }
+}
+
+/**
+ * Handle play playlist action from FilesList
+ * @param {PlayList} playlist - Playlist to play
+ */
+const handlePlayPlaylist = async (playlist: PlayList) => {
+  try {
+    await dataService.startPlaylist(playlist.id)
+    // Optionally, you may want to optimistically update UI or reload playlists
+    // await loadPlaylists()
+  } catch (err) {
+    // Optionally show error to user
+    console.error('Error starting playlist:', err)
   }
 }
 

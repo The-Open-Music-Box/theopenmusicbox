@@ -52,7 +52,7 @@
     <!-- Bouton central -->
     <button
       type="button"
-      class="bg-white text-slate-900 dark:bg-slate-100 dark:text-slate-700 -my-2 mx-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full ring-1 ring-slate-900/5 shadow-md flex items-center justify-center"
+      class="bg-surface text-onBackground -my-2 mx-auto w-16 h-16 sm:w-20 sm:h-20 rounded-full ring-1 ring-border shadow-md flex items-center justify-center"
       :aria-label="t('player.playPause')"
       @click="$emit('togglePlayPause')"
     >

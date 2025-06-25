@@ -1,6 +1,6 @@
 <template>
   <div :class="[field.colSpan === 2 ? 'sm:col-span-2' : '']">
-    <label :for="field.id" :class="[colors.text.primary, 'block text-sm font-semibold leading-6']">
+    <label :for="field.id" class="block text-sm font-semibold leading-6 text-onBackground">
       {{ t(`contact.${field.id}`) }}
     </label>
     <div class="mt-2.5">
@@ -11,7 +11,7 @@
         :rows="field.rows"
         :value="value"
         @input="handleInput"
-        class="block w-full rounded-md border-0 px-3.5 py-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+        class="block w-full rounded-md border-0 px-3.5 py-2 text-onBackground shadow-sm ring-1 ring-inset ring-border placeholder:text-disabled focus:ring-2 focus:ring-inset focus:ring-focus sm:text-sm sm:leading-6"
       />
       <input
         v-else
@@ -21,7 +21,7 @@
         :autocomplete="field.autocomplete"
         :value="value"
         @input="handleInput"
-        class="block w-full rounded-md border-0 px-3.5 py-2 text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 placeholder:text-gray-400 focus:ring-2 focus:ring-inset focus:ring-indigo-600 sm:text-sm sm:leading-6"
+        class="block w-full rounded-md border-0 px-3.5 py-2 text-onBackground shadow-sm ring-1 ring-inset ring-border placeholder:text-disabled focus:ring-2 focus:ring-inset focus:ring-focus sm:text-sm sm:leading-6"
       />
     </div>
   </div>
