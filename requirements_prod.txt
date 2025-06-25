@@ -1,9 +1,0 @@
-# Raspberry Pi-specific dependencies (extends requirements_base.txt)
--r requirements_base.txt
-# Certaines dépendances système doivent être installées via apt-get (voir install_pi_system_deps.sh)
-pygame==2.6.1
-adafruit-circuitpython-bh1750>=1.0.10
-adafruit-circuitpython-pn532>=2.0.1
-rpi_ws281x>=4.3.3
-gpiozero>=1.6.2
-lgpio>=0.1.0 # GPIO backend for gpiozero
