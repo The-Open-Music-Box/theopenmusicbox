@@ -28,14 +28,22 @@ class AppConfig:
         db_path = config.db_file
     """
 
+    # mDNS/zeroconf configuration keys:
+    #   - mdns_service_type: Service type (e.g., _http._tcp.local.)
+    #   - mdns_service_name: Service name (e.g., TheOpenMusicBox._http._tcp.local)
+    #   - mdns_service_hostname: Hostname for the service (e.g., tmbdev.local.)
+    #   - mdns_service_path: Path property for service (e.g., /api)
+    #   - mdns_service_version: Version property (e.g., 1.0)
+    #   - mdns_service_friendly_name: Human-friendly name (e.g., The Open Music Box)
+
     # Default configuration values
     DEFAULTS = {
         "debug": True,
         "use_reloader": False,
         "socketio_host": "0.0.0.0",
         "socketio_port": 5004,
-        "upload_folder": "app/uploads",
-        "db_file": "app/database/app.db",
+        "upload_folder": "data/upload",
+        "db_file": "data/app.db",
         "cors_allowed_origins": "http://localhost:8080;http://localhost:8081",
         "log_level": "INFO",
         "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -43,7 +51,11 @@ class AppConfig:
         "use_mock_hardware": False,
         "app_module": "app.main:app_sio",
         "uvicorn_reload": False,
-        "auto_pause_enabled": False,
+        # mDNS/zeroconf service defaults
+        "mdns_service_type": "_http._tcp.local.",
+        "mdns_service_path": "/api",
+        "mdns_service_version": "1.0",
+        "mdns_service_friendly_name": "The Open Music Box",
     }
 
     def __init__(self):
@@ -81,30 +93,19 @@ class AppConfig:
         # Get the app directory path (parent of src)
         app_dir = Path(__file__).parent.parent.parent
 
-        # Create upload directory if it doesn't exist
-        upload_dir = Path(self._values["upload_folder"])
-        if not upload_dir.is_absolute():
-            # Make relative paths absolute from the app directory
-            upload_dir = app_dir / upload_dir
-
+        # Always resolve upload and database paths from app_dir/data
+        upload_dir = app_dir / "data" / "upload"
         upload_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(
-            f"✓ Config paths: uploads={upload_dir}, db={app_dir / self._values['db_file']}"
-        )
+        logger.info(f"✓ Config paths: uploads={upload_dir}")
 
-        # Ensure database directory exists
-        db_path = Path(self._values["db_file"])
-        if not db_path.is_absolute():
-            db_path = app_dir / db_path
-
-        db_dir = db_path.parent
+        db_dir = app_dir / "data" / "database"
         db_dir.mkdir(parents=True, exist_ok=True)
+        logger.info(f"✓ Config paths: db={db_dir}")
 
         # Ensure log directory exists
         log_path = Path(self._values["log_file"])
         if not log_path.is_absolute():
             log_path = app_dir / log_path
-
         log_dir = log_path.parent
         log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -131,7 +132,17 @@ class AppConfig:
                 return value
         except (ValueError, TypeError) as e:
             logger.error(f"Error converting value '{value}' to {target_type}: {e}")
-            return self.DEFAULTS.get(value, None)
+            # Fallback: return the default for the requested type if possible
+            if target_type == bool:
+                return False
+            elif target_type == int:
+                return 0
+            elif target_type == float:
+                return 0.0
+            elif target_type == list:
+                return []
+            else:
+                return None
 
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value.
@@ -179,18 +190,49 @@ class AppConfig:
     @property
     def socketio_port(self) -> int:
         """Port for Socket.IO server (required)."""
+        value = self._values.get("socketio_port")
+        if value is None:
+            raise ValueError(
+                "Critical config missing: 'socketio_port' must be set in config/environment."
+            )
+        return int(value)
 
     @property
     def upload_folder(self) -> str:
         """Directory for uploaded files (required).
-        
-        Returns the absolute path to the upload folder, ensuring it resolves correctly
-        regardless of the working directory at runtime.
+
+        Returns the absolute path to the upload folder, ensuring it
+        resolves correctly regardless of the working directory at
+        runtime.
         """
+        value = self._values.get("upload_folder")
+        if not value:
+            raise ValueError(
+                "Critical config missing: 'upload_folder' must be set in config/environment."
+            )
+
+        # Get the app directory path (parent of src)
+        app_dir = Path(__file__).parent.parent.parent
+
+        # If value is a relative path, make it absolute from app_dir
+        path = Path(value)
+        if not path.is_absolute():
+            path = app_dir / path
+
+        # Log the absolute path for debugging
+        logger.debug(f"Resolved upload_folder path: {path}")
+
+        return str(path)
 
     @property
     def db_file(self) -> str:
         """Path to SQLite database file (required)."""
+        value = self._values.get("db_file")
+        if not value:
+            raise ValueError(
+                "Critical config missing: 'db_file' must be set in config/environment."
+            )
+        return value
 
     @property
     def cors_allowed_origins(self) -> list:
@@ -229,6 +271,64 @@ class AppConfig:
     def uvicorn_reload(self) -> bool:
         """Whether to enable Uvicorn reload."""
         return self._values.get("uvicorn_reload", False)
+
+    # mDNS/zeroconf properties
+    @property
+    def mdns_service_type(self) -> str:
+        """Service type for mDNS/zeroconf (e.g. _http._tcp.local.).
+
+        Returns the service type string.
+        """
+        return self._values.get("mdns_service_type", "_http._tcp.local.")
+
+    @property
+    def mdns_service_name(self) -> str:
+        """Service name for mDNS/zeroconf.
+
+        If not set in config/env, generates a unique name using the system hostname.
+        Example: MusicBox-<hostname>._http._tcp.local
+        """
+        value = self._values.get("mdns_service_name")
+        if value:
+            return value
+        import socket
+
+        hostname = socket.gethostname()
+        return f"MusicBox-{hostname}._http._tcp.local"
+
+    @property
+    def mdns_service_hostname(self) -> str:
+        """Get the hostname property for mDNS/zeroconf service.
+
+        Example: <hostname>.local.
+        If not set in config/env, generates <hostname>.local. using the
+        system hostname.
+        """
+        value = self._values.get("mdns_service_hostname")
+        if value:
+            return value
+        import socket
+
+        hostname = socket.gethostname()
+        return f"{hostname}.local."
+
+    @property
+    def mdns_service_path(self) -> str:
+        """Path property for mDNS/zeroconf service (e.g. /api)."""
+        return self._values.get("mdns_service_path", "/api")
+
+    @property
+    def mdns_service_version(self) -> str:
+        """Version property for mDNS/zeroconf service (e.g. 1.0)."""
+        return self._values.get("mdns_service_version", "1.0")
+
+    @property
+    def mdns_service_friendly_name(self) -> str:
+        """Human-friendly name for mDNS/zeroconf service.
+
+        The name is used to identify the service in a user-friendly way.
+        """
+        return self._values.get("mdns_service_friendly_name", "The Open Music Box")
 
 
 # Create the single global instance
