@@ -1,7 +1,7 @@
 <template>
-  <Disclosure as="nav" :class="`bg-${colors.background.main}`" v-slot="{ open }">
+  <Disclosure as="nav" :class="'bg-surface'" v-slot="{ open }">
     <div class="mx-auto max-w-7xl sm:px-6 lg:px-8">
-      <div class="border-b border-gray-700">
+      <div class="border-b border-border">
         <div class="flex h-16 items-center justify-between px-4 sm:px-0">
           <div class="flex items-center">
             <div class="flex-shrink-0">
@@ -16,10 +16,10 @@
                   :to="item.href"
                   :class="[
                     item.current && item.key === 'home'
-                      ? 'bg-gray-100 text-gray-900'
+                      ? 'bg-background text-onBackground'
                       : item.current
-                        ? `bg-${colors.primary.main} text-${colors.text.white}`
-                        : `text-${colors.text.primary} hover:bg-${colors.primary.light} hover:text-${colors.text.primary}`,
+                        ? 'bg-primary text-onPrimary' 
+                        : 'text-onBackground hover:bg-primary-light hover:text-onBackground',
                     'rounded-md px-3 py-2 text-sm font-medium',
                   ]"
                   :aria-current="item.current ? 'page' : undefined"
@@ -32,7 +32,7 @@
 
           <div class="-mr-2 flex md:hidden">
             <DisclosureButton
-              class="relative inline-flex items-center justify-center rounded-md bg-gray-800 p-2 text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none focus:ring-2 focus:ring-white focus:ring-offset-2 focus:ring-offset-gray-800">
+              class="relative inline-flex items-center justify-center rounded-md bg-surface p-2 text-disabled hover:bg-primary hover:text-onPrimary focus:outline-none focus:ring-2 focus:ring-focus focus:ring-offset-2 focus:ring-offset-background">
               <span class="absolute -inset-0.5" />
               <span class="sr-only">Open main menu</span>
               <Bars3Icon v-if="!open" class="block h-6 w-6" aria-hidden="true" />
@@ -43,7 +43,7 @@
       </div>
     </div>
 
-    <DisclosurePanel class="border-b border-gray-700 md:hidden">
+    <DisclosurePanel class="border-b border-border md:hidden">
       <div class="space-y-1 px-2 py-3 sm:px-3">
         <router-link
           v-for="item in navigation"
@@ -51,8 +51,8 @@
           :to="item.href"
           :class="[
             item.current
-              ? 'bg-gray-900 text-white'
-              : 'text-gray-300 hover:bg-gray-700 hover:text-white',
+              ? 'bg-primary text-onPrimary'
+              : 'text-onBackground hover:bg-primary-light hover:text-onPrimary',
             'block rounded-md px-3 py-2 text-base font-medium',
           ]"
           :aria-current="item.current ? 'page' : undefined"
@@ -72,7 +72,7 @@
  * Provides responsive navigation menu with mobile support.
  */
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
-import { colors } from '@/theme/colors'
+import { colors, getColor } from '@/theme/colors'
 import { Bars3Icon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -95,10 +95,10 @@ nav {
 
 nav a {
   font-weight: bold;
-  color: #2c3e50;
+  color: v-bind('colors.light.onBackground');
 }
 
 nav a.router-link-exact-active {
-  color: #42b983;
+  color: v-bind('colors.light.primary');
 }
 </style>

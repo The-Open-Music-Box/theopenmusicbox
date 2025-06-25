@@ -10,7 +10,10 @@
           </option>
         </select>
       </section>
-      <!-- Add more settings sections here as needed -->
+      <section>
+        <h2 class="text-lg font-semibold mb-2">{{ t('settings.systemStatus') }}</h2>
+        <StatsInfo />
+      </section>
     </div>
   </div>
 </template>
@@ -18,6 +21,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
+import StatsInfo from '../components/StatsInfo.vue'
 
 const { t, locale, availableLocales } = useI18n()
 const selectedLocale = ref(locale.value)
@@ -29,8 +33,8 @@ function changeLocale() {
 
 <style scoped>
 .settings-page {
-  background: white;
+  background: var(--color-surface);
   border-radius: 1rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  box-shadow: 0 2px 8px var(--color-shadow);
 }
 </style>

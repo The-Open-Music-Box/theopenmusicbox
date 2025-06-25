@@ -13,16 +13,16 @@
           y="-1"
           patternUnits="userSpaceOnUse"
         >
-          <path d="M100 200V.5M.5 .5H200" fill="none" :stroke="colors.border.light" />
+          <path d="M100 200V.5M.5 .5H200" fill="none" class="stroke-border" />
         </pattern>
       </defs>
-      <svg x="50%" y="-1" class="overflow-visible fill-gray-50 dark:fill-gray-900">
+      <svg x="50%" y="-1" class="overflow-visible fill-background">
         <path
           d="M-100.5 0h201v201h-201Z M699.5 0h201v201h-201Z M499.5 400h201v201h-201Z M-300.5 600h201v201h-201Z"
           stroke-width="0"
         />
       </svg>
-      <rect width="100%" height="100%" stroke-width="0" :fill="'url(#83fd4e5a-9d52-42fc-97b6-718e5d7ee527)'" />
+      <rect width="100%" height="100%" stroke-width="0" :fill="'url(#83fd4e5a-9d52-42fc-97b6-718e5d7ee527)'" class="fill-background" />
     </svg>
   </div>
 </template>
@@ -34,5 +34,5 @@
  * Provides a subtle grid pattern background decoration for sections.
  * Uses SVG patterns for a consistent visual texture.
  */
- import { colors } from '@theme/colors'
+// Using theme tokens directly in class bindings
 </script>

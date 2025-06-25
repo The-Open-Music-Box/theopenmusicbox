@@ -5,53 +5,54 @@
  * Use these variables instead of hardcoded Tailwind classes to maintain consistency.
  */
 
+/**
+ * Application Color Theme (Light/Dark)
+ *
+ * Palette centralisée pour cohérence UI.
+ * Utiliser colors[mode][role] pour obtenir la couleur selon le mode.
+ */
+
+export type ThemeMode = 'light' | 'dark';
+
 export const colors = {
-  primary: {
-    main: 'indigo-600',
-    hover: 'indigo-500',
-    light: 'indigo-100',
-    dark: 'indigo-700',
+  light: {
+    primary: '#F27B70', // Action principale
+    secondary: '#A3C9A8', // Accent secondaire
+    tertiary: '#FFD882', // Mise en valeur douce
+    background: '#FDF8EF', // Fond principal
+    surface: '#FFFFFF', // Fond des composants
+    onPrimary: '#FFFFFF', // Texte sur boutons primaires
+    onBackground: '#3A3A3A', // Texte principal
+    onSurface: '#444444', // Texte secondaire
+    border: '#DADADA', // Séparateurs
+    error: '#D9605E', // Alertes critiques
+    success: '#77C29B', // Messages positifs
+    disabled: '#CCCCCC', // Inactifs
+    focus: '#82A6D2', // Focus clavier/hover
   },
-  secondary: {
-    main: 'cyan-500',
-    hover: 'cyan-400',
-    light: 'cyan-100',
-    dark: 'cyan-600',
+  dark: {
+    primary: '#F58C82',
+    secondary: '#ADCBB3',
+    tertiary: '#FFEBA6',
+    background: '#1F1F1F',
+    surface: '#2A2A2A',
+    onPrimary: '#1F1F1F',
+    onBackground: '#F1F1F1',
+    onSurface: '#DDDDDD',
+    border: '#444444',
+    error: '#F58C8A',
+    success: '#93D1B1',
+    disabled: '#666666',
+    focus: '#A1C0F2',
   },
-  error: {
-    main: 'red-600',
-    hover: 'red-500',
-    light: 'red-100',
-    dark: 'red-700',
-    background: 'red-100',
-    border: 'red-400',
-    text: 'red-700',
-  },
-  success: {
-    main: 'green-600',
-    hover: 'green-500',
-    light: 'green-100',
-  },
-  warning: {
-    main: 'yellow-500',
-    light: 'yellow-100',
-  },
-  text: {
-    primary: 'gray-900',
-    secondary: 'gray-600',
-    disabled: 'gray-400',
-    light: 'gray-300',
-    white: 'white',
-  },
-  background: {
-    main: 'white',
-    dark: 'gray-800',
-    light: 'gray-50',
-    medium: 'gray-200',
-  },
-  border: {
-    main: 'gray-300',
-    dark: 'gray-700',
-    light: 'gray-200',
-  },
-};
+} as const;
+
+/**
+ * Helper pour obtenir la couleur selon le mode.
+ * @param key Nom du rôle
+ * @param mode 'light' ou 'dark'
+ */
+export function getColor(key: keyof typeof colors.light, mode: ThemeMode = 'light') {
+  return colors[mode][key];
+}
+

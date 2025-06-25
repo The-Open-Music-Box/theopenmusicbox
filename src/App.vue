@@ -6,7 +6,7 @@
   <div id="app">
     <div
       v-if="socketError"
-      :class="[colors.error.background, colors.error.border, colors.error.text, 'px-4 py-3 rounded relative']"
+      :class="['bg-error bg-opacity-10', 'border', 'border-error', 'text-error', 'px-4 py-3 rounded relative']"
       role="alert"
     >
       <strong class="font-bold">{{ t('common.socketError') }}</strong>
@@ -14,7 +14,7 @@
     </div>
     <button
       @click="sendMessage"
-      :class="[colors.primary.main, 'mt-4 px-4 py-2 text-white rounded hover:' + colors.primary.hover]"
+      :class="['bg-primary', 'hover:bg-primary-light', 'mt-4', 'px-4', 'py-2', 'text-onPrimary', 'rounded']"
     >
       {{ t('common.sendMessage') }}
     </button>
@@ -31,7 +31,7 @@
 import HeaderNavigation from './components/HeaderNavigation.vue'
 import { onMounted, onUnmounted, ref, getCurrentInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { colors } from '@/theme/colors'
+import { colors, getColor } from '@/theme/colors'
 
 const { t } = useI18n()
 const { proxy } = getCurrentInstance()
@@ -82,6 +82,6 @@ onUnmounted(() => {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-align: center;
-  color: #2c3e50;
+  color: v-bind('colors.light.onBackground')
 }
 </style>
