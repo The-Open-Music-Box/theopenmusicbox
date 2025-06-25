@@ -1,5 +1,9 @@
 # TMB Application Service Configuration
-# put this file in /etc/systemd/system/app.Service
+# this should be moved to /etc/systemd/system/app.service
+# and then run sudo
+# systemctl daemon-reload
+# systemctl enable app.service
+# systemctl start app.service
 
 [Unit]
 Description=TMB Application Service
