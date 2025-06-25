@@ -1,9 +1,9 @@
 <template>
-  <div class="mt-2 flex justify-center rounded-lg border border-dashed border-gray-900/25 px-6 py-10">
+  <div class="mt-2 flex justify-center rounded-lg border border-dashed border-border px-6 py-10">
     <div class="text-center">
-      <PhotoIcon class="mx-auto h-12 w-12 text-gray-300" aria-hidden="true" />
-      <div class="mt-4 flex text-sm leading-6 text-gray-600">
-        <label class="relative cursor-pointer rounded-md bg-white font-semibold text-indigo-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-600 focus-within:ring-offset-2 hover:text-indigo-500">
+      <PhotoIcon class="mx-auto h-12 w-12 text-disabled" aria-hidden="true" />
+      <div class="mt-4 flex text-sm leading-6 text-disabled">
+        <label class="relative cursor-pointer rounded-md bg-surface font-semibold text-primary focus-within:outline-none focus-within:ring-2 focus-within:ring-focus focus-within:ring-offset-2 hover:text-primary-light">
           <span>{{ t('upload.uploadFile') }}</span>
           <input
             type="file"
@@ -15,7 +15,7 @@
         </label>
         <p class="pl-1">{{ t('upload.dragDrop') }}</p>
       </div>
-      <p class="text-xs leading-5 text-gray-600">{{ t('upload.fileType') }}</p>
+      <p class="text-xs leading-5 text-disabled">{{ t('upload.fileType') }}</p>
     </div>
   </div>
 </template>

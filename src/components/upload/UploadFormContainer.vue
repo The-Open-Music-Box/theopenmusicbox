@@ -19,8 +19,8 @@
  * Container component that orchestrates file uploading process.
  * Handles file validation, upload process, and progress tracking.
  */
-import { useUploadValidation } from '../upload/composables/useUploadValidation'
-import { useFileUpload } from '../upload/composables/useFileUpload'
+import { useUploadValidation } from './composables/useUploadValidation'
+import { useFileUpload } from './composables/useFileUpload'
 import UploadFormUI from './UploadFormUI.vue'
 import UploadProgress from './UploadProgress.vue'
 

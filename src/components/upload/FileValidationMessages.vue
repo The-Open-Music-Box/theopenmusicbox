@@ -2,7 +2,7 @@
   <div v-if="errors.length" class="mt-4">
     <p v-for="(error, index) in errors"
        :key="index"
-       :class="[colors.error.main, 'text-sm']">
+       class="text-error text-sm">
       {{ error }}
     </p>
   </div>
@@ -16,7 +16,7 @@
  * Shows error messages in a consistent format with appropriate styling.
  */
 
-import { colors } from '@/theme/colors'
+// Using theme tokens directly in class bindings
 
 defineProps<{
   /** Array of error message strings to display */

@@ -23,7 +23,7 @@
 </template>
 
 <script setup lang="ts">
-import { colors } from '@/theme/colors'
+import { getColor } from '@/theme/colors'
 /**
  * AudioPlayer Component
  *
