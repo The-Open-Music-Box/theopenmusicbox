@@ -44,6 +44,7 @@ class PlaylistRoutes:
 
     def register(self):
         """Register playlist-related API routes with the FastAPI app."""
+
         @self.app.get("/api/playlists")
         async def get_playlists_direct(
             page: int = 1, page_size: int = 50, config=Depends(get_config)
@@ -333,7 +334,6 @@ class PlaylistRoutes:
 
             Returns:
                 Dict[str, Any]: Upload status and file metadata.
-
             """
             playlist_service = PlaylistService()
             playlist = playlist_service.get_playlist_by_id(playlist_id)
@@ -387,7 +387,6 @@ class PlaylistRoutes:
 
             Returns:
                 Dict[str, Any]: Status of the reorder operation.
-
             """
             order = body.get("order", [])
             if not order or not isinstance(order, list):
@@ -463,7 +462,6 @@ class PlaylistRoutes:
 
             Returns:
                 Dict[str, Any]: Status and action performed.
-
             """
             audio = self._get_cached_audio(request)
 
@@ -488,4 +486,3 @@ class PlaylistRoutes:
             action_func()
 
             return {"status": "success", "action": action}
-

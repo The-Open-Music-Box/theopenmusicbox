@@ -165,7 +165,7 @@ class PlaylistService:
 
         This scans the specified folder for supported audio files
         and creates a new playlist entry in the database, with each file as a track.
-        The playlist's relative path is determined with respect to the uploads folder.
+        The playlist's relative path is determined with respect to the upload folder.
 
         Args:
             folder_path: Path to the folder
@@ -619,7 +619,8 @@ class PlaylistService:
     def play_playlist_with_validation(
         self, playlist_data: Dict[str, Any], audio
     ) -> bool:
-        """Play a playlist using the audio player, with validation and metadata update.
+        """Play a playlist using the audio player, with validation and metadata
+        update.
 
         This function plays a playlist using the provided audio player, with validation and metadata update.
 
@@ -678,7 +679,8 @@ class PlaylistService:
             return False
 
     def start_playlist(self, playlist_id: str, audio) -> bool:
-        """Start playback of the specified playlist using the provided audio system, with validation.
+        """Start playback of the specified playlist using the provided audio
+        system, with validation.
 
         Args:
             playlist_id: ID of the playlist to play.

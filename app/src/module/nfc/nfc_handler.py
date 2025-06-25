@@ -10,7 +10,8 @@ T = TypeVar("T", bound=NFCHardware)
 
 
 class NFCHandler(Generic[T]):
-    """NFC handler that abstracts the underlying hardware (MockNFC or PN532I2CNFC).
+    """NFC handler that abstracts the underlying hardware (MockNFC or
+    PN532I2CNFC).
 
     Ensure that all hardware access goes through the proper interfaces.
     """

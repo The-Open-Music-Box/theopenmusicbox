@@ -137,9 +137,9 @@ class PN532I2CNFC(NFCHardware):
 
         This is the main reader loop that runs until stopped.
         """
-        logger.log(LogLevel.INFO, "Starting reader loop")
+        logger.log(LogLevel.INFO, "NFC reader loop started")
         error_count = 0
-        last_info_log = 0
+        last_info_log = time.time()
 
         while not self._stop_event.is_set():
             try:
@@ -149,6 +149,7 @@ class PN532I2CNFC(NFCHardware):
                     )
                     await self._initialize_hardware()
                     error_count = 0
+                    last_info_log = time.time()
 
                 # Log the reading state
                 result = await self.read_nfc()
