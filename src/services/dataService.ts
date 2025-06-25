@@ -10,6 +10,14 @@ import realApiService from './realApiService'
 
 const dataService = {
   /**
+   * Start playback of a playlist
+   * @param playlistId - Playlist identifier
+   * @returns Promise resolving to server response
+   */
+  startPlaylist(playlistId: string) {
+    return realApiService.startPlaylist(playlistId);
+  },
+  /**
    * Fetches the list of audio files from the server
    * @returns Promise resolving to the list of audio files
    */
@@ -102,10 +110,10 @@ const dataService = {
   /**
    * Reorders tracks in a playlist
    * @param playlistId - Playlist identifier
-   * @param newOrder - New order of tracks
+   * @param newOrder - New order of tracks (as numbers)
    * @returns Promise that resolves when the reorder operation completes
    */
-  reorderTracks(playlistId: string, newOrder: string[]) {
+  reorderTracks(playlistId: string, newOrder: number[]) {
     return realApiService.reorderTracks(playlistId, newOrder);
   },
 

@@ -2,9 +2,13 @@
  * Real API Service
  * Provides production-ready HTTP client for communication with the backend API.
  * Features include request/response interceptors, caching, error handling, and retry logic.
+ * 
+ * IMPORTANT: All routes in this service are aligned with the backend API documentation
+ * found in /back/routes-api.md
  */
 
 import axios, { AxiosError, InternalAxiosRequestConfig, AxiosResponse, AxiosProgressEvent } from 'axios'
+import { API_ROUTES } from '../constants/apiRoutes'
 
 const apiBaseUrl = process.env.VUE_APP_API_URL;
 console.log('API base URL:', apiBaseUrl);
@@ -115,7 +119,25 @@ class RealApiService {
    */
   async getPlaylists() {
     try {
-      const response = await apiClient.get('/api/playlists')
+      console.debug(`Calling API: GET ${API_ROUTES.PLAYLISTS}`)
+      const response = await apiClient.get(API_ROUTES.PLAYLISTS)
+      console.debug('API response status:', response.status)
+      console.debug('API response headers:', response.headers)
+      console.debug('API response.data type:', typeof response.data)
+      console.debug('API response.data:', JSON.stringify(response.data))
+      
+      // Vérifier si response.data est null ou undefined
+      if (response.data === null || response.data === undefined) {
+        console.error('API response.data is null or undefined')
+        throw new Error('API response.data is null or undefined')
+      }
+      
+      // Vérifier si response.data.playlists existe
+      if (!response.data.playlists) {
+        console.error('API response.data.playlists is missing', response.data)
+        throw new Error('API response.data.playlists is missing')
+      }
+      
       return response.data.playlists
     } catch (error) {
       console.error('Error fetching playlists:', error)
@@ -130,7 +152,7 @@ class RealApiService {
    */
   async getPlaylist(playlistId: string) {
     try {
-      const response = await apiClient.get(`/api/playlists/${playlistId}`)
+      const response = await apiClient.get(API_ROUTES.PLAYLIST(playlistId))
       return response.data
     } catch (error) {
       console.error('Error fetching playlist:', error)
@@ -145,7 +167,7 @@ class RealApiService {
    */
   async createPlaylist(playlistData: any) {
     try {
-      const response = await apiClient.post('/api/playlists', playlistData)
+      const response = await apiClient.post(API_ROUTES.PLAYLISTS, playlistData)
       return response.data
     } catch (error) {
       console.error('Error creating playlist:', error)
@@ -160,7 +182,7 @@ class RealApiService {
    */
   async deletePlaylist(playlistId: string) {
     try {
-      const response = await apiClient.delete(`/api/playlists/${playlistId}`)
+      const response = await apiClient.delete(API_ROUTES.PLAYLIST(playlistId))
       return response.data
     } catch (error) {
       console.error('Error deleting playlist:', error)
@@ -169,23 +191,23 @@ class RealApiService {
   }
 
   /**
-   * Upload tracks to a playlist
+   * Upload files to a playlist
    * @param playlistId - ID of the playlist
    * @param files - FileList or array of files
    * @param onUploadProgress - Optional progress callback
    * @returns Promise resolving to server response
    */
-  async uploadTracks(playlistId: string, files: FileList | File[], onUploadProgress?: (progressEvent: AxiosProgressEvent) => void) {
+  async uploadFiles(playlistId: string, files: FileList | File[], onUploadProgress?: (progressEvent: AxiosProgressEvent) => void) {
     const formData = new FormData();
     Array.from(files).forEach((file) => formData.append('files', file));
     try {
-      const response = await apiClient.post(`/api/playlists/${playlistId}/tracks/upload`, formData, {
+      const response = await apiClient.post(API_ROUTES.PLAYLIST_UPLOAD(playlistId), formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         onUploadProgress
       });
       return response.data;
     } catch (error) {
-      console.error('Error uploading tracks:', error);
+      console.error('Error uploading files:', error);
       throw error;
     }
   }
@@ -196,9 +218,9 @@ class RealApiService {
    * @param newOrder - Array of track numbers/IDs
    * @returns Promise resolving to server response
    */
-  async reorderTracks(playlistId: string, newOrder: any) {
+  async reorderTracks(playlistId: string, newOrder: number[]) {
     try {
-      const response = await apiClient.post(`/api/playlists/${playlistId}/tracks/reorder`, newOrder)
+      const response = await apiClient.post(API_ROUTES.PLAYLIST_REORDER(playlistId), { order: newOrder })
       return response.data
     } catch (error) {
       console.error('Error reordering tracks:', error)
@@ -214,7 +236,7 @@ class RealApiService {
    */
   async deleteTrack(playlistId: string, trackId: string | number) {
     try {
-      const response = await apiClient.delete(`/api/playlists/${playlistId}/tracks/${trackId}`)
+      const response = await apiClient.delete(API_ROUTES.PLAYLIST_TRACK(playlistId, trackId))
       return response.data
     } catch (error) {
       console.error('Error deleting track:', error)
@@ -245,26 +267,11 @@ class RealApiService {
    */
   async startPlaylist(playlistId: string) {
     try {
-      const response = await apiClient.post(`/api/playlists/${playlistId}/start`)
+      const response = await apiClient.post(API_ROUTES.PLAYBACK_START(playlistId))
+      console.debug('Start playlist response:', response.data)
       return response.data
     } catch (error) {
       console.error('Error starting playlist:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Play a specific track in a playlist
-   * @param playlistId - ID of the playlist
-   * @param trackNumber - Track number to play
-   * @returns Promise resolving to server response
-   */
-  async playTrack(playlistId: string, trackNumber: number) {
-    try {
-      const response = await apiClient.post(`/api/playlists/${playlistId}/play/${trackNumber}`)
-      return response.data
-    } catch (error) {
-      console.error('Error playing track:', error)
       throw error
     }
   }
@@ -276,14 +283,11 @@ class RealApiService {
    */
   async controlPlaylist(action: string) {
     try {
-      console.log(`[API] Sending control action: ${action} to /api/playlists/control/${action}`)
-      // Match backend: /api/playlists/control/{action}
-      const response = await apiClient.post(`/api/playlists/control/${action}`, {})
-      console.log(`[API] Control response:`, response.data)
-      return response.data
+      const response = await apiClient.post(API_ROUTES.PLAYBACK_CONTROL, { action })
+      return response.data;
     } catch (error) {
-      console.error(`[API] Error controlling playlist with action '${action}':`, error)
-      throw error
+      console.error('Error controlling playlist:', error);
+      throw error;
     }
   }
 
@@ -293,7 +297,7 @@ class RealApiService {
    */
   async getPlaybackStatus() {
     try {
-      const response = await apiClient.get('/api/playlists/playback/status')
+      const response = await apiClient.get(API_ROUTES.PLAYBACK_STATUS)
       return response.data
     } catch (error) {
       console.error('Error getting playback status:', error)
@@ -301,145 +305,16 @@ class RealApiService {
     }
   }
 
-  /**
-   * Upload files to a playlist (with progress events)
-   * @param playlistId - ID of the playlist
-   * @param files - FileList or array of files
-   * @param onUploadProgress - Optional progress callback
-   * @returns Promise resolving to server response
-   */
-  async uploadFiles(playlistId: string, files: FileList | File[], onUploadProgress?: (progressEvent: AxiosProgressEvent) => void) {
-    const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append('files', file));
-    try {
-      const response = await apiClient.post(`/api/playlists/${playlistId}/files/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress
-      });
-      return response.data;
-    } catch (error) {
-      console.error('Error uploading files:', error);
-      throw error;
-    }
-  }
-
-  // NFC Endpoints
-
-  /**
-   * Initiate NFC association
-   * @param tagId - NFC tag ID
-   * @param playlistId - Playlist ID
-   * @returns Promise resolving to server response
-   */
-  async initiateNfcAssociation(tagId: string, playlistId: string) {
-    try {
-      const response = await apiClient.post('/api/nfc/initiate_nfc_association', { tag_id: tagId, playlist_id: playlistId })
-      return response.data
-    } catch (error) {
-      console.error('Error initiating NFC association:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Complete NFC association
-   * @param tagId - NFC tag ID
-   * @param playlistId - Playlist ID
-   * @returns Promise resolving to server response
-   */
-  async completeNfcAssociation(tagId: string, playlistId: string) {
-    try {
-      const response = await apiClient.post('/api/nfc/complete_nfc_association', { tag_id: tagId, playlist_id: playlistId })
-      return response.data
-    } catch (error) {
-      console.error('Error completing NFC association:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Disassociate an NFC tag
-   * @param tagId - NFC tag ID
-   * @returns Promise resolving to server response
-   */
-  async disassociateNfcTag(tagId: string) {
-    try {
-      const response = await apiClient.post('/api/nfc/disassociate_nfc_tag', { tag_id: tagId })
-      return response.data
-    } catch (error) {
-      console.error('Error disassociating NFC tag:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Get NFC status
-   * @returns Promise resolving to NFC status JSON
-   */
-  async getNfcStatus() {
-    try {
-      const response = await apiClient.get('/api/nfc/nfc_status')
-      return response.data
-    } catch (error) {
-      console.error('Error fetching NFC status:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Start NFC listening for a playlist
-   * @param playlistId - Playlist ID
-   * @returns Promise resolving to server response
-   */
-  async startNfcListening(playlistId: string) {
-    try {
-      const response = await apiClient.post(`/api/nfc/start_nfc_listening/${playlistId}`)
-      return response.data
-    } catch (error) {
-      console.error('Error starting NFC listening:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Stop NFC listening
-   * @returns Promise resolving to server response
-   */
-  async stopNfcListening() {
-    try {
-      const response = await apiClient.post('/api/nfc/stop_nfc_listening')
-      return response.data
-    } catch (error) {
-      console.error('Error stopping NFC listening:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Simulate NFC tag detection (mock/testing)
-   * @param tagId - NFC tag ID
-   * @returns Promise resolving to server response
-   */
-  async simulateTagDetection(tagId: string) {
-    try {
-      const response = await apiClient.post('/api/nfc/simulate_tag_detection', { tag_id: tagId })
-      return response.data
-    } catch (error) {
-      console.error('Error simulating tag detection:', error)
-      throw error
-    }
-  }
-
   // YouTube Download
 
   /**
-   * Download YouTube audio by URL
-   * @param url - YouTube video URL
-   * @returns Promise resolving to download result
+   * Download YouTube audio
+   * @param url - YouTube URL
+   * @returns Promise resolving to download status
    */
   async downloadYouTube(url: string) {
     try {
-      const response = await apiClient.post('/api/youtube/download', { url })
+      const response = await apiClient.post(API_ROUTES.YOUTUBE_DOWNLOAD, { url })
       return response.data
     } catch (error) {
       console.error('Error downloading YouTube audio:', error)
@@ -455,10 +330,42 @@ class RealApiService {
    */
   async checkHealth() {
     try {
-      const response = await apiClient.get('/health')
+      const response = await apiClient.get(API_ROUTES.HEALTH)
       return response.data
     } catch (error) {
       console.error('Error fetching health status:', error)
+      throw error
+    }
+  }
+  
+  /**
+   * Get current system volume
+   * @returns Promise resolving to volume level (0-100)
+   */
+  async getVolume() {
+    try {
+      const response = await apiClient.get(API_ROUTES.VOLUME)
+      return response.data
+    } catch (error) {
+      console.error('Error getting volume:', error)
+      throw error
+    }
+  }
+  
+  /**
+   * Set system volume
+   * @param volume - Volume level (0-100)
+   * @returns Promise resolving to server response
+   */
+  async setVolume(volume: number) {
+    try {
+      if (volume < 0 || volume > 100) {
+        throw new Error('Volume must be between 0 and 100')
+      }
+      const response = await apiClient.post(API_ROUTES.VOLUME, { volume })
+      return response.data
+    } catch (error) {
+      console.error('Error setting volume:', error)
       throw error
     }
   }
@@ -546,39 +453,64 @@ class RealApiService {
     return `${apiBaseUrl}/api/files/${fileId}/download`;
   }
 
-
+  /**
+   * Initiates NFC association between a tag and a playlist
+   * @param tagId - NFC tag identifier
+   * @param playlistId - Playlist identifier
+   * @returns Promise resolving to association status
+   */
+  async initiateNfcAssociation(tagId: string, playlistId: string) {
+    try {
+      const response = await apiClient.post(API_ROUTES.NFC_LINK, { tag_id: tagId, playlist_id: playlistId })
+      return response.data
+    } catch (error) {
+      console.error('Error initiating NFC association:', error)
+      throw error
+    }
+  }
 
   /**
-   * Fetches system statistics from the server
-   * @returns Promise resolving to the system statistics
+   * Retrieves current NFC status
+   * @returns Promise resolving to NFC status data
    */
-
-
-
+  async getNfcStatus() {
+    try {
+      const response = await apiClient.get(API_ROUTES.NFC_STATUS)
+      return response.data
+    } catch (error) {
+      console.error('Error getting NFC status:', error)
+      throw error
+    }
+  }
 
   /**
-   * Downloads a file from the server
-   * @param fileId - ID of the file to download
-   * @param onProgress - Optional callback for tracking download progress
-   * @returns Promise resolving to the file blob
+   * Starts NFC listening mode for a specific playlist
+   * @param playlistId - ID of the playlist to associate
+   * @returns Promise resolving to listening status
    */
-
+  async startNfcListening(playlistId: string) {
+    try {
+      const response = await apiClient.post(API_ROUTES.NFC_LISTEN(playlistId))
+      return response.data
+    } catch (error) {
+      console.error('Error starting NFC listening:', error)
+      throw error
+    }
+  }
 
   /**
-   * Generates a download URL for a file
-   * @param fileId - ID of the file
-   * @returns URL string for downloading the file
+   * Stops NFC listening mode
+   * @returns Promise resolving to stop status
    */
-
-
-  /**
-   * Requests a new upload session ID from the server
-   * Used for tracking multi-part or chunked uploads
-   * @returns Promise resolving to the session ID string
-   */
-
-
-
+  async stopNfcListening() {
+    try {
+      const response = await apiClient.post(API_ROUTES.NFC_STOP)
+      return response.data
+    } catch (error) {
+      console.error('Error stopping NFC listening:', error)
+      throw error
+    }
+  }
 }
 
 export default new RealApiService()
