@@ -14,7 +14,7 @@ module.exports = defineConfig({
         target: process.env.VUE_APP_API_URL,
         changeOrigin: true,
         ws: false,
-        logLevel: 'debug',  // Pour plus de détails dans les logs
+        logLevel: 'debug',
         onError: (err) => {
           console.log('Proxy Error:', err);
         },
