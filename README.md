@@ -1,12 +1,11 @@
 # TheMusicBox - Backend
 
-> Backend for TheMusicBox, an application that links music playlists to NFC tags for an interactive, tangible listening experience.
+> Backend for TheOpenMusicBox, an application that links music playlists to NFC tags for an interactive, tangible listening experience.
 
 ---
 
 ## Table of Contents
 - [Features](#features)
-- [Screenshots](#screenshots)
 - [Requirements](#requirements)
 - [Hardware Setup](#hardware-setup)
 - [Installation](#installation)
@@ -31,8 +30,6 @@
 - YouTube content download support
 - Raspberry Pi hardware compatibility
 
-## Screenshots
-<!-- Add screenshots or animated GIFs here -->
 
 ---
 
@@ -43,6 +40,7 @@
   - NFC Reader (PN532)
   - Sound card (WM8960)
   - Physical controls (buttons, rotary encoder)
+  - Raspberry Pi
 
 ---
 
@@ -63,26 +61,36 @@ source venv/bin/activate  # Linux/Mac
 # or
 venv\Scripts\activate  # Windows
 
-pip install -r requirements_dev.txt
-pip install -r requirements_base.txt
+pip install -r requirements/dev.txt
 ```
 
 #### Requirements Files
-| File                  | Purpose                                             |
-|----------------------|-----------------------------------------------------|
-| requirements_base.txt | Core, cross-platform dependencies for the app       |
-| requirements_dev.txt  | Dev tools, test, lint, docs, CI                    |
-| requirements_prod.txt | Raspberry Pi-specific production dependencies      |
-| requirements_test.txt | Dependencies for running tests/CI                  |
+All requirements are now in the `requirements/` directory:
+| File              | Purpose                                 |
+|-------------------|-----------------------------------------|
+| base.txt          | Core, cross-platform dependencies        |
+| dev.txt           | Dev tools, lint, docs, CI (includes base)|
+| prod.txt          | Raspberry Pi production (includes base)  |
+| test.txt          | Testing/CI (includes base)               |
+
+See `requirements/README.md` for details.
 
 ### Production Environment (Raspberry Pi)
 ```bash
 sudo bash app/install_pi_system_deps.sh
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements_base.txt
-pip install -r requirements_prod.txt
+pip install -r requirements/prod.txt
 ```
+
+#### Automated Deployment
+You can use the provided deployment script to install everything on your Raspberry Pi:
+```bash
+./install_on_pi.sh <pi_host> <target_dir> [--requirements prod|dev|test]
+```
+- Example: `./install_on_pi.sh pi@raspberrypi.local /home/pi/tmbbox --requirements prod`
+
+This will copy the app folder, the selected requirements, `.env`, and `app.service`, then set up the virtual environment and install dependencies on the Pi.
 
 ---
 
@@ -130,6 +138,24 @@ pytest
 ---
 
 ## API Documentation
+
+The backend uses FastAPI, which provides auto-generated, interactive API documentation. Once the backend server is running, you can access the following documentation UIs:
+
+- **Swagger UI**: [http://localhost:8000/docs](http://localhost:8000/docs)
+- **ReDoc**: [http://localhost:8000/redoc](http://localhost:8000/redoc)
+
+These interfaces allow you to explore and test all available API endpoints directly from your browser.
+
+### Example Endpoints
+- `GET /api/volume` — Get the current system volume
+- `POST /api/volume` — Set the system volume (0-100)
+- `GET /api/health` — Health check and subsystem status
+- `GET /api/playlists` — List playlists
+- `POST /api/playlists` — Create a new playlist
+- `POST /api/youtube/download` — Download a YouTube playlist or track
+
+> **Note:** The root URL and port may differ if you change the default configuration. See your environment variables or `start_app.py` for details.
+
 - Interactive API docs available at [`/docs`](http://localhost:5004/docs) when running (FastAPI default)
 - Example endpoints:
   - `GET /api/playlists`
@@ -178,7 +204,17 @@ pytest
 ---
 
 ## Deployment
-- Recommended for Raspberry Pi (systemd service, etc.)
+
+### Exporting a Public Package
+To create a public-ready package (for open source or distribution):
+```bash
+./export_public_package.sh /path/to/export_dir
+```
+This will export only the `app` folder, production requirements, README, and service file to the target directory.
+
+### Deploying to Raspberry Pi
+See the Production Environment section above for automated deployment instructions.
+
 - *(Add instructions for running as a service, Docker, or other deployment tools if applicable)*
 
 ---
@@ -190,7 +226,13 @@ pytest
 ---
 
 ## License
-[To be defined]
+
+This project is open source and released under the following terms:
+
+- You are free to use, copy, modify, and distribute this software for any non-commercial purpose.
+- Contributions are welcome from anyone via pull requests or issues.
+- **Commercial use and monetization (selling, offering paid services, or bundling with paid products) is reserved exclusively to the original author (Jonathan Piette).**
+- If you wish to monetize or use this project commercially, please contact the maintainer for licensing options.
 
 ---
 
