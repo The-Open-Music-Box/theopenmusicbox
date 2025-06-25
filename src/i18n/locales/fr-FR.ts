@@ -16,6 +16,7 @@ export default {
       'en-US': 'Anglais',
       'fr-FR': 'Français',
     },
+    systemStatus: 'État du Système',
   },
   contact: {
     welcomeMsg: "Nous sommes ravis de vous accueillir ici et serions heureux d'avoir de vos nouvelles ! N'hésitez pas à nous rejoindre ou à nous écrire sur nos réseaux sociaux.",
@@ -96,6 +97,7 @@ export default {
     trackCount: 'Nombre de morceaux',
     freeSpace: 'Espace libre',
     lastUpdate: 'Dernière mise à jour',
+    noComponents: 'Aucun composant trouvé',
   },
 
   file: {

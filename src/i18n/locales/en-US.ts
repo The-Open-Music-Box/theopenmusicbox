@@ -16,6 +16,7 @@ export default {
       'en-US': 'English',
       'fr-FR': 'French',
     },
+    systemStatus: 'System Status',
   },
   contact: {
     welcomeMsg: "We are happy to see you here, and would love to hear from you! Don’t hesitate to join us or reach out on our social networks.",
@@ -97,6 +98,7 @@ export default {
     trackCount: 'Track count',
     freeSpace: 'Free space',
     lastUpdate: 'Last update',
+    noComponents: 'No components found',
   },
 
   file: {
