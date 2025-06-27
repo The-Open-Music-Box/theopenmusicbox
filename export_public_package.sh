@@ -12,7 +12,7 @@ SERVICE_SRC="$SRC_DIR/app.service"
 
 # If no argument, default to ../public_release
 if [ -z "$1" ]; then
-  TARGET_DIR="$SRC_DIR/../public_release"
+  TARGET_DIR="$SRC_DIR/../public_release/tomb-rpi"
   echo "No target_dir provided. Using default: $TARGET_DIR"
 else
   TARGET_DIR="$1"
