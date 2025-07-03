@@ -42,9 +42,9 @@ class AppConfig:
         "use_reloader": False,
         "socketio_host": "0.0.0.0",
         "socketio_port": 5004,
-        "upload_folder": "data/upload",
-        "db_file": "data/app.db",
-        "cors_allowed_origins": "http://localhost:8080;http://localhost:8081",
+        "upload_folder": "app/data/uploads",
+        "db_file": "app/data/app.db",
+        "cors_allowed_origins": "http://localhost:8080;http://localhost:8081,http://theopenmusicbox.local:5004",
         "log_level": "INFO",
         "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         "log_file": "logs/app.log",
@@ -93,17 +93,26 @@ class AppConfig:
         # Get the app directory path (parent of src)
         app_dir = Path(__file__).parent.parent.parent
 
-        # Always resolve upload and database paths from app_dir/data
-        upload_dir = app_dir / "data" / "upload"
-        upload_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"✓ Config paths: uploads={upload_dir}")
+        # Use property methods to get the fully resolved paths
+        # This ensures we use the same logic as the rest of the application
 
-        db_dir = app_dir / "data" / "database"
+        # Handle upload folder
+        upload_path = Path(self.upload_folder)
+        if not upload_path.is_absolute():
+            upload_path = app_dir / upload_path
+        upload_path.mkdir(parents=True, exist_ok=True)
+        logger.info(f"✓ Config paths: uploads={upload_path}")
+
+        # Handle database file - create its parent directory
+        db_path = Path(self.db_file)
+        if not db_path.is_absolute():
+            db_path = app_dir / db_path
+        db_dir = db_path.parent
         db_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"✓ Config paths: db={db_dir}")
 
         # Ensure log directory exists
-        log_path = Path(self._values["log_file"])
+        log_path = Path(self.log_file)
         if not log_path.is_absolute():
             log_path = app_dir / log_path
         log_dir = log_path.parent

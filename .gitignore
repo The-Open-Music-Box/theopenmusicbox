@@ -44,7 +44,7 @@ htmlcov/
 
 # Custom
 *.db
-upload/
+uploads/
 static/
 pydocstyle_report.txt
 isort_report.txt
