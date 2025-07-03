@@ -33,7 +33,7 @@ source venv/bin/activate
 echo -e "${GREEN}Upgrading pip in venv...${NC}"
 pip install --upgrade pip
 echo -e "${GREEN}Installing Python dependencies from requirements.txt into venv...${NC}"
-pip install -r requirements.txt
+pip install -r tomb/requirements.txt
 deactivate
 
 # 4. Déploiement du service systemd

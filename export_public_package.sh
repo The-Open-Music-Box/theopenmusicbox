@@ -21,7 +21,7 @@ fi
 mkdir -p "$TARGET_DIR"
 
 # Nettoyer le répertoire cible avant l'export (supprime tout sauf les dossiers spécifiques)
-find "$TARGET_DIR" -mindepth 1 -not -path "$TARGET_DIR/app/data/upload*" -not -path "$TARGET_DIR/app/data/database*" -not -path "$TARGET_DIR/app/logs*" -delete 2>/dev/null || true
+find "$TARGET_DIR" -mindepth 1 -not -path "$TARGET_DIR/app/data/upload*" -not -path "$TARGET_DIR/app/data/app.db*" -not -path "$TARGET_DIR/app/logs*" -not -path "$TARGET_DIR/app/static*" -delete 2>/dev/null || true
 
 # Copy app folder, excluding caches, logs, uploads, and database folders
 rsync -av --delete \
@@ -30,7 +30,7 @@ rsync -av --delete \
   --exclude='uploads' \
   --exclude='logs' \
   --exclude='data/upload' \
-  --exclude='data/database' \
+  --exclude='app.db' \
   "$APP_SRC" "$TARGET_DIR/"
 
 # Flatten requirements: replace '-r base.txt' with contents of base.txt
