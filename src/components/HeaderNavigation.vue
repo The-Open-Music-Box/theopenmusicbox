@@ -18,7 +18,7 @@
                     item.current && item.key === 'home'
                       ? 'bg-background text-onBackground'
                       : item.current
-                        ? 'bg-primary text-onPrimary' 
+                        ? 'bg-primary text-onPrimary'
                         : 'text-onBackground hover:bg-primary-light hover:text-onBackground',
                     'rounded-md px-3 py-2 text-sm font-medium',
                   ]"
@@ -28,6 +28,22 @@
                 </router-link>
               </div>
             </div>
+          </div>
+
+          <div class="flex items-center space-x-4">
+            <!-- Social links -->
+            <a href="https://theopenmusicbox.com" target="_blank" rel="noopener" aria-label="Website" class="hover:text-primary">
+              <img src="@/assets/web.svg" alt="Website" class="h-6 w-6 inline" />
+            </a>
+            <a href="https://github.com/The-Open-Music-Box" target="_blank" rel="noopener" aria-label="GitHub" class="hover:text-primary">
+              <img src="@/assets/github.svg" alt="GitHub" class="h-6 w-6 inline" />
+            </a>
+            <a href="http://facebook.com/theopenmusicbox/" target="_blank" rel="noopener" aria-label="Facebook" class="hover:text-primary">
+              <img src="@/assets/facebook.svg" alt="Facebook" class="h-6 w-6 inline" />
+            </a>
+            <a href="https://bsky.app/profile/theopenmusicbox.com" target="_blank" rel="noopener" aria-label="Bluesky" class="hover:text-primary">
+              <img src="@/assets/bsky.svg" alt="Bluesky" class="h-6 w-6 inline" />
+            </a>
           </div>
 
           <div class="-mr-2 flex md:hidden">
