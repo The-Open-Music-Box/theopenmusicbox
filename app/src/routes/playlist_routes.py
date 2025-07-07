@@ -44,58 +44,7 @@ class PlaylistRoutes:
 
     def register(self):
         """Register playlist-related API routes with the FastAPI app."""
-
-        @self.app.get("/api/playlists")
-        async def get_playlists_direct(
-            page: int = 1, page_size: int = 50, config=Depends(get_config)
-        ):
-            from fastapi.responses import JSONResponse
-
-            logger.log(LogLevel.INFO, "DIRECT API /api/playlists: Route called")
-
-            try:
-                playlist_service = PlaylistService()
-                playlists_data = playlist_service.get_all_playlists(
-                    page=page, page_size=page_size
-                )
-
-                if playlists_data is None:
-                    playlists_data = []
-
-                logger.log(
-                    LogLevel.INFO,
-                    f"DIRECT API /api/playlists: Fetched {len(playlists_data)} playlists from service",
-                )
-
-                data = {"playlists": playlists_data}
-
-                response = JSONResponse(
-                    content=data,
-                    status_code=200,
-                )
-
-                response.headers["Cache-Control"] = (
-                    "no-cache, no-store, must-revalidate"
-                )
-                response.headers["Pragma"] = "no-cache"
-                response.headers["Expires"] = "0"
-
-                logger.log(
-                    LogLevel.INFO,
-                    "DIRECT API /api/playlists: Returning JSONResponse with real playlists",
-                )
-                return response
-
-            except Exception as e:
-                logger.log(
-                    LogLevel.ERROR,
-                    f"DIRECT API /api/playlists: Error creating response: {str(e)}",
-                )
-                error_data = {"playlists": [], "error": str(e)}
-                return JSONResponse(content=error_data, status_code=500)
-
         self.app.include_router(self.router)
-
         setattr(self.app, "playlist_routes", self)
 
     def _get_cached_audio(self, request):
@@ -247,22 +196,28 @@ class PlaylistRoutes:
             page: int = 1, page_size: int = 50, config=Depends(get_config)
         ):
             """Get all playlists with pagination support."""
-            import json
-
             from fastapi.responses import JSONResponse
 
             logger.log(
                 LogLevel.INFO,
-                "API /api/playlists: Route called with ultra-direct JSON response",
+                "API /api/playlists/: Route called",
             )
 
             try:
-                data = {"playlists": []}
-
-                json_str = json.dumps(data)
-                logger.log(
-                    LogLevel.DEBUG, f"API /api/playlists: JSON string: {json_str}"
+                playlist_service = PlaylistService()
+                playlists_data = playlist_service.get_all_playlists(
+                    page=page, page_size=page_size
                 )
+
+                if playlists_data is None:
+                    playlists_data = []
+
+                logger.log(
+                    LogLevel.INFO,
+                    f"API /api/playlists/: Fetched {len(playlists_data)} playlists from service",
+                )
+
+                data = {"playlists": playlists_data}
 
                 response = JSONResponse(
                     content=data,
@@ -277,14 +232,14 @@ class PlaylistRoutes:
 
                 logger.log(
                     LogLevel.INFO,
-                    "API /api/playlists: Returning JSONResponse with headers",
+                    "API /api/playlists/: Returning JSONResponse with playlists",
                 )
                 return response
 
             except Exception as e:
                 logger.log(
                     LogLevel.ERROR,
-                    f"API /api/playlists: Error creating response: {str(e)}",
+                    f"API /api/playlists/: Error creating response: {str(e)}",
                 )
                 error_data = {"playlists": [], "error": str(e)}
                 return JSONResponse(content=error_data, status_code=500)

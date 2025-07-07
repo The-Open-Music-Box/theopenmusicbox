@@ -42,9 +42,9 @@ class AppConfig:
         "use_reloader": False,
         "socketio_host": "0.0.0.0",
         "socketio_port": 5004,
-        "upload_folder": "app/data/uploads",
-        "db_file": "app/data/app.db",
-        "cors_allowed_origins": "http://localhost:8080;http://localhost:8081,http://theopenmusicbox.local:5004",
+        "upload_folder": "data/uploads",
+        "db_file": "data/app.db",
+        "cors_allowed_origins": "http://localhost:8080;http://localhost:8081;http://theopenmusicbox.local:5004;*",
         "log_level": "INFO",
         "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         "log_file": "logs/app.log",
@@ -235,13 +235,30 @@ class AppConfig:
 
     @property
     def db_file(self) -> str:
-        """Path to SQLite database file (required)."""
+        """Path to SQLite database file (required).
+
+        Returns the absolute path to the database file, ensuring it
+        resolves correctly regardless of the working directory at
+        runtime.
+        """
         value = self._values.get("db_file")
         if not value:
             raise ValueError(
                 "Critical config missing: 'db_file' must be set in config/environment."
             )
-        return value
+
+        # Get the app directory path (parent of src)
+        app_dir = Path(__file__).parent.parent.parent
+
+        # If value is a relative path, make it absolute from app_dir
+        path = Path(value)
+        if not path.is_absolute():
+            path = app_dir / path
+
+        # Log the absolute path for debugging
+        logger.debug(f"Resolved db_file path: {path}")
+
+        return str(path)
 
     @property
     def cors_allowed_origins(self) -> list:
