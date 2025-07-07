@@ -6,7 +6,7 @@
 import axios, { AxiosProgressEvent, AxiosRequestConfig } from 'axios'
 import config from '../config'
 
-const apiUrl = process.env.VUE_APP_API_URL;
+const apiUrl = window.location.origin;
 
 /**
  * Axios instance configured with base URL, timeout and credentials settings

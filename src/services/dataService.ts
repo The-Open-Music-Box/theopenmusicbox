@@ -108,6 +108,16 @@ const dataService = {
   },
 
   /**
+   * Updates a playlist
+   * @param playlistId - Playlist identifier
+   * @param playlistData - Data to update the playlist
+   * @returns Promise that resolves when the update operation completes
+   */
+  updatePlaylist(playlistId: string, playlistData: any) {
+    return realApiService.updatePlaylist(playlistId, playlistData);
+  },
+
+  /**
    * Reorders tracks in a playlist
    * @param playlistId - Playlist identifier
    * @param newOrder - New order of tracks (as numbers)

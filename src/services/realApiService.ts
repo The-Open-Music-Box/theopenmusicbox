@@ -2,7 +2,7 @@
  * Real API Service
  * Provides production-ready HTTP client for communication with the backend API.
  * Features include request/response interceptors, caching, error handling, and retry logic.
- * 
+ *
  * IMPORTANT: All routes in this service are aligned with the backend API documentation
  * found in /back/routes-api.md
  */
@@ -10,8 +10,7 @@
 import axios, { AxiosError, InternalAxiosRequestConfig, AxiosResponse, AxiosProgressEvent } from 'axios'
 import { API_ROUTES } from '../constants/apiRoutes'
 
-const apiBaseUrl = process.env.VUE_APP_API_URL;
-console.log('API base URL:', apiBaseUrl);
+const apiBaseUrl = window.location.origin;
 
 /**
  * Configured axios instance for making API requests
@@ -119,25 +118,18 @@ class RealApiService {
    */
   async getPlaylists() {
     try {
-      console.debug(`Calling API: GET ${API_ROUTES.PLAYLISTS}`)
       const response = await apiClient.get(API_ROUTES.PLAYLISTS)
-      console.debug('API response status:', response.status)
-      console.debug('API response headers:', response.headers)
-      console.debug('API response.data type:', typeof response.data)
-      console.debug('API response.data:', JSON.stringify(response.data))
       
-      // Vérifier si response.data est null ou undefined
+      // Check if response.data is null or undefined
       if (response.data === null || response.data === undefined) {
-        console.error('API response.data is null or undefined')
         throw new Error('API response.data is null or undefined')
       }
-      
-      // Vérifier si response.data.playlists existe
-      if (!response.data.playlists) {
-        console.error('API response.data.playlists is missing', response.data)
-        throw new Error('API response.data.playlists is missing')
+
+      // Check if response.data.playlists is an array (even if empty)
+      if (!Array.isArray(response.data.playlists)) {
+        throw new Error('API response.data.playlists is not an array')
       }
-      
+
       return response.data.playlists
     } catch (error) {
       console.error('Error fetching playlists:', error)
@@ -167,10 +159,32 @@ class RealApiService {
    */
   async createPlaylist(playlistData: any) {
     try {
-      const response = await apiClient.post(API_ROUTES.PLAYLISTS, playlistData)
+      // Force the correct structure with title property
+      const payload = { title: playlistData.title || 'New Playlist' }
+
+      // Logs détaillés pour le débogage
+      console.log('[realApiService] Creating playlist with raw data:', playlistData)
+      console.log('[realApiService] Normalized payload:', payload)
+      console.log('[realApiService] API_ROUTES.PLAYLISTS =', API_ROUTES.PLAYLISTS)
+      console.log('[realApiService] Full URL =', apiBaseUrl + API_ROUTES.PLAYLISTS)
+      console.log('[realApiService] Headers =', apiClient.defaults.headers)
+
+      // Make POST request to create playlist
+      const response = await apiClient.post(API_ROUTES.PLAYLISTS, payload)
+      console.log('[realApiService] Create playlist response status:', response.status)
+      console.log('[realApiService] Create playlist response data:', response.data)
       return response.data
-    } catch (error) {
-      console.error('Error creating playlist:', error)
+    } catch (error: any) {
+      console.error('[realApiService] Error creating playlist:', error)
+      if (error.response) {
+        console.error('[realApiService] Error response status:', error.response.status)
+        console.error('[realApiService] Error response data:', error.response.data)
+        console.error('[realApiService] Error response headers:', error.response.headers)
+      } else if (error.request) {
+        console.error('[realApiService] Error request:', error.request)
+      } else {
+        console.error('[realApiService] Error message:', error.message)
+      }
       throw error
     }
   }
@@ -186,6 +200,24 @@ class RealApiService {
       return response.data
     } catch (error) {
       console.error('Error deleting playlist:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Update a playlist
+   * @param playlistId - ID of the playlist
+   * @param playlistData - Updated playlist data
+   * @returns Promise resolving to updated playlist
+   */
+  async updatePlaylist(playlistId: string, playlistData: any) {
+    try {
+      console.debug(`Calling API: PUT ${API_ROUTES.PLAYLIST(playlistId)}`, playlistData)
+      const response = await apiClient.put(API_ROUTES.PLAYLIST(playlistId), playlistData)
+      console.debug('API response:', response.data)
+      return response.data
+    } catch (error) {
+      console.error('Error updating playlist:', error)
       throw error
     }
   }
@@ -337,7 +369,7 @@ class RealApiService {
       throw error
     }
   }
-  
+
   /**
    * Get current system volume
    * @returns Promise resolving to volume level (0-100)
@@ -351,7 +383,7 @@ class RealApiService {
       throw error
     }
   }
-  
+
   /**
    * Set system volume
    * @param volume - Volume level (0-100)

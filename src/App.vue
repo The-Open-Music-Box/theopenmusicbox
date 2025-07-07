@@ -12,12 +12,7 @@
       <strong class="font-bold">{{ t('common.socketError') }}</strong>
       <span class="block sm:inline"> {{ t('common.fallbackToMock') }}</span>
     </div>
-    <button
-      @click="sendMessage"
-      :class="['bg-primary', 'hover:bg-primary-light', 'mt-4', 'px-4', 'py-2', 'text-onPrimary', 'rounded']"
-    >
-      {{ t('common.sendMessage') }}
-    </button>
+
   </div>
 </template>
 
@@ -37,18 +32,7 @@ const { t } = useI18n()
 const { proxy } = getCurrentInstance()
 const socketError = ref(false)
 
-/**
- * Send a test message through the socket connection
- */
-const sendMessage = () => {
-  try {
-    proxy.$socketService.emit('message', 'Hello, server!')
-    console.log('Message sent to server')
-  } catch (error) {
-    console.error('Error sending message:', error)
-    socketError.value = true
-  }
-}
+
 
 /**
  * Set up socket event listeners

@@ -9,19 +9,7 @@
               :playlist="selectedPlaylist"
             />
           </div>
-          <div v-if="uploadProgress > 0" class="mt-4">
-            <h4 class="sr-only">Status</h4>
-            <p class="text-sm font-medium text-onBackground">Ajout du fichier sur le serveur...</p>
-            <div class="mt-6" aria-hidden="true">
-              <div class="overflow-hidden rounded-full bg-background">
-                <div class="h-2 rounded-full bg-primary" :style="{ width: uploadProgress + '%' }"></div>
-              </div>
-              <div class="mt-6 hidden grid-cols-4 text-sm font-medium text-disabled sm:grid">
-                <div class="text-primary">Copie des fichiers</div>
-              </div>
-            </div>
-          </div>
-          <UploadForm />
+          <!-- Zone d'upload globale supprimée - l'upload se fait maintenant dans chaque playlist -->
 
           <FileListContainer
             :selectedTrack="selectedTrack"
@@ -38,7 +26,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import AudioPlayer from '../components/audio/AudioPlayer.vue'
-import UploadForm from '../components/upload/UploadFormContainer.vue'
+// UploadForm global supprimé car l'upload se fait directement dans les playlists
 import FileListContainer from '../components/files/FileListContainer.vue'
 import GeneralInfo from '../components/StatsInfo.vue'
 import type { Track, PlayList } from '../components/files/types'
