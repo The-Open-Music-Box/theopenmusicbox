@@ -5,7 +5,6 @@
     <div v-if="error" :class="['text-error', 'py-2']">{{ error }}</div>
 
     <template v-if="!isLoading && !error">
-      <FilesListHeader />
       <FilesList
         :playlists="playlists"
         :selectedTrack="selectedTrack"
@@ -34,7 +33,6 @@
  */
 import { onMounted, ref } from 'vue'
 import { useFilesStore } from './composables/useFilesStore'
-import FilesListHeader from './FilesListHeader.vue'
 import FilesList from './FilesList.vue'
 import DeleteDialog from '../DeleteDialog.vue'
 import type { PlayList, Track } from './types'
