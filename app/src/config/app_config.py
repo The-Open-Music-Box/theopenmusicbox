@@ -9,7 +9,7 @@ Loads settings exclusively from .env file.
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, List
 
 from dotenv import load_dotenv
 
@@ -51,6 +51,8 @@ class AppConfig:
         "use_mock_hardware": False,
         "app_module": "app.main:app_sio",
         "uvicorn_reload": False,
+        "upload_allowed_extensions": "mp3;wav;flac;ogg;m4a",
+        "upload_max_size": 50 * 1024 * 1024,
         # mDNS/zeroconf service defaults
         "mdns_service_type": "_http._tcp.local.",
         "mdns_service_path": "/api",
@@ -234,6 +236,28 @@ class AppConfig:
         return str(path)
 
     @property
+    def upload_allowed_extensions(self) -> List[str]:
+        """List of allowed upload extensions."""
+        value = self._values.get("upload_allowed_extensions", "")
+        return value.split(";") if isinstance(value, str) else value
+
+    @property
+    def upload_max_size(self) -> int:
+        """Maximum upload file size in bytes."""
+        value = self._values.get("upload_max_size")
+        if value is None:
+            raise ValueError(
+                "Critical config missing: 'upload_max_size' must be set in config/environment."
+            )
+        return int(value)
+
+    @property
+    def cors_allowed_origins(self) -> List[str]:
+        """List of allowed CORS origins."""
+        value = self._values.get("cors_allowed_origins", "")
+        return value.split(";") if isinstance(value, str) else value
+
+    @property
     def db_file(self) -> str:
         """Path to SQLite database file (required).
 
@@ -259,17 +283,6 @@ class AppConfig:
         logger.debug(f"Resolved db_file path: {path}")
 
         return str(path)
-
-    @property
-    def cors_allowed_origins(self) -> list:
-        """List of allowed CORS origins."""
-        origins = self._values.get("cors_allowed_origins", "")
-        return origins.split(";") if isinstance(origins, str) else origins
-
-    @property
-    def log_level(self) -> str:
-        """Logging level."""
-        return self._values.get("log_level", "INFO")
 
     @property
     def log_format(self) -> str:

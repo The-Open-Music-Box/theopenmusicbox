@@ -94,14 +94,6 @@ class Application:
         Args:
             tag_data: The data associated with the NFC tag event.
         """
-        """Handles NFC tag events (scan or absence) by routing them to the
-        PlaylistController. This method provides a public API, encapsulating
-        the interaction with _playlist_controller.
-
-        Args:
-            tag_data: Data received from the NFC tag event subscription.
-                      Can be a dict (with 'uid' or 'absence') or just the tag UID string.
-        """
         try:
             if isinstance(tag_data, dict) and tag_data.get("absence"):
                 logger.log(LogLevel.DEBUG, "Handling NFC tag absence event.")
@@ -201,7 +193,7 @@ class Application:
             if not sync_completed:
                 logger.log(
                     LogLevel.ERROR,
-                    f"Playlist synchronization timed out after {timeout}s",
+                    f"Playlist synchronization timed out after {SYNC_TIMEOUT_SECONDS}s",
                 )
                 return
 

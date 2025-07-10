@@ -91,6 +91,201 @@ class PlaylistService:
             raise ValueError(f"Playlist with id {playlist_id} not found")
         return {"id": playlist_id, "deleted": True}
 
+    def save_playlist_file(self, playlist_id: str, playlist_data=None) -> bool:
+        """Save the changes to a playlist.
+
+        Args:
+            playlist_id: ID of the playlist to save.
+            playlist_data: Optional pre-loaded playlist data with changes.
+
+        Returns:
+            True if the save was successful, False otherwise.
+        """
+        try:
+            if playlist_data:
+                # Si des données de playlist sont fournies, les utiliser directement
+                playlist = playlist_data
+                logger.log(
+                    LogLevel.INFO, f"Using provided playlist data for {playlist_id}"
+                )
+            else:
+                # Sinon charger les données depuis le repository
+                playlist = self.repository.get_playlist_by_id(playlist_id)
+                if not playlist:
+                    logger.log(
+                        LogLevel.ERROR,
+                        f"Failed to save playlist: {playlist_id} not found",
+                    )
+                    return False
+
+            # Update the playlist in the repository
+            # Extrait playlist_id et les données mises à jour pour respecter la signature de update_playlist
+            playlist_id_to_update = playlist["id"]
+            # Créer une copie des données pour les mettre à jour
+            updated_data = dict(playlist)
+
+            # Mettre à jour les métadonnées de la playlist
+            meta_success = self.repository.update_playlist(
+                playlist_id_to_update, updated_data
+            )
+
+            # IMPORTANT: update_playlist ne met pas à jour les tracks, on doit utiliser replace_tracks
+            # si des tracks sont présentes dans la playlist
+            tracks_success = True
+            if "tracks" in playlist and playlist["tracks"]:
+                logger.log(
+                    LogLevel.INFO,
+                    f"Updating {len(playlist['tracks'])} tracks for playlist {playlist_id}",
+                )
+                tracks_success = self.repository.replace_tracks(
+                    playlist_id_to_update, playlist["tracks"]
+                )
+
+            success = meta_success and tracks_success
+            if success:
+                logger.log(LogLevel.INFO, f"Successfully saved playlist: {playlist_id}")
+            else:
+                logger.log(
+                    LogLevel.ERROR,
+                    f"Failed to save playlist: {playlist_id} (meta: {meta_success}, tracks: {tracks_success})",
+                )
+
+            return success
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error saving playlist {playlist_id}: {str(e)}")
+            return False
+
+    def reorder_tracks(self, playlist_id: str, track_order: List[int]) -> bool:
+        """Reorder tracks in a playlist based on the provided order.
+
+        Args:
+            playlist_id: ID of the playlist to reorder tracks in.
+            track_order: List of track numbers in the desired order.
+
+        Returns:
+            True if the reordering was successful, False otherwise.
+        """
+        try:
+            playlist = self.repository.get_playlist_by_id(playlist_id)
+            if not playlist:
+                logger.log(
+                    LogLevel.ERROR,
+                    f"Failed to reorder tracks: playlist {playlist_id} not found",
+                )
+                return False
+
+            # Validate that all track numbers exist in the playlist
+            current_track_numbers = {track["number"] for track in playlist["tracks"]}
+            if set(track_order) != current_track_numbers:
+                logger.log(
+                    LogLevel.ERROR,
+                    f"Invalid track order: provided numbers {track_order} don't match existing tracks {current_track_numbers}",
+                )
+                return False
+
+            # Create a mapping of track number to track data
+            tracks_by_number = {track["number"]: track for track in playlist["tracks"]}
+
+            # Create new ordered list of tracks
+            reordered_tracks = []
+            for i, track_number in enumerate(track_order, 1):
+                track = tracks_by_number[track_number].copy()
+                track["number"] = i  # Update track number to reflect new position
+                reordered_tracks.append(track)
+
+            playlist["tracks"] = reordered_tracks
+
+            # Update the playlist in the repository
+            playlist_id_to_update = playlist["id"]
+            # Save the updated playlist
+            playlist_id_to_update = playlist["id"]
+            updated_data = dict(playlist)
+            success = self.repository.update_playlist(
+                playlist_id_to_update, updated_data
+            )
+            if success:
+                logger.log(
+                    LogLevel.INFO,
+                    f"Successfully reordered tracks in playlist: {playlist_id}",
+                )
+            else:
+                logger.log(
+                    LogLevel.ERROR,
+                    f"Failed to reorder tracks in playlist: {playlist_id}",
+                )
+
+            return success
+        except Exception as e:
+            logger.log(
+                LogLevel.ERROR,
+                f"Error reordering tracks in playlist {playlist_id}: {str(e)}",
+            )
+            return False
+
+    def delete_tracks(self, playlist_id: str, track_numbers: List[int]) -> bool:
+        """Delete tracks from a playlist by their track numbers.
+
+        Args:
+            playlist_id: ID of the playlist containing the tracks to delete.
+            track_numbers: List of track numbers to delete.
+
+        Returns:
+            True if the deletion was successful, False otherwise.
+        """
+        try:
+            playlist = self.repository.get_playlist_by_id(playlist_id)
+            if not playlist:
+                logger.log(
+                    LogLevel.ERROR,
+                    f"Failed to delete tracks: playlist {playlist_id} not found",
+                )
+                return False
+
+            # Remove the specified tracks
+            original_track_count = len(playlist["tracks"])
+            playlist["tracks"] = [
+                t for t in playlist["tracks"] if t["number"] not in track_numbers
+            ]
+
+            # If nothing was removed, return false
+            if len(playlist["tracks"]) == original_track_count:
+                logger.log(
+                    LogLevel.WARNING,
+                    f"No tracks deleted from playlist {playlist_id} - track numbers not found",
+                )
+                return False
+
+            # Renumber remaining tracks
+            for i, track in enumerate(playlist["tracks"], 1):
+                track["number"] = i
+
+            # Save the updated playlist
+            playlist_id_to_update = playlist["id"]
+            updated_data = dict(playlist)
+            success = self.repository.update_playlist(
+                playlist_id_to_update, updated_data
+            )
+            if success:
+                deleted_count = original_track_count - len(playlist["tracks"])
+                logger.log(
+                    LogLevel.INFO,
+                    f"Successfully deleted {deleted_count} tracks from playlist: {playlist_id}",
+                )
+            else:
+                logger.log(
+                    LogLevel.ERROR,
+                    f"Failed to update playlist after deleting tracks: {playlist_id}",
+                )
+
+            return success
+        except Exception as e:
+            logger.log(
+                LogLevel.ERROR,
+                f"Error deleting tracks from playlist {playlist_id}: {str(e)}",
+            )
+            return False
+        return {"id": playlist_id, "deleted": True}
+
     def get_all_playlists(
         self, page: int = 1, page_size: int = 50
     ) -> List[Dict[str, Any]]:
@@ -211,7 +406,7 @@ class PlaylistService:
             # Use UploadService to extract metadata for each audio file
             from app.src.services.upload_service import UploadService
 
-            upload_service = UploadService(str(self.upload_folder))
+            upload_service = UploadService(self.config)
 
             for i, file_path in enumerate(sorted(audio_files), 1):
                 metadata = upload_service.extract_metadata(file_path)
@@ -622,10 +817,8 @@ class PlaylistService:
         """Play a playlist using the audio player, with validation and metadata
         update.
 
-        This function plays a playlist using the provided audio player, with validation and metadata update.
-
         Args:
-            playlist_data: Dictionary containing playlist data to play.
+            playlist_data (Dict[str, Any]): Dictionary containing playlist data to play.
             audio: Audio player instance.
 
 
@@ -640,11 +833,12 @@ class PlaylistService:
                     (
                         f"No valid tracks in playlist: "
                         f"{playlist_data.get('title', playlist_data.get('id'))}"
-                    )  # This is manually split to stay under 100 chars
-
+                    ),  # This is manually split to stay under 100 chars
                 )
                 return False
-            valid_tracks = [track for track in playlist_obj.tracks if track.path.exists()]
+            valid_tracks = [
+                track for track in playlist_obj.tracks if track.path.exists()
+            ]
             if not valid_tracks:
                 logger.log(
                     LogLevel.WARNING,
@@ -667,7 +861,9 @@ class PlaylistService:
                 )
                 return True
             else:
-                logger.log(LogLevel.WARNING, f"Failed to start playlist: {playlist_obj.name}")
+                logger.log(
+                    LogLevel.WARNING, f"Failed to start playlist: {playlist_obj.name}"
+                )
                 return False
         except Exception as e:
             import traceback

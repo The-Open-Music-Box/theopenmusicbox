@@ -52,7 +52,7 @@ class APIRoutes:
             self.websocket_handlers = None
 
         self.youtube_routes = YouTubeRoutes(app, socketio)
-        self.playlist_routes = PlaylistRoutes(app)
+        self.playlist_routes = PlaylistRoutes(app, socketio)
         self.system_routes = SystemRoutes(app)
 
     def init_routes(self):
