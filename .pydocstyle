@@ -1,8 +1,8 @@
 [pydocstyle]
-ignore = D203,D204,D212,D406,D407,D409,D213,D413,D100,D104,D107,D415
+ignore = D200,D203,D204,D212,D406,D407,D409,D213,D413,D100,D104,D107,D415
 
 # Add specific rules to enforce
-add-select = D101,D102,D103,D200,D205,D400
+add-select = D101,D102,D103,D205,D400
 
 # Only check .py files that don't start with 'test_'
 match = (?!test_).*\.py

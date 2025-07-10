@@ -20,6 +20,13 @@ repos:
     hooks:
       - id: docformatter
         language: python
+        args:
+          - --in-place
+          - --pre-summary-newline
+          - --make-summary-multi-line
+          - --force-wrap
+          - --wrap-summaries=88
+          - --wrap-descriptions=88
 
   - repo: https://github.com/PyCQA/pydocstyle
     rev: 6.3.0
