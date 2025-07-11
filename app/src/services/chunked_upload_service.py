@@ -15,20 +15,19 @@ logger = ImprovedLogger(__name__)
 
 
 class ChunkedUploadService:
-    """Service for handling chunked file uploads, managing temporary storage
-    and assembly.
+    """
+    Service for handling chunked file uploads.
 
-    This class provides methods to manage chunked file uploads,
-    including creating sessions, processing individual chunks, and
-    finalizing uploads by assembling chunks.
+    Provides methods to manage chunked file uploads, including creating sessions,
+    processing individual chunks, and finalizing uploads by assembling chunks.
     """
 
     def __init__(self, config, upload_service: Optional[UploadService] = None):
-        """Initialize the ChunkedUploadService with application config.
+        """
+        Initialize the ChunkedUploadService with application config.
 
-        Args:
-            config: Application configuration object
-            upload_service: Optional UploadService instance for metadata extraction
+        Args:     config: Application configuration object     upload_service: Optional
+        UploadService instance for metadata extraction
         """
         self.temp_folder = Path(config.upload_folder) / "temp"
         self.temp_folder.mkdir(parents=True, exist_ok=True)
@@ -40,29 +39,31 @@ class ChunkedUploadService:
         )  # Dictionary to track active uploads: {session_id: {filename, chunks, total_size, etc}}
 
     def _allowed_file(self, filename: str) -> bool:
-        """Return True if the filename is an allowed audio type."""
+        """
+        Return True if the filename is an allowed audio type.
+        """
         return (
             "." in filename
             and filename.rsplit(".", 1)[1].lower() in self.allowed_extensions
         )
 
     def _check_file_size(self, current_size: int, chunk_size: int) -> bool:
-        """Return True if the file size is within the allowed maximum."""
+        """
+        Return True if the file size is within the allowed maximum.
+        """
         return (current_size + chunk_size) <= self.max_file_size
 
     def create_session(self, filename: str, total_chunks: int, total_size: int) -> str:
-        """Create a new upload session for a file.
+        """
+        Create a new upload session for a file.
 
-        Args:
-            filename: Original filename
-            total_chunks: Total number of chunks expected
-            total_size: Total file size expected
+        Args:     filename: Original filename     total_chunks: Total number of chunks
+        expected     total_size: Total file size expected
 
-        Returns:
-            session_id: Unique identifier for the upload session
+        Returns:     session_id: Unique identifier for the upload session
 
-        Raises:
-            InvalidFileError: If the file type is not allowed or size exceeds limit
+        Raises:     InvalidFileError: If the file type is not allowed or size exceeds
+        limit
         """
         if not self._allowed_file(filename):
             raise InvalidFileError(
@@ -100,20 +101,17 @@ class ChunkedUploadService:
     async def process_chunk(
         self, session_id: str, chunk_index: int, chunk_data, chunk_size: int
     ) -> Dict:
-        """Process a chunk of an upload session.
+        """
+        Process a chunk of an upload session.
 
-        Args:
-            session_id: Upload session identifier
-            chunk_index: Index of the current chunk (0-based)
-            chunk_data: Binary data of the chunk
-            chunk_size: Size of the chunk in bytes
+        Args:     session_id: Upload session identifier     chunk_index: Index of the
+        current chunk (0-based)     chunk_data: Binary data of the chunk     chunk_size:
+        Size of the chunk in bytes
 
-        Returns:
-            Dictionary with status information
+        Returns:     Dictionary with status information
 
-        Raises:
-            InvalidFileError: If the session doesn't exist or chunk is invalid
-            ProcessingError: If there is an error during processing
+        Raises:     InvalidFileError: If the session doesn't exist or chunk is invalid
+        ProcessingError: If there is an error during processing
         """
         # Check if session exists
         if session_id not in self.active_uploads:
@@ -172,21 +170,18 @@ class ChunkedUploadService:
     async def finalize_upload(
         self, session_id: str, playlist_path: str
     ) -> Tuple[str, Dict]:
-        """Finalize an upload by assembling all chunks and processing the
-        complete file.
+        """
+        Finalize an upload by assembling all chunks and processing the complete file.
 
-        This method combines all uploaded chunks into a single file and extracts metadata.
+        Combines all uploaded chunks into a single file and extracts metadata.
 
-        Args:
-            session_id: Upload session identifier
-            playlist_path: Destination playlist folder path
+        Args:     session_id (str): Upload session identifier.     playlist_path (str):
+        Destination playlist folder path.
 
-        Returns:
-            Tuple of (filename, metadata dictionary)
+        Returns:     Tuple of (filename, metadata dictionary).
 
-        Raises:
-            InvalidFileError: If the session doesn't exist or is incomplete
-            ProcessingError: If there is an error during processing
+        Raises:     InvalidFileError: If the session doesn't exist or is incomplete.
+        ProcessingError: If there is an error during processing.
         """
         # Check if session exists
         if session_id not in self.active_uploads:
@@ -236,16 +231,14 @@ class ChunkedUploadService:
             raise ProcessingError(f"Error finalizing upload: {str(e)}")
 
     def get_session_status(self, session_id: str) -> Dict:
-        """Get the status of an upload session.
+        """
+        Get the status of an upload session.
 
-        Args:
-            session_id: Upload session identifier
+        Args:     session_id: Upload session identifier
 
-        Returns:
-            Dictionary with session status information
+        Returns:     Dictionary with session status information
 
-        Raises:
-            InvalidFileError: If the session doesn't exist
+        Raises:     InvalidFileError: If the session doesn't exist
         """
         if session_id not in self.active_uploads:
             raise InvalidFileError(f"Upload session {session_id} not found")
@@ -262,10 +255,10 @@ class ChunkedUploadService:
         }
 
     def _cleanup_session(self, session_id: str):
-        """Clean up temporary files for a session.
+        """
+        Clean up temporary files for a session.
 
-        Args:
-            session_id: Upload session identifier
+        Args:     session_id: Upload session identifier
         """
         if session_id in self.active_uploads:
             try:
@@ -280,10 +273,10 @@ class ChunkedUploadService:
                 )
 
     def cleanup_expired_sessions(self, max_age_hours: int = 24):
-        """Clean up expired upload sessions.
+        """
+        Clean up expired upload sessions.
 
-        Args:
-            max_age_hours: Maximum age in hours for inactive sessions
+        Args:     max_age_hours: Maximum age in hours for inactive sessions
         """
         # Implementation would check directory creation times
         # and remove sessions older than max_age_hours

@@ -1,10 +1,12 @@
 # Copyright (c) 2025 Jonathan Piette
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
-"""playlist_service.py.
+"""
+playlist_service.py.
 
-Service layer for playlist management in TheMusicBox backend. Provides
-business logic for playlist CRUD, NFC association, filesystem sync, and
+Service layer for playlist management in TheMusicBox backend.
+
+Provides business logic for playlist CRUD, NFC association, filesystem sync, and
 integration with YouTube downloads and audio playback.
 """
 
@@ -24,13 +26,13 @@ logger = ImprovedLogger(__name__)
 
 
 class PlaylistService:
-    """Service for managing playlists with business logic.
+    """
+    Service for managing playlists with business logic.
 
-    This service acts as an intermediary between the presentation layer
-    (such as API routes or UI) and the data access layer for playlist-
-    related operations. It provides methods for playlist CRUD, NFC tag
-    association, filesystem synchronization, and integration with
-    YouTube downloads and audio playback.
+    This service acts as an intermediary between the presentation layer (such as API
+    routes or UI) and the data access layer for playlist- related operations. It
+    provides methods for playlist CRUD, NFC tag association, filesystem synchronization,
+    and integration with YouTube downloads and audio playback.
     """
 
     # Supported audio file extensions
@@ -42,10 +44,11 @@ class PlaylistService:
     SYNC_OPERATION_TIMEOUT = 2.0
 
     def __init__(self, config_obj=None):
-        """Initialize the PlaylistService instance.
+        """
+        Initialize the PlaylistService instance.
 
-        Args:
-            config_obj: Optional configuration object. If not provided, uses the global config.
+        Args:     config_obj: Optional configuration object. If not provided, uses the
+        global config.
         """
         from app.src.config import config as global_config
 
@@ -55,13 +58,12 @@ class PlaylistService:
         self._sync_lock = threading.RLock()
 
     def create_playlist(self, title: str) -> dict:
-        """Create a new empty playlist with the given title.
+        """
+        Create a new empty playlist with the given title.
 
-        Args:
-            title: The title of the new playlist.
+        Args:     title: The title of the new playlist.
 
-        Returns:
-            Dictionary representing the created playlist.
+        Returns:     Dictionary representing the created playlist.
         """
         playlist_data = {
             "id": str(uuid4()),
@@ -75,16 +77,14 @@ class PlaylistService:
         return playlist_data
 
     def delete_playlist(self, playlist_id: str) -> dict:
-        """Delete a playlist by its ID.
+        """
+        Delete a playlist by its ID.
 
-        Args:
-            playlist_id: The ID of the playlist to delete.
+        Args:     playlist_id: The ID of the playlist to delete.
 
-        Returns:
-            Dictionary with deletion status.
+        Returns:     Dictionary with deletion status.
 
-        Raises:
-            ValueError: If the playlist is not found.
+        Raises:     ValueError: If the playlist is not found.
         """
         deleted = self.repository.delete_playlist(playlist_id)
         if not deleted:
@@ -92,14 +92,13 @@ class PlaylistService:
         return {"id": playlist_id, "deleted": True}
 
     def save_playlist_file(self, playlist_id: str, playlist_data=None) -> bool:
-        """Save the changes to a playlist.
+        """
+        Save the changes to a playlist.
 
-        Args:
-            playlist_id: ID of the playlist to save.
-            playlist_data: Optional pre-loaded playlist data with changes.
+        Args:     playlist_id: ID of the playlist to save.     playlist_data: Optional
+        pre-loaded playlist data with changes.
 
-        Returns:
-            True if the save was successful, False otherwise.
+        Returns:     True if the save was successful, False otherwise.
         """
         try:
             if playlist_data:
@@ -156,14 +155,13 @@ class PlaylistService:
             return False
 
     def reorder_tracks(self, playlist_id: str, track_order: List[int]) -> bool:
-        """Reorder tracks in a playlist based on the provided order.
+        """
+        Reorder tracks in a playlist based on the provided order.
 
-        Args:
-            playlist_id: ID of the playlist to reorder tracks in.
-            track_order: List of track numbers in the desired order.
+        Args:     playlist_id: ID of the playlist to reorder tracks in.     track_order:
+        List of track numbers in the desired order.
 
-        Returns:
-            True if the reordering was successful, False otherwise.
+        Returns:     True if the reordering was successful, False otherwise.
         """
         try:
             playlist = self.repository.get_playlist_by_id(playlist_id)
@@ -223,14 +221,13 @@ class PlaylistService:
             return False
 
     def delete_tracks(self, playlist_id: str, track_numbers: List[int]) -> bool:
-        """Delete tracks from a playlist by their track numbers.
+        """
+        Delete tracks from a playlist by their track numbers.
 
-        Args:
-            playlist_id: ID of the playlist containing the tracks to delete.
-            track_numbers: List of track numbers to delete.
+        Args:     playlist_id: ID of the playlist containing the tracks to delete.
+        track_numbers: List of track numbers to delete.
 
-        Returns:
-            True if the deletion was successful, False otherwise.
+        Returns:     True if the deletion was successful, False otherwise.
         """
         try:
             playlist = self.repository.get_playlist_by_id(playlist_id)
@@ -289,14 +286,13 @@ class PlaylistService:
     def get_all_playlists(
         self, page: int = 1, page_size: int = 50
     ) -> List[Dict[str, Any]]:
-        """Retrieve all playlists with pagination support.
+        """
+        Retrieve all playlists with pagination support.
 
-        Args:
-            page: Page number (1-based).
-            page_size: Number of playlists per page.
+        Args:     page: Page number (1-based).     page_size: Number of playlists per
+        page.
 
-        Returns:
-            List of dictionaries representing playlists.
+        Returns:     List of dictionaries representing playlists.
         """
         offset = (page - 1) * page_size
         return self.repository.get_all_playlists(limit=page_size, offset=offset)
@@ -304,15 +300,13 @@ class PlaylistService:
     def get_playlist_by_id(
         self, playlist_id: str, track_page: int = 1, track_page_size: int = 1000
     ) -> Optional[Dict[str, Any]]:
-        """Retrieve a playlist by its ID with optional track pagination.
+        """
+        Retrieve a playlist by its ID with optional track pagination.
 
-        Args:
-            playlist_id: Playlist ID.
-            track_page: Page number for tracks (1-based).
-            track_page_size: Number of tracks per page.
+        Args:     playlist_id: Playlist ID.     track_page: Page number for tracks
+        (1-based).     track_page_size: Number of tracks per page.
 
-        Returns:
-            Dictionary representing the playlist or None if not found.
+        Returns:     Dictionary representing the playlist or None if not found.
         """
         track_offset = (track_page - 1) * track_page_size
         return self.repository.get_playlist_by_id(
@@ -320,54 +314,49 @@ class PlaylistService:
         )
 
     def get_playlist_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
-        """Retrieve a playlist by its associated NFC tag ID.
+        """
+        Retrieve a playlist by its associated NFC tag ID.
 
-        Args:
-            nfc_tag_id: NFC tag ID.
+        Args:     nfc_tag_id: NFC tag ID.
 
-        Returns:
-            Dictionary representing the playlist or None if not found.
+        Returns:     Dictionary representing the playlist or None if not found.
         """
         return self.repository.get_playlist_by_nfc_tag(nfc_tag_id)
 
     def associate_nfc_tag(self, playlist_id: str, nfc_tag_id: str) -> bool:
-        """Associate an NFC tag with a playlist.
+        """
+        Associate an NFC tag with a playlist.
 
-        Args:
-            playlist_id: Playlist ID.
-            nfc_tag_id: NFC tag ID to associate.
+        Args:     playlist_id: Playlist ID.     nfc_tag_id: NFC tag ID to associate.
 
-        Returns:
-            True if the association succeeded, False otherwise.
+        Returns:     True if the association succeeded, False otherwise.
         """
         return self.repository.associate_nfc_tag(playlist_id, nfc_tag_id)
 
     def disassociate_nfc_tag(self, playlist_id: str) -> bool:
-        """Remove the association of an NFC tag from a playlist.
+        """
+        Remove the association of an NFC tag from a playlist.
 
-        Args:
-            playlist_id: Playlist ID.
+        Args:     playlist_id: Playlist ID.
 
-        Returns:
-            True if the dissociation succeeded, False otherwise.
+        Returns:     True if the dissociation succeeded, False otherwise.
         """
         return self.repository.disassociate_nfc_tag(playlist_id)
 
     def create_playlist_from_folder(
         self, folder_path: Path, title: Optional[str] = None
     ) -> Optional[str]:
-        """Create a playlist from a folder of audio files.
+        """
+        Create a playlist from a folder of audio files.
 
-        This scans the specified folder for supported audio files
-        and creates a new playlist entry in the database, with each file as a track.
-        The playlist's relative path is determined with respect to the upload folder.
+        This scans the specified folder for supported audio files and creates a new
+        playlist entry in the database, with each file as a track. The playlist's
+        relative path is determined with respect to the upload folder.
 
-        Args:
-            folder_path: Path to the folder
-            title: Optional title for the playlist (default: folder name)
+        Args:     folder_path: Path to the folder     title: Optional title for the
+        playlist (default: folder name)
 
-        Returns:
-            ID of the created playlist or None if an error occurred
+        Returns:     ID of the created playlist or None if an error occurred
         """
         try:
             # Check if the folder exists and is a directory
@@ -431,19 +420,17 @@ class PlaylistService:
     def update_playlist_tracks(
         self, playlist_id: str, folder_path: Path
     ) -> Tuple[bool, Dict[str, int]]:
-        """Update the tracks of a playlist from the contents of a folder.
+        """
+        Update the tracks of a playlist from the contents of a folder.
 
         This method compares the current tracks in the playlist with the audio files
-        present in the specified folder. It adds new tracks for new files,
-        removes tracks for missing files, and keeps existing tracks that are still present.
-        The playlist is then updated in the repository.
+        present in the specified folder. It adds new tracks for new files, removes
+        tracks for missing files, and keeps existing tracks that are still present. The
+        playlist is then updated in the repository.
 
-        Args:
-            playlist_id: Playlist ID
-            folder_path: Path to the folder
+        Args:     playlist_id: Playlist ID     folder_path: Path to the folder
 
-        Returns:
-            Tuple (success, statistics)
+        Returns:     Tuple (success, statistics)
         """
         stats = {"added": 0, "removed": 0}
 
@@ -518,10 +505,10 @@ class PlaylistService:
             return False, stats
 
     def sync_with_filesystem(self) -> Dict[str, int]:
-        """Synchronize playlists in the database with the filesystem.
+        """
+        Synchronize playlists in the database with the filesystem.
 
-        Returns:
-            Synchronization statistics
+        Returns:     Synchronization statistics
         """
         with self._sync_lock:  # Prevent concurrent synchronizations
             start_time = time.time()
@@ -584,10 +571,10 @@ class PlaylistService:
                 return stats
 
     def _scan_filesystem_with_timeout(self) -> Dict[str, List[Path]]:
-        """Scan the filesystem with protection against timeouts.
+        """
+        Scan the filesystem with protection against timeouts.
 
-        Returns:
-            Dictionary mapping playlist paths to audio files
+        Returns:     Dictionary mapping playlist paths to audio files
         """
         result = {}
         scan_start = time.time()
@@ -645,12 +632,11 @@ class PlaylistService:
         disk_playlists: Dict[str, List[Path]],
         stats: Dict[str, int],
     ) -> None:
-        """Update existing playlists with files from disk.
+        """
+        Update existing playlists with files from disk.
 
-        Args:
-            db_playlists: List of playlists in the database
-            disk_playlists: Dictionary of files found on disk
-            stats: Dictionary of statistics to update
+        Args:     db_playlists: List of playlists in the database     disk_playlists:
+        Dictionary of files found on disk     stats: Dictionary of statistics to update
         """
         start_time = time.time()
 
@@ -689,12 +675,12 @@ class PlaylistService:
         db_playlists_by_path: Dict[str, Dict[str, Any]],
         stats: Dict[str, int],
     ) -> None:
-        """Add new playlists found on disk.
+        """
+        Add new playlists found on disk.
 
-        Args:
-            disk_playlists: Dictionary of files found on disk
-            db_playlists_by_path: Dictionary of existing playlists by path
-            stats: Dictionary of statistics to update
+        Args:     disk_playlists: Dictionary of files found on disk
+        db_playlists_by_path: Dictionary of existing playlists by path     stats:
+        Dictionary of statistics to update
         """
         start_time = time.time()
 
@@ -723,13 +709,12 @@ class PlaylistService:
     # === Conversion methods ===
 
     def to_model(self, playlist_data: Dict[str, Any]) -> Playlist:
-        """Convert playlist data to a Playlist model object.
+        """
+        Convert playlist data to a Playlist model object.
 
-        Args:
-            playlist_data: Playlist data as a dictionary
+        Args:     playlist_data: Playlist data as a dictionary
 
-        Returns:
-            Playlist object
+        Returns:     Playlist object
         """
         tracks = []
         for track_data in playlist_data.get("tracks", []):
@@ -757,17 +742,16 @@ class PlaylistService:
         )
 
     def from_model(self, playlist: Playlist) -> Dict[str, Any]:
-        """Convert a Playlist model object to a dictionary for storage.
+        """
+        Convert a Playlist model object to a dictionary for storage.
 
         This function prepares a dictionary representation of the Playlist model,
-        suitable for saving to the database. It determines the playlist's
-        relative path and serializes all tracks.
+        suitable for saving to the database. It determines the playlist's relative path
+        and serializes all tracks.
 
-        Args:
-            playlist (Playlist): The playlist object to convert.
+        Args:     playlist (Playlist): The playlist object to convert.
 
-        Returns:
-            dict: Dictionary representing the playlist
+        Returns:     dict: Dictionary representing the playlist
         """
         # Compute the relative path for the playlist based on the first track's
         # path; fallback to the playlist name if unavailable
@@ -814,16 +798,16 @@ class PlaylistService:
     def play_playlist_with_validation(
         self, playlist_data: Dict[str, Any], audio
     ) -> bool:
-        """Play a playlist using the audio player, with validation and metadata
-        update.
+        """
+        Play a playlist using the audio player.
 
-        Args:
-            playlist_data (Dict[str, Any]): Dictionary containing playlist data to play.
-            audio: Audio player instance.
+        Validates and updates metadata, then plays the playlist using the provided audio
+        player.
 
+        Args:     playlist_data: Dictionary containing playlist data to play.     audio:
+        Audio player instance.
 
-        Returns:
-            True if playback started successfully, False otherwise.
+        Returns:     True if playback started successfully, False otherwise.
         """
         try:
             playlist_obj = self.to_model(playlist_data)
@@ -875,15 +859,16 @@ class PlaylistService:
             return False
 
     def start_playlist(self, playlist_id: str, audio) -> bool:
-        """Start playback of the specified playlist using the provided audio
+        """
+        Start playback of the specified playlist.
+
+        Retrieves the playlist by ID and starts playback using the provided audio
         system, with validation.
 
-        Args:
-            playlist_id: ID of the playlist to play.
-            audio: Audio player instance.
+        Args:     playlist_id: ID of the playlist to play.     audio: Audio player
+        instance.
 
-        Returns:
-            True if playback started successfully, False otherwise.
+        Returns:     True if playback started successfully, False otherwise.
         """
         playlist_data = self.get_playlist_by_id(playlist_id)
         if not playlist_data:
@@ -892,14 +877,12 @@ class PlaylistService:
         return self.play_playlist_with_validation(playlist_data, audio)
 
     def play_track(self, playlist_id: str, track_number: int, audio) -> bool:
-        """Play a specific track from a playlist.
+        """
+        Play a specific track from a playlist.
 
-        Args:
-            playlist_id: ID of the playlist
-            track_number: Track number to play
-            audio: Audio player instance
-        Returns:
-            True if playback started successfully, False otherwise.
+        Args:     playlist_id: ID of the playlist     track_number: Track number to play
+        audio: Audio player instance Returns:     True if playback started successfully,
+        False otherwise.
         """
         playlist_data = self.get_playlist_by_id(playlist_id)
         if not playlist_data or not playlist_data.get("tracks"):
@@ -921,18 +904,17 @@ class PlaylistService:
         return True
 
     def add_playlist(self, playlist_data: Dict[str, Any]) -> str:
-        """Add a new playlist with the provided data.
+        """
+        Add a new playlist with the provided data.
 
-        This method is used by the YouTube service to create playlists from downloaded content.
+        This method is used by the YouTube service to create playlists from downloaded
+        content.
 
-        Args:
-            playlist_data: Dictionary containing playlist information
-                - title: Title of the playlist
-                - folder: Path to the folder containing the tracks
-                - tracks: List of track information
+        Args:     playlist_data: Dictionary containing playlist information         -
+        title: Title of the playlist         - folder: Path to the folder containing the
+        tracks         - tracks: List of track information
 
-        Returns:
-            ID of the created playlist
+        Returns:     ID of the created playlist
         """
         try:
             # Create a basic playlist structure

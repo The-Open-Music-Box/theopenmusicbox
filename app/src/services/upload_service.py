@@ -16,23 +16,34 @@ logger = ImprovedLogger(__name__)
 
 
 class UploadService:
-    """Service for handling audio file uploads and metadata extraction."""
+    """
+    Service for handling audio file uploads and metadata extraction.
+
+    This service manages the upload of audio files and extracts metadata for playlist
+    integration.
+    """
 
     def __init__(self, config):
-        """Initialize the UploadService with application config."""
+        """
+        Initialize the UploadService with application config.
+        """
         self.upload_folder = Path(config.upload_folder)
         self.allowed_extensions = set(config.upload_allowed_extensions)
         self.max_file_size = config.upload_max_size
 
     def _allowed_file(self, filename: str) -> bool:
-        """Return True if the filename is an allowed audio type."""
+        """
+        Return True if the filename is an allowed audio type.
+        """
         return (
             "." in filename
             and filename.rsplit(".", 1)[1].lower() in self.allowed_extensions
         )
 
     async def _check_file_size(self, file) -> bool:
-        """Return True if the file size is within the allowed maximum."""
+        """
+        Return True if the file size is within the allowed maximum.
+        """
         # FastAPI UploadFile objects don't support seeking with whence parameter
         # We need to read the file content to determine its size
         content = await file.read()
@@ -42,13 +53,12 @@ class UploadService:
         return size <= self.max_file_size
 
     def extract_metadata(self, file_path: Path) -> Dict:
-        """Extract metadata from an audio file.
+        """
+        Extract metadata from an audio file.
 
-        Args:
-            file_path: Path to the audio file.
+        Args:     file_path: Path to the audio file.
 
-        Returns:
-            Dictionary with metadata fields: title, artist, album, duration.
+        Returns:     Dictionary with metadata fields: title, artist, album, duration.
         """
         try:
             audio = MutagenFile(str(file_path), easy=True)
@@ -76,18 +86,19 @@ class UploadService:
             }
 
     async def process_upload(self, file, playlist_path: str) -> Tuple[str, Dict]:
-        """Process an uploaded file and extract its metadata.
+        """
+        Process an uploaded file and extract its metadata.
 
         Args:
-            file: The uploaded file object.
-            playlist_path: Path to the playlist folder.
+        file: The uploaded file object.
+        playlist_path: Path to the playlist folder.
 
         Returns:
-            Tuple of (filename, metadata dictionary).
+        Tuple of (filename, metadata dictionary).
 
         Raises:
-            InvalidFileError: If the file is invalid or not allowed.
-            ProcessingError: If there is an error during processing.
+        InvalidFileError: If the file is invalid or not allowed.
+        ProcessingError: If there is an error during processing.
         """
         if not file or not file.filename:
             raise InvalidFileError("No file provided")
@@ -134,11 +145,11 @@ class UploadService:
             raise ProcessingError(f"Error processing file: {str(e)}") from e
 
     def cleanup_failed_upload(self, playlist_path: str, filename: str):
-        """Clean up files in case of failure.
+        """
+        Clean up files in case of failure.
 
-        Args:
-            playlist_path: Path to the playlist folder.
-            filename: Name of the file to remove.
+        Args:     playlist_path: Path to the playlist folder.     filename: Name of the
+        file to remove.
         """
         try:
             file_path = self.upload_folder / playlist_path / filename
