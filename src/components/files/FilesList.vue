@@ -46,7 +46,7 @@
         <div>
           <!-- Editable title in edit mode, regular title otherwise -->
           <div v-if="isEditMode" class="flex items-center">
-            <input 
+            <input
               v-model="editableTitles[playlist.id]"
               @blur="updatePlaylistTitle(playlist.id)"
               @keyup.enter="updatePlaylistTitle(playlist.id)"
@@ -120,36 +120,37 @@
         </div>
       </div>
 
+      <!-- Enhanced chunked uploader (only in edit mode) -->
+      <div v-if="isEditMode" class="px-4 py-2 border-t border-border bg-background-light">
+        <EnhancedChunkedPlaylistUploader
+          :playlist-id="playlist.id"
+          @upload-complete="handleUploadComplete"
+          @upload-error="handleUploadError"
+          @all-uploads-complete="handleAllUploadsComplete"
+        />
+      </div>
+
       <!-- Tracks list (visible only if playlist is open) -->
-      <transition
-        enter-active-class="transition-all duration-500 ease-out"
-        leave-active-class="transition-all duration-300 ease-in"
-        enter-from-class="max-h-0 opacity-0"
-        enter-to-class="max-h-[1000px] opacity-100"
-        leave-from-class="max-h-[1000px] opacity-100"
-        leave-to-class="max-h-0 opacity-0"
-      >
-        <div v-show="openPlaylists.includes(playlist.id)" :class="['divide-y divide-border', 'overflow-hidden']">
-          <!-- Draggable tracks list (only draggable in edit mode) -->
-          <draggable
-            v-model="playlist.tracks"
-            :disabled="!isEditMode"
-            group="tracks"
-            item-key="number"
-            :animation="200"
-            ghost-class="bg-primary/10"
-            chosen-class="bg-primary/5"
-            drag-class="cursor-grabbing"
-            :data-playlist-id="playlist.id"
-            @start="dragStart"
-            @end="dragEnd"
-            @change="handleDragChange($event, playlist.id)"
-          >
+      <div>
+        <draggable
+          v-model="playlist.tracks"
+          :disabled="!isEditMode"
+          group="tracks"
+          item-key="number"
+          :animation="200"
+          ghost-class="bg-primary/10"
+          chosen-class="bg-primary/5"
+          drag-class="cursor-grabbing"
+          :data-playlist-id="playlist.id"
+          @start="dragStart"
+          @end="dragEnd"
+          @change="handleDragChange($event, playlist.id)"
+        >
           <template #item="{element: track}">
             <div
               @click="isEditMode ? null : $emit('select-track', { track, playlist })"
               :class="[
-                'px-4 py-3 flex items-center justify-between group', 
+                'px-4 py-3 flex items-center justify-between group',
                 'hover:bg-background',
                 isEditMode ? 'cursor-grab' : 'cursor-pointer'
               ]">
@@ -187,9 +188,8 @@
             </div>
           </div>
           </template>
-          </draggable>
-        </div>
-      </transition>
+        </draggable>
+      </div>
     </div>
     <!-- NFC Association Dialog -->
     <NfcAssociateDialog
@@ -209,12 +209,12 @@
     />
 
     <!-- Create Playlist Dialog -->
-    <CreatePlaylistDialog 
-      :open="showCreatePlaylistDialog" 
-      @create="createNewPlaylist" 
+    <CreatePlaylistDialog
+      :open="showCreatePlaylistDialog"
+      @create="createNewPlaylist"
       @cancel="showCreatePlaylistDialog = false"
     />
-    
+
     <!-- Feedback toast message -->
     <transition
       enter-active-class="transform transition ease-out duration-300"
@@ -224,8 +224,8 @@
       leave-from-class="opacity-100"
       leave-to-class="opacity-0"
     >
-      <div 
-        v-if="feedbackMessage" 
+      <div
+        v-if="feedbackMessage"
         :class="[
           'fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg z-50 max-w-sm',
           feedbackType === 'success' ? 'bg-success text-onSuccess' : 'bg-error text-onError'
@@ -255,7 +255,7 @@ import NewPlaylistButton from './NewPlaylistButton.vue'
 import NfcAssociateDialog from './NfcAssociateDialog.vue'
 import DeleteDialog from './DeleteDialog.vue'
 import CreatePlaylistDialog from './CreatePlaylistDialog.vue'
-import PlaylistUpload from './PlaylistUpload.vue'
+import EnhancedChunkedPlaylistUploader from './EnhancedChunkedPlaylistUploader.vue'
 import { useFilesStore } from './composables/useFilesStore'
 import draggable from 'vuedraggable'
 
@@ -374,7 +374,7 @@ function openNfcDialog(id: string) {
 async function updatePlaylistTitle(playlistId: string) {
   const newTitle = editableTitles.value[playlistId]?.trim()
   if (!newTitle) return
-  
+
   try {
     await filesStore.updatePlaylistTitle(playlistId, newTitle)
     console.log('[FilesList] Playlist title updated:', playlistId, newTitle)
@@ -399,7 +399,7 @@ function confirmDeletePlaylist(playlistId: string) {
  */
 async function deletePlaylist() {
   if (!playlistToDelete.value) return
-  
+
   try {
     // Here you would call a method to delete the playlist
     // await filesStore.deletePlaylist(playlistToDelete.value)
@@ -422,30 +422,52 @@ async function deletePlaylist() {
  */
 async function createNewPlaylist(title: string) {
   try {
-    // Creating new playlist
-    
+    console.log('[FilesList] Creating new playlist:', title)
+
     // Créer la nouvelle playlist
     const newPlaylistId = await filesStore.createNewPlaylist(title)
-    // Playlist created successfully
-    
+    console.log('[FilesList] Playlist created successfully with ID:', newPlaylistId)
+
     showCreatePlaylistDialog.value = false
     showFeedback('success', t('file.playlistCreated'))
-    
-    // Activer le mode édition et ouvrir la playlist
+
+    // Store current edit mode state before refresh (smart refresh logic)
+    const wasInEditMode = isEditMode.value
+    console.log('[FilesList] Smart refresh after playlist creation: preserving edit mode =', wasInEditMode)
+
+    // Activer le mode édition si ce n'est pas déjà fait
     if (!isEditMode.value) {
       // Activate edit mode
       filesStore.toggleEditMode() // Activer le mode édition globalement
+      // Update local state to reflect the change
+      isEditMode.value = true
     }
-    
-    // Notifier le parent de rafraîchir les playlists
-    // Notify parent to refresh playlists
+
+    // CRITICAL FIX: Refresh playlists directly after creation
+    console.log('[FilesList] Calling loadPlaylists directly after playlist creation')
     emit('refreshPlaylists')
     
-    // Attendre que la liste des playlists soit mise à jour
+    // Also try to refresh via the files store directly as backup
+    try {
+      await filesStore.loadPlaylists()
+      console.log('[FilesList] Direct loadPlaylists completed successfully')
+    } catch (err) {
+      console.error('[FilesList] Error during direct loadPlaylists:', err)
+    }
+
+    // After refresh, ensure edit mode and playlist state are preserved
     nextTick(() => {
-      // Add to open playlists
-      // Ajouter la playlist à la liste des playlists ouvertes
+      console.log('[FilesList] Smart refresh after playlist creation: restoring state')
+
+      // Ensure edit mode is preserved after refresh
+      if (!isEditMode.value && (wasInEditMode || newPlaylistId)) {
+        console.log('[FilesList] Restoring edit mode after playlist creation refresh')
+        isEditMode.value = true
+      }
+
+      // Add to open playlists and ensure the new playlist is opened in edit mode
       if (newPlaylistId && !openPlaylists.value.includes(newPlaylistId)) {
+        console.log('[FilesList] Opening newly created playlist in edit mode:', newPlaylistId)
         openPlaylists.value.push(newPlaylistId)
       }
     })
@@ -455,22 +477,7 @@ async function createNewPlaylist(title: string) {
   }
 }
 
-/**
- * Handle upload completion
- */
-function handleUploadComplete() {
-  console.log('[FilesList] Upload completed')
-  emit('refreshPlaylists')
-  showFeedback('success', t('file.uploadComplete'))
-}
 
-/**
- * Handle upload error
- */
-function handleUploadError(err: any) {
-  console.error('[FilesList] Upload error:', err)
-  showFeedback('error', t('file.uploadError'))
-}
 
 /**
  * Show feedback toast message
@@ -482,11 +489,11 @@ function showFeedback(type: 'success' | 'error', message: string) {
   if (feedbackTimeout.value) {
     clearTimeout(feedbackTimeout.value)
   }
-  
+
   // Set message and type
   feedbackType.value = type
   feedbackMessage.value = message
-  
+
   // Auto-hide after 3 seconds
   feedbackTimeout.value = window.setTimeout(() => {
     feedbackMessage.value = ''
@@ -522,7 +529,7 @@ function dragEnd(evt: any) {
  */
 async function handleDragChange(evt: any, playlistId: string) {
   console.log('[FilesList] Drag change event:', evt.added ? 'added' : evt.removed ? 'removed' : 'moved', 'in playlist:', playlistId)
-  
+
   // Handle reordering within the same playlist
   if (evt.moved) {
     try {
@@ -530,7 +537,7 @@ async function handleDragChange(evt: any, playlistId: string) {
       const trackNumbers = props.playlists
         .find(p => p.id === playlistId)?.tracks
         .map(track => track.number) || []
-      
+
       // Call the API to update the order
       await filesStore.reorderPlaylistTracks(playlistId, trackNumbers)
       console.log('[FilesList] Tracks reordered in playlist:', playlistId)
@@ -542,7 +549,7 @@ async function handleDragChange(evt: any, playlistId: string) {
     }
     return
   }
-  
+
   // Handle moving between playlists
   if (evt.added && evt.from) {
     const sourcePlaylistId = evt.from.dataset.playlistId
@@ -550,7 +557,7 @@ async function handleDragChange(evt: any, playlistId: string) {
       try {
         const movedTrack = evt.added.element
         console.log('[FilesList] Track moved between playlists:', movedTrack.number, 'from', sourcePlaylistId, 'to', playlistId)
-        
+
         // Call the API to move the track
         await filesStore.moveTrackBetweenPlaylists(
           sourcePlaylistId,
@@ -560,7 +567,7 @@ async function handleDragChange(evt: any, playlistId: string) {
         )
         showFeedback('success', t('file.trackMoved'))
       } catch (err) {
-        console.error('[FilesList] Error moving track between playlists:', err)
+        // Log error but continue execution
         // Reload playlists to reset the UI state
         emit('refreshPlaylists')
       }
@@ -576,11 +583,63 @@ function togglePlaylist(playlistId: string) {
   const index = openPlaylists.value.indexOf(playlistId)
   if (index === -1) {
     openPlaylists.value.push(playlistId)
-    console.log('[FilesList] Playlist opened:', playlistId)
+
   } else {
     openPlaylists.value.splice(index, 1)
-    console.log('[FilesList] Playlist closed:', playlistId)
+
   }
+}
+
+/**
+ * Handle upload completion from enhanced uploader
+ * Uses NO refresh to prevent interrupting multi-file uploads
+ */
+function handleUploadComplete() {
+  console.log('[FilesList] Enhanced upload completed successfully')
+
+  // DO NOT emit refreshPlaylists to prevent page refresh that breaks multi-file uploads
+  // The playlist will be updated via optimistic updates or manual refresh when needed
+  // This preserves UI state and allows multiple files to upload consecutively
+
+  showFeedback('success', t('file.uploadSuccess'))
+}
+
+/**
+ * Handle completion of ALL uploads for a playlist
+ * This triggers a smart refresh to update the playlist with all uploaded tracks
+ * while preserving the edit mode state
+ */
+function handleAllUploadsComplete(playlistId: string) {
+  console.log('[FilesList] All uploads completed for playlist', playlistId)
+
+  // Store the current edit mode state before refresh
+  const wasInEditMode = isEditMode.value
+
+  console.log('[FilesList] Smart refresh: preserving edit mode =', wasInEditMode, 'for playlist', playlistId)
+
+  // Emit refresh to update the playlist with newly uploaded tracks
+  emit('refreshPlaylists')
+
+  // After refresh, restore the edit mode if it was active
+  // Use nextTick to ensure DOM is updated after the refresh
+  nextTick(() => {
+    if (wasInEditMode) {
+      console.log('[FilesList] Smart refresh: restoring edit mode for playlist', playlistId)
+      // Re-enable edit mode after refresh
+      isEditMode.value = true
+    }
+
+    showFeedback('success', t('file.uploadSuccess'))
+  })
+}
+
+/**
+ * Handle upload error from enhanced uploader
+ * @param {any} error - Upload error details
+ */
+function handleUploadError(error: any) {
+  console.error('[FilesList] Enhanced upload error:', error)
+  showFeedback('error', t('file.uploadError'))
 }
 
 /**

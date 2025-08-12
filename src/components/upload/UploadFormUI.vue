@@ -3,7 +3,7 @@
     <div class="border-b border-border pb-12">
       <div class="mt-10 grid grid-cols-1 gap-x-6 gap-y-8 sm:grid-cols-6">
         <div class="col-span-full">
-          <FileDropZone @files-selected="handleFilesSelected" />
+          <FileDropZone @filesSelected="handleFilesSelected" />
           <FileValidationMessages :errors="validationErrors" />
         </div>
       </div>

@@ -13,6 +13,10 @@ export const API_ROUTES = {
   PLAYLISTS: '/api/playlists/',
   PLAYLIST: (id: string) => `/api/playlists/${id}`,
   PLAYLIST_UPLOAD: (id: string) => `/api/playlists/${id}/upload`,
+  PLAYLIST_UPLOAD_INIT: (id: string) => `/api/playlists/${id}/upload/init`,
+  PLAYLIST_UPLOAD_CHUNK: (id: string) => `/api/playlists/${id}/upload/chunk`,
+  PLAYLIST_UPLOAD_FINALIZE: (id: string) => `/api/playlists/${id}/upload/finalize`,
+  PLAYLIST_UPLOAD_STATUS: (sessionId: string) => `/api/uploads/session/${sessionId}`,
   PLAYLIST_REORDER: (id: string) => `/api/playlists/${id}/reorder`,
   PLAYLIST_TRACK: (playlistId: string, trackId: string | number) =>
     `/api/playlists/${playlistId}/tracks/${trackId}`,

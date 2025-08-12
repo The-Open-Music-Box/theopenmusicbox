@@ -60,37 +60,41 @@
     </div>
 
     <!-- Upload progress -->
-    <div v-if="uploadingFiles.length > 0" class="mt-4 space-y-3">
-      <div v-for="file in uploadingFiles" :key="file.name" class="bg-background rounded-md p-3 shadow-sm">
+    <div v-if="isUploading" class="mt-4 space-y-3">
+      <div class="bg-background rounded-md p-3 shadow-sm">
         <div class="flex justify-between items-center mb-1">
-          <span class="text-sm font-medium text-onBackground truncate" :title="file.name">{{ file.name }}</span>
-          <span class="text-xs text-disabled">{{ formatFileSize(file.size) }}</span>
+          <span class="text-sm font-medium text-onBackground">{{ t('file.uploading') }}...</span>
+          <button
+            @click="cancelUpload"
+            class="text-xs text-error hover:text-error-light transition-colors"
+          >
+            {{ t('common.cancel') }}
+          </button>
         </div>
         
         <div class="relative h-2 bg-border rounded-full overflow-hidden">
           <div
             class="absolute top-0 left-0 h-full bg-success transition-all duration-300"
-            :style="{ width: `${file.progress}%` }"
+            :style="{ width: `${uploadProgress}%` }"
           ></div>
         </div>
         
         <div class="flex justify-between items-center mt-1">
-          <span class="text-xs text-disabled">{{ file.progress }}%</span>
-          <button
-            v-if="file.progress < 100"
-            @click="cancelUpload(file)"
-            class="text-xs text-error hover:text-error-light transition-colors"
-          >
-            {{ t('common.cancel') }}
-          </button>
-          <span v-else class="text-xs text-success">{{ t('file.uploadComplete') }}</span>
+          <span class="text-xs text-disabled">{{ uploadProgress.toFixed(1) }}%</span>
         </div>
       </div>
     </div>
 
-    <!-- Error message -->
-    <div v-if="errorMessage" class="mt-3 text-sm text-error">
-      {{ errorMessage }}
+    <!-- Error messages -->
+    <div v-if="errorMessage || uploadErrors.length > 0" class="mt-3 space-y-2">
+      <div v-if="errorMessage" class="text-sm text-error">
+        {{ errorMessage }}
+      </div>
+      <div v-if="uploadErrors.length > 0" class="text-sm text-error">
+        <ul class="list-disc list-inside space-y-1">
+          <li v-for="(error, index) in uploadErrors" :key="index">{{ error }}</li>
+        </ul>
+      </div>
     </div>
   </div>
 </template>
@@ -98,8 +102,8 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useFileUpload } from './composables/useFileUpload'
-import { useUploadValidation } from './composables/useUploadValidation'
+import { useChunkedUpload } from '../upload/composables/useChunkedUpload'
+import { useUploadValidation } from '../upload/composables/useUploadValidation'
 
 const { t } = useI18n()
 
@@ -117,7 +121,14 @@ const isDragging = ref(false)
 const errorMessage = ref('')
 
 // Get upload utilities
-const { uploadFiles, isUploading, uploadingFiles, cancelUpload } = useFileUpload()
+const { 
+  uploadFiles, 
+  uploadProgress, 
+  isUploading, 
+  uploadErrors, 
+  upload, 
+  cancelUpload 
+} = useChunkedUpload()
 const { validateFiles } = useUploadValidation()
 
 /**
@@ -177,13 +188,8 @@ async function handleFileSelect(event: Event) {
  * @param {File[]} files - Files to process
  */
 async function processFiles(files: File[]) {
-  // Validate files
-  const { validFiles, errors } = validateFiles(files)
-  
-  if (errors.length > 0) {
-    errorMessage.value = errors.join('. ')
-    return
-  }
+  // Validate files (only audio files)
+  const validFiles = files.filter(file => file.type.startsWith('audio/'))
   
   if (validFiles.length === 0) {
     errorMessage.value = t('file.noValidFiles')
@@ -191,8 +197,13 @@ async function processFiles(files: File[]) {
   }
   
   try {
-    // Upload files to the specific playlist
-    await uploadFiles(validFiles, props.playlistId)
+    // Set the files to upload
+    uploadFiles.value = validFiles
+    
+    // Start the upload process
+    await upload(props.playlistId)
+    
+    // Emit completion event
     emit('upload-complete')
   } catch (err) {
     console.error('[PlaylistUpload] Error uploading files:', err)

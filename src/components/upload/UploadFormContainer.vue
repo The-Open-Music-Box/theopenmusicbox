@@ -2,7 +2,7 @@
     <div class="space-y-12 mt-20 mb-8">
         <UploadFormUI
             @files-selected="handleFileSelection"
-            @submit="handleSubmit"
+            @submit.prevent="handleSubmit"
             :isUploading="isUploading"
         />
         <UploadProgress
@@ -20,13 +20,20 @@
  * Handles file validation, upload process, and progress tracking.
  */
 import { useUploadValidation } from './composables/useUploadValidation'
-import { useFileUpload } from './composables/useFileUpload'
+import { useChunkedUpload } from './composables/useChunkedUpload'
 import UploadFormUI from './UploadFormUI.vue'
 import UploadProgress from './UploadProgress.vue'
 
+// Define props to get the playlist ID
+interface Props {
+  playlistId: string
+}
+
+const props = defineProps<Props>()
+
 // Use composables for validation and file uploading functionality
 const { validateFiles } = useUploadValidation()
-const { uploadFiles, uploadProgress, isUploading, upload } = useFileUpload()
+const { uploadFiles, uploadProgress, isUploading, upload } = useChunkedUpload()
 
 /**
  * Handle file selection from the form
@@ -48,7 +55,7 @@ const handleFileSelection = async (files: FileList) => {
  */
 const handleSubmit = async () => {
     if (uploadFiles.value.length) {
-        await upload()
+        await upload(props.playlistId)
     }
 }
 </script>

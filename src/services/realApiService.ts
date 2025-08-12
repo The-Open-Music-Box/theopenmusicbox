@@ -223,24 +223,104 @@ class RealApiService {
   }
 
   /**
-   * Upload files to a playlist
+   * Uploads files to a playlist (legacy method)
    * @param playlistId - ID of the playlist
-   * @param files - FileList or array of files
-   * @param onUploadProgress - Optional progress callback
-   * @returns Promise resolving to server response
+   * @param files - Files to upload
+   * @param onUploadProgress - Optional callback for upload progress
+   * @returns Promise resolving to upload result
+   * @deprecated Use initUpload, uploadChunk, and finalizeUpload instead
    */
   async uploadFiles(playlistId: string, files: FileList | File[], onUploadProgress?: (progressEvent: AxiosProgressEvent) => void) {
-    const formData = new FormData();
-    Array.from(files).forEach((file) => formData.append('files', file));
+    const formData = new FormData()
+
+    for (let i = 0; i < files.length; i++) {
+      formData.append('files', files[i])
+    }
+
+    const response = await apiClient.post(API_ROUTES.PLAYLIST_UPLOAD(playlistId), formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      },
+      onUploadProgress
+    })
+
+    return response.data
+  }
+
+  /**
+   * Initializes a chunked upload session
+   * @param playlistId - ID of the playlist
+   * @param metadata - File metadata (filename, size, chunks)
+   * @returns Promise resolving to session initialization data
+   */
+  async initUpload(playlistId: string, metadata: { filename: string, total_size: number, total_chunks: number }) {
     try {
-      const response = await apiClient.post(API_ROUTES.PLAYLIST_UPLOAD(playlistId), formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-        onUploadProgress
-      });
-      return response.data;
+      const response = await apiClient.post(
+        API_ROUTES.PLAYLIST_UPLOAD_INIT(playlistId),
+        metadata
+      )
+      return response.data
     } catch (error) {
-      console.error('Error uploading files:', error);
-      throw error;
+      console.error('Error initializing upload:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Uploads a single chunk of a file
+   * @param playlistId - ID of the playlist
+   * @param formData - FormData containing session_id, chunk_index, and file chunk
+   * @returns Promise resolving to chunk upload result
+   */
+  async uploadChunk(playlistId: string, formData: FormData) {
+    try {
+      const response = await apiClient.post(
+        API_ROUTES.PLAYLIST_UPLOAD_CHUNK(playlistId),
+        formData,
+        {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        }
+      )
+      return response.data
+    } catch (error) {
+      console.error('Error uploading chunk:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Finalizes a chunked upload session
+   * @param playlistId - ID of the playlist
+   * @param data - Session data for finalization
+   * @returns Promise resolving to finalization result
+   */
+  async finalizeUpload(playlistId: string, data: { session_id: string }) {
+    try {
+      const response = await apiClient.post(
+        API_ROUTES.PLAYLIST_UPLOAD_FINALIZE(playlistId),
+        data
+      )
+      return response.data
+    } catch (error) {
+      console.error('Error finalizing upload:', error)
+      throw error
+    }
+  }
+
+  /**
+   * Gets the status of an upload session
+   * @param sessionId - ID of the upload session
+   * @returns Promise resolving to session status
+   */
+  async getUploadStatus(sessionId: string) {
+    try {
+      const response = await apiClient.get(
+        API_ROUTES.PLAYLIST_UPLOAD_STATUS(sessionId)
+      )
+      return response.data
+    } catch (error) {
+      console.error('Error getting upload status:', error)
+      throw error
     }
   }
 
