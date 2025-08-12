@@ -20,7 +20,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # 1. Install required apt packages
-REQUIRED_APT_PACKAGES=(python3 python3-venv python3-pip ffmpeg libasound2-dev libnss-mdns git i2c-tools python3-smbus python3-libgpiod)
+REQUIRED_APT_PACKAGES=(python3 python3-venv python3-pip ffmpeg libasound2-dev libnss-mdns git i2c-tools python3-smbus python3-libgpiod libsdl2-mixer-2.0-0)
 echo -e "${GREEN}Installing required apt packages...${NC}"
 sudo apt-get update
 sudo apt-get install -y "${REQUIRED_APT_PACKAGES[@]}"
