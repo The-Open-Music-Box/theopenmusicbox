@@ -31,7 +31,9 @@ logger = ImprovedLogger(__name__)
 
 
 class PlaylistRoutes:
-    """Registers the playlist-related API routes with the FastAPI app."""
+    """
+    Registers the playlist-related API routes with the FastAPI app.
+    """
 
     def __init__(self, app: FastAPI, socketio: AsyncServer):
         self.app = app
@@ -50,12 +52,16 @@ class PlaylistRoutes:
         self._register_routes()
 
     def register(self):
-        """Register playlist-related API routes with the FastAPI app."""
+        """
+        Register playlist-related API routes with the FastAPI app.
+        """
         self.app.include_router(self.router)
         setattr(self.app, "playlist_routes", self)
 
     def _get_cached_audio(self, request):
-        """Get cached audio instance or resolve it once and cache it."""
+        """
+        Get cached audio instance or resolve it once and cache it.
+        """
         if self._audio_instance is not None:
             return self._audio_instance
 
@@ -76,7 +82,9 @@ class PlaylistRoutes:
         return self._audio_instance
 
     def _setup_controls_integration(self):
-        """Set up integration with physical control devices if enabled."""
+        """
+        Set up integration with physical control devices if enabled.
+        """
         try:
 
             self.controls_manager = get_controles_manager()
@@ -108,7 +116,8 @@ class PlaylistRoutes:
             )
 
     def _cleanup_controls(self):
-        """Clean up resources associated with physical controls.
+        """
+        Clean up resources associated with physical controls.
 
         Unsubscribes from control events and releases resources.
         """
@@ -128,10 +137,10 @@ class PlaylistRoutes:
             )
 
     def _handle_control_event(self, event):
-        """Handle control events from physical inputs.
+        """
+        Handle control events from physical inputs.
 
-        Args:
-            event: The ControlesEvent to handle
+        Args:     event: The ControlesEvent to handle
         """
         audio_player = self._get_cached_audio(None)
         if not audio_player:
@@ -199,7 +208,9 @@ class PlaylistRoutes:
 
         @self.router.get("/")
         async def list_playlists(page: int = 1, page_size: int = 50):
-            """Get all playlists with pagination support."""
+            """
+            Get all playlists with pagination support.
+            """
             logger.log(
                 LogLevel.INFO,
                 "API /api/playlists/: Route called",
@@ -248,7 +259,9 @@ class PlaylistRoutes:
 
         @self.router.post("/", response_model=Dict[str, Any])
         async def create_playlist(body: dict = Body(...)):
-            """Create a new playlist."""
+            """
+            Create a new playlist.
+            """
             playlist_service = PlaylistService()
             title = body.get("title")
             if not isinstance(title, str) or not title.strip():
@@ -260,7 +273,9 @@ class PlaylistRoutes:
 
         @self.router.get("/{playlist_id}", response_model=Dict[str, Any])
         async def get_playlist(playlist_id: str):
-            """Get a playlist by ID."""
+            """
+            Get a playlist by ID.
+            """
             playlist_service = PlaylistService()
             playlist = playlist_service.get_playlist_by_id(playlist_id)
             if not playlist:
@@ -269,7 +284,9 @@ class PlaylistRoutes:
 
         @self.router.delete("/{playlist_id}", response_model=Dict[str, Any])
         async def delete_playlist(playlist_id: str):
-            """Delete a playlist and its files."""
+            """
+            Delete a playlist and its files.
+            """
             playlist_service = PlaylistService()
             try:
                 deleted = playlist_service.delete_playlist(playlist_id)
@@ -286,12 +303,13 @@ class PlaylistRoutes:
             files: List[UploadFile] = File(...),
             config=Depends(get_config),
         ):
-            """Upload files to a specific playlist.
+            """
+            Upload files to a specific playlist.
 
-            Handles file uploads for a playlist, with progress reporting (no websocket emit here).
+            Handles file uploads for a playlist, with progress reporting (no websocket
+            emit here).
 
-            Returns:
-                Dict[str, Any]: Upload status and file metadata.
+            Returns:     Dict[str, Any]: Upload status and file metadata.
             """
             playlist_service = PlaylistService()
             playlist = playlist_service.get_playlist_by_id(playlist_id)
@@ -391,18 +409,19 @@ class PlaylistRoutes:
             return response
 
         # New routes for chunked uploads
-        @self.router.post("/uploads/session")
+        @self.router.post("/{playlist_id}/upload/init")
         async def create_upload_session(
+            playlist_id: str,
             body: dict = Body(...),
             config=Depends(get_config),
         ):
-            """Create a new chunked upload session.
+            """
+            Create a new chunked upload session for a specific playlist.
 
-            Args:
-                body: Dictionary containing filename, total_chunks, and total_size.
+            Args:     playlist_id: ID of the playlist to upload files to.     body:
+            Dictionary containing filename, total_chunks, and total_size.
 
-            Returns:
-                Dict with session_id and status.
+            Returns:     Dict with session_id and status.
             """
             filename = body.get("filename")
             total_chunks = body.get("total_chunks")
@@ -442,16 +461,16 @@ class PlaylistRoutes:
             file: UploadFile = File(...),
             config=Depends(get_config),
         ):
-            """Upload a chunk of a file to a specific playlist.
+            """
+            Upload a chunk of a file to a specific playlist.
 
-            Args:
-                playlist_id: ID of the playlist.
-                session_id: Upload session identifier.
-                chunk_index: Index of the current chunk (0-based).
-                file: The chunk data.
+            Args:     playlist_id: ID of the playlist.     session_id: Upload session
+            identifier.     chunk_index: Index of the current chunk (0-based).
+            file:
+            The chunk data.
 
             Returns:
-                Dict with status and progress information.
+            Dict with status and progress information.
             """
             try:
                 # Check if playlist exists
@@ -528,14 +547,13 @@ class PlaylistRoutes:
             body: dict = Body(...),
             config=Depends(get_config),
         ):
-            """Finalize a chunked upload by assembling all chunks.
+            """
+            Finalize a chunked upload by assembling all chunks.
 
-            Args:
-                playlist_id: ID of the playlist.
-                body: Dictionary containing session_id.
+            Args:     playlist_id: ID of the playlist.     body: Dictionary containing
+            session_id.
 
-            Returns:
-                Dict with status and file metadata.
+            Returns:     Dict with status and file metadata.
             """
             session_id = body.get("session_id")
             if not session_id:
@@ -644,13 +662,12 @@ class PlaylistRoutes:
             session_id: str,
             config=Depends(get_config),
         ):
-            """Get the status of an upload session.
+            """
+            Get the status of an upload session.
 
-            Args:
-                session_id: Upload session identifier.
+            Args:     session_id: Upload session identifier.
 
-            Returns:
-                Dict with session status information.
+            Returns:     Dict with session status information.
             """
             try:
                 # Initialize chunked upload service if not already done
@@ -672,14 +689,13 @@ class PlaylistRoutes:
 
         @self.router.post("/{playlist_id}/reorder", response_model=Dict[str, Any])
         async def reorder_tracks(playlist_id: str, body: dict = Body(...)):
-            """Reorder tracks in a playlist.
+            """
+            Reorder tracks in a playlist.
 
-            Args:
-                playlist_id (str): ID of the playlist to reorder.
-                body (dict): Dictionary containing the new track order.
+            Args:     playlist_id (str): ID of the playlist to reorder.     body (dict):
+            Dictionary containing the new track order.
 
-            Returns:
-                Dict[str, Any]: Status of the reorder operation.
+            Returns:     Dict[str, Any]: Status of the reorder operation.
             """
             order = body.get("order", [])
             if not order or not isinstance(order, list):
@@ -695,7 +711,9 @@ class PlaylistRoutes:
 
         @self.router.delete("/{playlist_id}/tracks", response_model=Dict[str, Any])
         async def delete_tracks(playlist_id: str, body: dict = Body(...)):
-            """Delete multiple tracks from a playlist."""
+            """
+            Delete multiple tracks from a playlist.
+            """
             track_numbers = body.get("tracks", [])
             if not track_numbers or not isinstance(track_numbers, list):
                 raise HTTPException(status_code=400, detail="Invalid track numbers")
@@ -710,7 +728,9 @@ class PlaylistRoutes:
 
         @self.router.post("/{playlist_id}/start", response_model=Dict[str, Any])
         async def start_playlist(playlist_id: str, audio=Depends(get_audio)):
-            """Start playing a specific playlist."""
+            """
+            Start playing a specific playlist.
+            """
             if not audio:
                 raise HTTPException(
                     status_code=503, detail="Audio system not available"
@@ -727,7 +747,9 @@ class PlaylistRoutes:
         async def play_track(
             playlist_id: str, track_number: int, audio=Depends(get_audio)
         ):
-            """Play a specific track from a playlist."""
+            """
+            Play a specific track from a playlist.
+            """
             if not audio:
                 raise HTTPException(
                     status_code=503, detail="Audio system not available"
@@ -742,12 +764,13 @@ class PlaylistRoutes:
         async def control_playlist(
             request: Request, action: str = Body(..., embed=True)
         ):
-            """Control the currently playing playlist with immediate response.
+            """
+            Control the currently playing playlist with immediate response.
 
-            Allows play, pause, next, previous, and stop actions for the current playlist.
+            Allows play, pause, next, previous, and stop actions for the current
+            playlist.
 
-            Returns:
-                Dict[str, Any]: Status and action performed.
+            Returns:     Dict[str, Any]: Status and action performed.
             """
             audio = self._get_cached_audio(request)
 
