@@ -12,6 +12,7 @@
         @select-track="handleSelectTrack"
         @refreshPlaylists="loadPlaylists"
         @play-playlist="handlePlayPlaylist"
+        @feedback="onFeedback"
       />
       <DeleteDialog
         :open="showDeleteDialog"
@@ -99,7 +100,8 @@ const handleDeleteConfirm = async () => {
     await deleteTrack(selectedPlaylist.value.id, localSelectedTrack.value.number)
     closeDeleteDialog()
   } catch (err) {
-    // Error is already handled in the store
+    // Show error feedback in FilesList via event
+    emit('feedback', { type: 'error', message: t('file.errorDeleting') })
   }
 }
 
@@ -120,4 +122,9 @@ const handlePlayPlaylist = async (playlist: PlayList) => {
 
 // Load playlists when component mounts
 onMounted(loadPlaylists)
+// Forward feedback event to FilesList
+function onFeedback({ type, message }: { type: 'success' | 'error', message: string }) {
+  // No-op: FilesList handles its own feedback; this is just to satisfy the event interface
+}
+
 </script>

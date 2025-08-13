@@ -119,8 +119,6 @@ class RealApiService {
   async getPlaylists() {
     try {
       const response = await apiClient.get(API_ROUTES.PLAYLISTS)
-      
-      // Check if response.data is null or undefined
       if (response.data === null || response.data === undefined) {
         throw new Error('API response.data is null or undefined')
       }
@@ -343,12 +341,15 @@ class RealApiService {
   /**
    * Delete a track from a playlist
    * @param playlistId - ID of the playlist
-   * @param trackId - ID or number of the track
+   * @param trackNumber - Number of the track
    * @returns Promise resolving to server response
    */
-  async deleteTrack(playlistId: string, trackId: string | number) {
+  async deleteTrack(playlistId: string, trackNumber: number) {
     try {
-      const response = await apiClient.delete(API_ROUTES.PLAYLIST_TRACK(playlistId, trackId))
+      const response = await apiClient.delete(`/api/playlists/${playlistId}/tracks`, {
+        data: { tracks: [trackNumber] },
+        headers: { 'Content-Type': 'application/json' }
+      })
       return response.data
     } catch (error) {
       console.error('Error deleting track:', error)

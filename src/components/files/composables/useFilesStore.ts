@@ -57,7 +57,6 @@ export function useFilesStore() {
         playlist.tracks = playlist.tracks.filter(t => t.number !== trackNumber)
       }
     } catch (err) {
-      error.value = t('file.errorDeleting')
       console.error('Error deleting track:', err)
       throw err
     }

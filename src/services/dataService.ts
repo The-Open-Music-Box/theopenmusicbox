@@ -173,11 +173,11 @@ const dataService = {
   /**
    * Deletes a track from a playlist
    * @param playlistId - Playlist identifier
-   * @param trackId - Track identifier or number
+   * @param trackNumber - Track number
    * @returns Promise that resolves when the delete operation completes
    */
-  deleteTrack(playlistId: string, trackId: string | number) {
-    return realApiService.deleteTrack(playlistId, trackId);
+  deleteTrack(playlistId: string, trackNumber: number) {
+    return realApiService.deleteTrack(playlistId, trackNumber);
   },
 
   /**

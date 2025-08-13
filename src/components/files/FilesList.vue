@@ -177,7 +177,7 @@
 
             <div class="flex items-center space-x-4">
               <span :class="['text-success']">{{ formatDuration(track.duration) }}</span>
-              <button @click.stop="$emit('deleteTrack', { playlistId: playlist.id, trackNumber: track.number })"
+              <button v-if="isEditMode" @click.stop="$emit('deleteTrack', { playlistId: playlist.id, trackNumber: track.number })"
                       class="text-disabled hover:text-error transition-colors opacity-0 group-hover:opacity-100">
                 <span class="sr-only">{{ t('common.delete') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -270,7 +270,12 @@ const props = defineProps<{
   playingTrackNumber?: number | null;
 }>()
 
-const emit = defineEmits(['refreshPlaylists', 'play-playlist', 'select-track', 'deleteTrack'])
+const emit = defineEmits(['refreshPlaylists', 'play-playlist', 'select-track', 'deleteTrack', 'feedback'])
+
+// Listen for feedback event from parent
+function onFeedback({ type, message }: { type: 'success' | 'error', message: string }) {
+  showFeedback(type, message)
+}
 
 // Edit mode state
 // Force le mode édition à false au démarrage du composant
