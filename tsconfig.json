@@ -13,8 +13,10 @@
     "useDefineForClassFields": true,
     "sourceMap": true,
     "baseUrl": ".",
+    "lib": ["esnext", "dom", "dom.iterable"],
     "types": [
-      "webpack-env"
+      "webpack-env",
+      "node"
     ],
     "paths": {
       "@/*": [
@@ -38,13 +40,7 @@
       "@theme/*": [
         "src/theme/*"
       ]
-    },
-    "lib": [
-      "esnext",
-      "dom",
-      "dom.iterable",
-      "scripthost"
-    ]
+    }
   },
   "include": [
     "src/**/*.ts",
