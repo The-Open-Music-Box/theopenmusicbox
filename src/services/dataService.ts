@@ -210,6 +210,28 @@ const dataService = {
   },
 
   /**
+   * Moves a track from one playlist to another
+   * @param sourcePlaylistId - Source playlist identifier
+   * @param targetPlaylistId - Target playlist identifier
+   * @param trackNumber - Track number to move
+   * @param targetPosition - Optional position in target playlist
+   * @returns Promise that resolves when the move operation completes
+   */
+  moveTrackBetweenPlaylists(
+    sourcePlaylistId: string,
+    targetPlaylistId: string,
+    trackNumber: number,
+    targetPosition?: number
+  ) {
+    return realApiService.moveTrackBetweenPlaylists(
+      sourcePlaylistId,
+      targetPlaylistId,
+      trackNumber,
+      targetPosition
+    );
+  },
+
+  /**
    * Controls a playlist
    * @param action - Action to perform on the playlist
    * @returns Promise that resolves when the control operation completes

@@ -339,6 +339,33 @@ class RealApiService {
   }
 
   /**
+   * Move a track from one playlist to another
+   * @param sourcePlaylistId - ID of the source playlist
+   * @param targetPlaylistId - ID of the target playlist
+   * @param trackNumber - Number of the track to move
+   * @param targetPosition - Optional position in target playlist
+   * @returns Promise resolving to server response
+   */
+  async moveTrackBetweenPlaylists(
+    sourcePlaylistId: string,
+    targetPlaylistId: string,
+    trackNumber: number,
+    targetPosition?: number
+  ) {
+    try {
+      const response = await apiClient.post(API_ROUTES.MOVE_TRACK(sourcePlaylistId), {
+        track_number: trackNumber,
+        target_playlist_id: targetPlaylistId,
+        target_position: targetPosition
+      })
+      return response.data
+    } catch (error) {
+      console.error('Error moving track between playlists:', error)
+      throw error
+    }
+  }
+
+  /**
    * Delete a track from a playlist
    * @param playlistId - ID of the playlist
    * @param trackNumber - Number of the track
@@ -347,7 +374,7 @@ class RealApiService {
   async deleteTrack(playlistId: string, trackNumber: number) {
     try {
       const response = await apiClient.delete(`/api/playlists/${playlistId}/tracks`, {
-        data: { tracks: [trackNumber] },
+        data: { track_numbers: [trackNumber] },
         headers: { 'Content-Type': 'application/json' }
       })
       return response.data
@@ -365,7 +392,10 @@ class RealApiService {
    */
   async deleteTracks(playlistId: string, trackIds: string[] | number[]) {
     try {
-      const response = await apiClient.delete(`/api/playlists/${playlistId}/tracks`, { data: { track_ids: trackIds } })
+      const response = await apiClient.delete(`/api/playlists/${playlistId}/tracks`, { 
+        data: { track_numbers: trackIds },
+        headers: { 'Content-Type': 'application/json' }
+      })
       return response.data
     } catch (error) {
       console.error('Error deleting tracks:', error)
@@ -404,21 +434,10 @@ class RealApiService {
     }
   }
 
-  /**
-   * Get current playback status from the server
-   * @returns Promise resolving to playback status data
-   */
-  async getPlaybackStatus() {
-    try {
-      const response = await apiClient.get(API_ROUTES.PLAYBACK_STATUS)
-      return response.data
-    } catch (error) {
-      console.error('Error getting playback status:', error)
-      throw error
-    }
-  }
+  // Playback status is handled via WebSocket events (PLAYBACK_STATUS, TRACK_PROGRESS, etc.)
+  // Use WebSocket listeners instead of polling an API endpoint
 
-  // YouTube Download
+  // YouTube methods
 
   /**
    * Download YouTube audio

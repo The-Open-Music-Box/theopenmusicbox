@@ -16,8 +16,11 @@ export const API_ROUTES = {
   PLAYLIST_UPLOAD_INIT: (id: string) => `/api/playlists/${id}/upload/init`,
   PLAYLIST_UPLOAD_CHUNK: (id: string) => `/api/playlists/${id}/upload/chunk`,
   PLAYLIST_UPLOAD_FINALIZE: (id: string) => `/api/playlists/${id}/upload/finalize`,
-  PLAYLIST_UPLOAD_STATUS: (sessionId: string) => `/api/uploads/session/${sessionId}`,
+  PLAYLIST_UPLOAD_STATUS: (sessionId: string) => `/api/playlists/uploads/session/${sessionId}`,
   PLAYLIST_REORDER: (id: string) => `/api/playlists/${id}/reorder`,
+  REORDER_TRACKS: (id: string) => `/api/playlists/${id}/reorder`,
+  DELETE_TRACKS: (id: string) => `/api/playlists/${id}/tracks`,
+  MOVE_TRACK: (id: string) => `/api/playlists/${id}/move-track`,
   PLAYLIST_TRACK: (playlistId: string, trackId: string | number) =>
     `/api/playlists/${playlistId}/tracks/${trackId}`,
 
@@ -26,8 +29,7 @@ export const API_ROUTES = {
   PLAYBACK_TRACK: (playlistId: string, trackNumber: number) =>
     `/api/playlists/${playlistId}/play/${trackNumber}`,
   PLAYBACK_CONTROL: '/api/playlists/control',
-  // Note: PLAYBACK_STATUS route not found in backend documentation, may be replaced by WebSocket events
-  PLAYBACK_STATUS: '/api/playback/status', // TODO: Verify if this route exists or should be removed
+  // Playback status is handled via WebSocket events (PLAYBACK_STATUS, TRACK_PROGRESS, etc.)
 
   // NFC
   NFC_OBSERVE: '/api/nfc/observe',
