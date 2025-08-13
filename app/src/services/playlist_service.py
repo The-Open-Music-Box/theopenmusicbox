@@ -238,11 +238,39 @@ class PlaylistService:
                 )
                 return False
 
-            # Remove the specified tracks
+            # Remove the specified tracks and collect deleted tracks
             original_track_count = len(playlist["tracks"])
+            deleted_tracks = [
+                t for t in playlist["tracks"] if t["number"] in track_numbers
+            ]
             playlist["tracks"] = [
                 t for t in playlist["tracks"] if t["number"] not in track_numbers
             ]
+
+            # Delete corresponding audio files from disk
+            for track in deleted_tracks:
+                try:
+                    # Try to resolve the full path to the audio file
+                    file_path = None
+                    if "path" in track and track["path"]:
+                        file_path = Path(track["path"])
+                    elif "filename" in track and "folder" in playlist:
+                        file_path = Path(playlist["folder"]) / track["filename"]
+                    elif "filename" in track and "path" in playlist:
+                        file_path = Path(playlist["path"]) / track["filename"]
+                    if file_path and file_path.exists():
+                        file_path.unlink()
+                        logger.log(LogLevel.INFO, f"Deleted audio file: {file_path}")
+                    else:
+                        logger.log(
+                            LogLevel.WARNING,
+                            f"Audio file not found for deleted track: {track.get('filename')}",
+                        )
+                except Exception as fe:
+                    logger.log(
+                        LogLevel.ERROR,
+                        f"Failed to delete audio file for track {track.get('filename')}: {fe}",
+                    )
 
             # If nothing was removed, return false
             if len(playlist["tracks"]) == original_track_count:
