@@ -240,12 +240,14 @@ async function processFiles(files: File[]) {
     await safeAsync(async () => {
       await upload(props.playlistId)
       
-      // Emit completion event
+      // Emit completion event for individual file
       emit('upload-complete')
       
-      // Optional: Emit a separate event for when ALL uploads are truly complete
-      // This allows the parent to decide when to refresh
-      if (uploadFiles.value.length === 0) {
+      // Check if this was the last file and all uploads are complete
+      // The upload composable sets uploadFiles.value = [] after all files are processed
+      // Only emit all-uploads-complete when upload state is 'idle' and no files remain
+      if (uploadState.value === 'idle' && uploadFiles.value.length === 0) {
+        console.log('[EnhancedUploader] All uploads truly complete, emitting event')
         emit('all-uploads-complete', props.playlistId)
       }
       

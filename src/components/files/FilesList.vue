@@ -102,7 +102,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
             <svg v-else xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-onPrimary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17V7a5 5 0 00-10 0v10a5 5 0 0010 0zm-5 2a2 2 0 002-2H9a2 2 0 002 2z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17V7a5 5 0 00-10 0v10a5 5 0 0010 0zM7 17V7a5 5 0 0110 0v10a5 5 0 01-10 0z" />
             </svg>
           </button>
           <span v-if="!isEditMode" class="text-disabled">
@@ -128,6 +128,14 @@
           @upload-error="handleUploadError"
           @all-uploads-complete="handleAllUploadsComplete"
         />
+      </div>
+
+      <!-- Upload Button (in edit mode only) -->
+      <div v-if="isEditMode" class="upload-section">
+        <button @click="openUploadModal(playlist.id)" class="btn-upload">
+          <i class="fas fa-upload"></i>
+          {{ t('file.uploadFiles') }}
+        </button>
       </div>
 
       <!-- Tracks list (visible only if playlist is open) -->
@@ -178,7 +186,7 @@
             <div class="flex items-center space-x-4">
               <span :class="['text-success']">{{ formatDuration(track.duration) }}</span>
               <button v-if="isEditMode" @click.stop="$emit('deleteTrack', { playlistId: playlist.id, trackNumber: track.number })"
-                      class="text-disabled hover:text-error transition-colors opacity-0 group-hover:opacity-100">
+                      class="text-disabled hover:text-error transition-colors opacity-0 group-hover:opacity-100 delete-dialog-buttons">
                 <span class="sr-only">{{ t('common.delete') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -215,6 +223,9 @@
       @cancel="showCreatePlaylistDialog = false"
     />
 
+    <!-- Upload Modal -->
+    <UploadModal v-if="currentUploadPlaylistId" :playlist-id="currentUploadPlaylistId" />
+
     <!-- Feedback toast message -->
     <transition
       enter-active-class="transform transition ease-out duration-300"
@@ -248,19 +259,19 @@
 <script setup lang="ts">
 import { colors } from '@/theme/colors'
 
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
-import type { PlayList, Track } from './types'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import NewPlaylistButton from './NewPlaylistButton.vue'
+import type { PlayList, Track } from './types'
+import dataService from '@/services/dataService'
 import NfcAssociateDialog from './NfcAssociateDialog.vue'
 import DeleteDialog from './DeleteDialog.vue'
 import CreatePlaylistDialog from './CreatePlaylistDialog.vue'
-import EnhancedChunkedPlaylistUploader from './EnhancedChunkedPlaylistUploader.vue'
-import { useFilesStore } from './composables/useFilesStore'
+import UploadModal from '@/components/upload/UploadModal.vue'
+import { useUploadModalStore } from '@/stores/uploadModalStore'
 import draggable from 'vuedraggable'
 
 const { t } = useI18n()
-const filesStore = useFilesStore()
+const uploadModalStore = useUploadModalStore()
 
 const props = defineProps<{
   playlists: PlayList[];
@@ -280,20 +291,9 @@ function onFeedback({ type, message }: { type: 'success' | 'error', message: str
 // Edit mode state
 // Force le mode édition à false au démarrage du composant
 const isEditMode = ref(false)
-// Synchroniser avec le store après notre initialisation locale
-onMounted(() => {
-  // Force disable edit mode on startup
-  if (filesStore.isEditMode) {
-    filesStore.toggleEditMode()
-  }
-})
-// Utiliser une fonction toggleEditMode locale qui met à jour à la fois l'état local et le store
+// Simple local toggle for edit mode
 const toggleEditMode = () => {
   isEditMode.value = !isEditMode.value
-  // Synchroniser avec le store
-  if (!!filesStore.isEditMode !== isEditMode.value) {
-    filesStore.toggleEditMode()
-  }
   console.log('[FilesList] Edit mode toggled to:', isEditMode.value)
 }
 
@@ -316,8 +316,11 @@ const playlistToDelete = ref<string | null>(null)
 // Create playlist dialog state
 const showCreatePlaylistDialog = ref(false)
 
-// Drag & drop state
-const isDragging = ref(false)
+// Upload modal state
+const currentUploadPlaylistId = ref<string | null>(null)
+
+// Drag and drop state
+const draggedTrack = ref<Track | null>(null)
 const dragSourcePlaylistId = ref<string | null>(null)
 const dragTargetPlaylistId = ref<string | null>(null)
 
@@ -325,7 +328,6 @@ const dragTargetPlaylistId = ref<string | null>(null)
 const feedbackMessage = ref('')
 const feedbackType = ref<'success' | 'error' | ''>('')
 const feedbackTimeout = ref<number | null>(null)
-
 
 // Initialize with empty playlist ids (all playlists closed by default)
 const openPlaylists = ref<string[]>([])
@@ -381,12 +383,12 @@ async function updatePlaylistTitle(playlistId: string) {
   if (!newTitle) return
 
   try {
-    await filesStore.updatePlaylistTitle(playlistId, newTitle)
-    console.log('[FilesList] Playlist title updated:', playlistId, newTitle)
+    await dataService.updatePlaylist(playlistId, { title: newTitle })
+    emit('refreshPlaylists')
     showFeedback('success', t('file.playlistUpdated'))
-  } catch (err) {
-    console.error('[FilesList] Error updating playlist title:', err)
-    showFeedback('error', t('file.errorUpdatingPlaylist'))
+  } catch (error) {
+    showFeedback('error', t('file.errorUpdating'))
+    console.error('Error updating playlist title:', error)
   }
 }
 
@@ -430,7 +432,7 @@ async function createNewPlaylist(title: string) {
     console.log('[FilesList] Creating new playlist:', title)
 
     // Créer la nouvelle playlist
-    const newPlaylistId = await filesStore.createNewPlaylist(title)
+    const newPlaylistId = await dataService.createPlaylist({ title })
     console.log('[FilesList] Playlist created successfully with ID:', newPlaylistId)
 
     showCreatePlaylistDialog.value = false
@@ -443,9 +445,7 @@ async function createNewPlaylist(title: string) {
     // Activer le mode édition si ce n'est pas déjà fait
     if (!isEditMode.value) {
       // Activate edit mode
-      filesStore.toggleEditMode() // Activer le mode édition globalement
-      // Update local state to reflect the change
-      isEditMode.value = true
+      isEditMode.value = true // Activer le mode édition localement
     }
 
     // CRITICAL FIX: Refresh playlists directly after creation
@@ -454,7 +454,7 @@ async function createNewPlaylist(title: string) {
     
     // Also try to refresh via the files store directly as backup
     try {
-      await filesStore.loadPlaylists()
+      emit('refreshPlaylists')
       console.log('[FilesList] Direct loadPlaylists completed successfully')
     } catch (err) {
       console.error('[FilesList] Error during direct loadPlaylists:', err)
@@ -481,8 +481,6 @@ async function createNewPlaylist(title: string) {
     showFeedback('error', t('file.errorCreating'))
   }
 }
-
-
 
 /**
  * Show feedback toast message
@@ -512,7 +510,7 @@ function showFeedback(type: 'success' | 'error', message: string) {
  * @param {Event} evt - Drag event
  */
 function dragStart(evt: any) {
-  isDragging.value = true
+  draggedTrack.value = evt.item
   dragSourcePlaylistId.value = evt.from.dataset.playlistId || null
   console.log('[FilesList] Drag started from playlist:', dragSourcePlaylistId.value)
 }
@@ -522,7 +520,7 @@ function dragStart(evt: any) {
  * @param {Event} evt - Drag event
  */
 function dragEnd(evt: any) {
-  isDragging.value = false
+  draggedTrack.value = null
   dragSourcePlaylistId.value = null
   dragTargetPlaylistId.value = null
 }
@@ -544,7 +542,7 @@ async function handleDragChange(evt: any, playlistId: string) {
         .map(track => track.number) || []
 
       // Call the API to update the order
-      await filesStore.reorderPlaylistTracks(playlistId, trackNumbers)
+      await dataService.reorderTracks(playlistId, trackNumbers)
       console.log('[FilesList] Tracks reordered in playlist:', playlistId)
       showFeedback('success', t('file.tracksReordered'))
     } catch (err) {
@@ -564,11 +562,10 @@ async function handleDragChange(evt: any, playlistId: string) {
         console.log('[FilesList] Track moved between playlists:', movedTrack.number, 'from', sourcePlaylistId, 'to', playlistId)
 
         // Call the API to move the track
-        await filesStore.moveTrackBetweenPlaylists(
+        await dataService.moveTrackBetweenPlaylists(
           sourcePlaylistId,
           playlistId,
-          movedTrack.number,
-          evt.added.newIndex
+          movedTrack.number
         )
         showFeedback('success', t('file.trackMoved'))
       } catch (err) {
@@ -646,6 +643,24 @@ function handleUploadError(error: any) {
   console.error('[FilesList] Enhanced upload error:', error)
   showFeedback('error', t('file.uploadError'))
 }
+
+/**
+ * Open upload modal for a playlist
+ * @param {string} playlistId - Playlist identifier
+ */
+function openUploadModal(playlistId: string) {
+  currentUploadPlaylistId.value = playlistId
+  uploadModalStore.open(playlistId)
+}
+
+// Watch for modal close to refresh playlists
+watch(() => uploadModalStore.isOpen(), (isOpen) => {
+  if (!isOpen && currentUploadPlaylistId.value) {
+    // Modal closed, refresh playlists
+    emit('refreshPlaylists')
+    currentUploadPlaylistId.value = null
+  }
+})
 
 /**
  * Formats duration in seconds to MM:SS format

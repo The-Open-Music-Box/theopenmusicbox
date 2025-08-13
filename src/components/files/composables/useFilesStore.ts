@@ -153,30 +153,18 @@ export function useFilesStore() {
       isSaving.value = true
       error.value = null
       
-      // Find source playlist and track
-      const sourcePlaylist = playlists.value.find(p => p.id === sourcePlaylistId)
-      if (!sourcePlaylist) throw new Error('Source playlist not found')
+      // Call the backend API to move the track
+      await dataService.moveTrackBetweenPlaylists(
+        sourcePlaylistId,
+        targetPlaylistId,
+        trackNumber,
+        targetPosition
+      )
       
-      const trackToMove = sourcePlaylist.tracks.find(t => t.number === trackNumber)
-      if (!trackToMove) throw new Error('Track not found')
-      
-      // Since there's no direct API for moving tracks between playlists,
-      // we'll simulate it by:
-      // 1. Getting the file data from the track
-      // 2. Uploading it to the target playlist
-      // 3. Deleting it from the source playlist
-      
-      // Step 1 & 2: Upload to target playlist
-      // In a real implementation, we'd need to get the file data and upload it
-      // For now, we'll just show a placeholder for the implementation
-      
-      // Step 3: Delete from source playlist
-      await deleteTrack(sourcePlaylistId, trackNumber)
-      
-      // Reload playlists to get updated data
-      // In a production app, we might want to handle this more efficiently
+      // Refresh both playlists to reflect the changes
       await loadPlaylists()
       
+      console.log('Track successfully moved between playlists')
     } catch (err) {
       error.value = t('file.errorMoving')
       console.error('Error moving track between playlists:', err)

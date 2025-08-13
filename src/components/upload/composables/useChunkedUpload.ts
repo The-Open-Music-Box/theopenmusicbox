@@ -15,6 +15,11 @@ const CHUNK_SIZE = 1024 * 1024;
 const MAX_RETRY_ATTEMPTS = 3;
 
 /**
+ * Throttle progress updates to max 2 per second (500ms minimum between updates)
+ */
+const PROGRESS_UPDATE_THROTTLE_MS = 500;
+
+/**
  * Composable for managing chunked file uploads with progress tracking,
  * retry logic, and Socket.IO real-time progress updates
  */
@@ -32,6 +37,10 @@ export function useChunkedUpload() {
   const totalChunks = ref(0);
   const currentFileName = ref<string | null>(null);
   const currentPlaylistId = ref<string | null>(null); // Référence stable pour le playlistId
+  
+  // Progress throttling
+  let lastProgressUpdate = 0;
+  const throttledProgress = ref(0);
   
   // Statistiques d'upload
   const stats = ref({
@@ -54,8 +63,25 @@ export function useChunkedUpload() {
     cleanupSocketListeners();
     socketService.on(SOCKET_EVENTS.UPLOAD_PROGRESS, (data) => {
       if (data.session_id === currentSessionId.value) {
+        // Store the actual progress value
         uploadProgress.value = data.progress;
-        currentChunkIndex.value = data.chunk_index + 1;
+        
+        // Throttle visual updates to max 2x per second
+        const now = Date.now();
+        if (now - lastProgressUpdate >= PROGRESS_UPDATE_THROTTLE_MS) {
+          throttledProgress.value = data.progress;
+          lastProgressUpdate = now;
+        }
+        
+        // Update chunk index if provided
+        if (data.chunk_index !== undefined) {
+          currentChunkIndex.value = data.chunk_index + 1;
+        }
+        
+        // Update stats if byte information is provided
+        if (data.bytes_uploaded !== undefined) {
+          stats.value.bytesUploaded = data.bytes_uploaded;
+        }
       }
     });
     
@@ -204,7 +230,15 @@ export function useChunkedUpload() {
         }
         
         // Mise à jour de la progression locale (en attendant les événements socket)
-        uploadProgress.value = Math.round((i + 1) / totalFileChunks * 100);
+        const localProgress = Math.round((stats.value.bytesUploaded / file.size) * 100);
+        uploadProgress.value = localProgress;
+        
+        // Apply throttling for visual updates
+        const now = Date.now();
+        if (now - lastProgressUpdate >= PROGRESS_UPDATE_THROTTLE_MS) {
+          throttledProgress.value = localProgress;
+          lastProgressUpdate = now;
+        }
       }
       
       if (isUploading.value) {
@@ -212,6 +246,9 @@ export function useChunkedUpload() {
         await dataService.finalizeUpload(currentPlaylistId.value, { 
           session_id: currentSessionId.value as string 
         });
+        
+        // Ensure final progress is shown
+        throttledProgress.value = 100;
       }
       
     } catch (error: any) {
@@ -274,7 +311,8 @@ export function useChunkedUpload() {
   
   return {
     uploadFiles,
-    uploadProgress,
+    uploadProgress: throttledProgress, // Expose throttled progress for smooth UI
+    rawProgress: uploadProgress, // Keep raw progress available if needed
     isUploading,
     uploadErrors,
     estimatedTimeRemaining,

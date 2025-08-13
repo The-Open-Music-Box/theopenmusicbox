@@ -333,12 +333,20 @@ export function useEnhancedChunkedUpload() {
     await safeAsync(async () => {
       uploadState.value = 'idle'
       isUploading.value = false
-      uploadFiles.value = []
       currentFileName.value = null
       uploadProgress.value = 100
+      
+      // Store a flag to indicate all uploads are complete before clearing files
+      const allFilesProcessed = uploadFiles.value.length > 0 && currentFileIndex.value >= uploadFiles.value.length
+      
+      // NOW clear the files array
+      uploadFiles.value = []
 
       // Clean up resources
       performCleanup()
+      
+      // Return flag indicating if all files were processed
+      return allFilesProcessed
     }, 'Upload completion', undefined)
   }
 
