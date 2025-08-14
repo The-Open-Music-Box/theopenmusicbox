@@ -139,7 +139,7 @@
       </div>
 
       <!-- Tracks list (visible only if playlist is open) -->
-      <div>
+      <div v-if="openPlaylists.includes(playlist.id)">
         <draggable
           v-model="playlist.tracks"
           :disabled="!isEditMode"
@@ -338,16 +338,14 @@ onMounted(() => {
   // Playlists initialized in closed state by default
 })
 
-// Update open playlists when the playlist list changes
+/**
+ * Watch for playlist changes but maintain closed state by default
+ * This preserves the user's choice of which playlists to keep open
+ */
 watch(() => props.playlists, (newPlaylists) => {
-  // Add any new playlists to openPlaylists
-  if (newPlaylists && newPlaylists.length > 0) {
-    const currentIds = openPlaylists.value
-    const newIds = newPlaylists.map(p => p.id).filter(id => !currentIds.includes(id))
-    if (newIds.length > 0) {
-      openPlaylists.value = [...currentIds, ...newIds]
-    }
-  }
+  // We intentionally don't auto-add playlists to openPlaylists
+  // This ensures playlists remain closed by default
+  // User must explicitly open playlists via the toggle
 }, { deep: true })
 
 // NFC dialog state and logic
