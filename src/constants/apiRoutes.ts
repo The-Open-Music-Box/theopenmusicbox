@@ -2,7 +2,7 @@
  * API Routes Constants
  *
  * This file centralizes all API routes and socket events used in the application.
- * All routes are aligned with the backend API documentation found in /back/routes-api.md
+ * All routes are aligned with the backend API documentation found in /documentation/routes-api.md
  */
 
 /**
@@ -13,39 +13,50 @@ export const API_ROUTES = {
   PLAYLISTS: '/api/playlists/',
   PLAYLIST: (id: string) => `/api/playlists/${id}`,
   PLAYLIST_UPLOAD: (id: string) => `/api/playlists/${id}/upload`,
-  PLAYLIST_UPLOAD_INIT: (id: string) => `/api/playlists/${id}/upload/init`,
-  PLAYLIST_UPLOAD_CHUNK: (id: string) => `/api/playlists/${id}/upload/chunk`,
-  PLAYLIST_UPLOAD_FINALIZE: (id: string) => `/api/playlists/${id}/upload/finalize`,
-  PLAYLIST_UPLOAD_STATUS: (sessionId: string) => `/api/playlists/uploads/session/${sessionId}`,
+  // Chunked upload routes (REST compliant)
+  PLAYLIST_UPLOAD_SESSION: (id: string) => `/api/playlists/${id}/uploads/session`,
+  PLAYLIST_UPLOAD_CHUNK: (playlistId: string, sessionId: string, chunkIndex: number) => 
+    `/api/playlists/${playlistId}/uploads/${sessionId}/chunks/${chunkIndex}`,
+  PLAYLIST_UPLOAD_FINALIZE: (playlistId: string, sessionId: string) => 
+    `/api/playlists/${playlistId}/uploads/${sessionId}/finalize`,
+  PLAYLIST_UPLOAD_STATUS: (playlistId: string, sessionId: string) => 
+    `/api/playlists/${playlistId}/uploads/${sessionId}`,
   PLAYLIST_REORDER: (id: string) => `/api/playlists/${id}/reorder`,
-  REORDER_TRACKS: (id: string) => `/api/playlists/${id}/reorder`,
   DELETE_TRACKS: (id: string) => `/api/playlists/${id}/tracks`,
-  MOVE_TRACK: (id: string) => `/api/playlists/${id}/move-track`,
-  PLAYLIST_TRACK: (playlistId: string, trackId: string | number) =>
-    `/api/playlists/${playlistId}/tracks/${trackId}`,
+  PLAYLIST_TRACK: (playlistId: string, trackNumber: number) =>
+    `/api/playlists/${playlistId}/play/${trackNumber}`,
+  PLAYLIST_SYNC: '/api/playlists/sync',
 
   // Playback
   PLAYBACK_START: (id: string) => `/api/playlists/${id}/start`,
   PLAYBACK_TRACK: (playlistId: string, trackNumber: number) =>
     `/api/playlists/${playlistId}/play/${trackNumber}`,
   PLAYBACK_CONTROL: '/api/playlists/control',
-  // Playback status is handled via WebSocket events (PLAYBACK_STATUS, TRACK_PROGRESS, etc.)
+  PLAYBACK_STATUS: '/api/playback/status',
 
   // NFC
-  NFC_OBSERVE: '/api/nfc/observe',
-  NFC_LINK: '/api/nfc/link',
-  NFC_CANCEL: '/api/nfc/cancel',
   NFC_STATUS: '/api/nfc/status',
-  NFC_LISTEN: (playlistId: string) => `/api/nfc/listen/${playlistId}`,
-  NFC_STOP: '/api/nfc/stop',
-  NFC_SIMULATE_TAG: '/api/nfc/simulate_tag',
+  NFC_SCAN: '/api/nfc/scan',
+  NFC_WRITE: '/api/nfc/write',
+  NFC_ASSOCIATE: (nfcTagId: string, playlistId: string) => `/api/playlists/nfc/${nfcTagId}/associate/${playlistId}`,
+  NFC_REMOVE_ASSOCIATION: (playlistId: string) => `/api/playlists/nfc/${playlistId}`,
+  NFC_GET_PLAYLIST: (nfcTagId: string) => `/api/playlists/nfc/${nfcTagId}`,
 
   // YouTube
+  YOUTUBE_SEARCH: '/api/youtube/search',
   YOUTUBE_DOWNLOAD: '/api/youtube/download',
+  YOUTUBE_STATUS: (taskId: string) => `/api/youtube/status/${taskId}`,
 
   // System
-  HEALTH: '/api/health',
+  SYSTEM_INFO: '/api/system/info',
+  SYSTEM_LOGS: '/api/system/logs',
+  SYSTEM_RESTART: '/api/system/restart',
   VOLUME: '/api/volume',
+
+  // Upload management utilities
+  UPLOAD_SESSIONS_LIST: '/api/uploads/sessions',
+  UPLOAD_SESSION_DELETE: (sessionId: string) => `/api/uploads/sessions/${sessionId}`,
+  UPLOAD_CLEANUP: '/api/uploads/cleanup',
 }
 
 /**
@@ -88,10 +99,15 @@ export const SOCKET_EVENTS = {
   STOP_NFC_LINK: 'stop_nfc_link',
   OVERRIDE_NFC_TAG: 'override_nfc_tag',
 
-  // Upload events
+  // Upload events (enhanced)
+  UPLOAD_SESSION_CREATED: 'upload_session_created',
   UPLOAD_PROGRESS: 'upload_progress',
   UPLOAD_COMPLETE: 'upload_complete',
   UPLOAD_ERROR: 'upload_error',
+  UPLOAD_SESSION_EXPIRED: 'upload_session_expired',
+  
+  // Playback state events
+  PLAYBACK_STATE_CHANGED: 'playback_state_changed',
 
   // System events
   VOLUME_CHANGED: 'volume_changed',

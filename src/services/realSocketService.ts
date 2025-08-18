@@ -1,5 +1,7 @@
 import { io, Socket } from 'socket.io-client'
 import { SOCKET_EVENTS } from '../constants/apiRoutes'
+import { logger } from '../utils/logger'
+import type { SocketEventHandler } from '../types/socket'
 
 /**
  * Real Socket Service
@@ -12,7 +14,7 @@ import { SOCKET_EVENTS } from '../constants/apiRoutes'
 class RealSocketService {
   private socket: Socket
   private connectionReady = false // Track connection state
-  private eventBuffer: Array<{event: string, data: any, callback: (data: any) => void}> = [] // Buffer for early events
+  private eventBuffer: Array<{event: string, data: unknown, callback: SocketEventHandler}> = [] // Buffer for early events
 
   /**
    * Creates a new RealSocketService instance
@@ -42,41 +44,45 @@ class RealSocketService {
    */
   private setupSocketHandlers(): void {
     this.socket.on(SOCKET_EVENTS.CONNECT, () => {
+      logger.debug('Socket connected successfully', {}, 'RealSocketService');
       this.connectionReady = true;
 
       // Process buffered events
       if (this.eventBuffer.length > 0) {
-        this.eventBuffer.forEach(({event, data, callback}) => {
+        logger.debug(`Processing ${this.eventBuffer.length} buffered events`, {}, 'RealSocketService');
+        this.eventBuffer.forEach(({data, callback}) => {
           callback(data);
         });
         this.eventBuffer = [];
       }
     });
 
-    this.socket.on(SOCKET_EVENTS.CONNECT_ERROR, (error: Error) => {
+    this.socket.on(SOCKET_EVENTS.CONNECT_ERROR, (error: unknown) => {
+      logger.error('Socket connection error', { error }, 'RealSocketService');
       this.connectionReady = false;
     });
 
     this.socket.on(SOCKET_EVENTS.DISCONNECT, (reason: string) => {
+      logger.warn('Socket disconnected', { reason }, 'RealSocketService');
       this.connectionReady = false;
     });
 
     // Use native socket.io events for reconnection monitoring
     // These are not in SOCKET_EVENTS but are standard socket.io events
-    this.socket.io.on('reconnect_attempt', () => {
-      // Connection will be retried
+    this.socket.on('disconnect', (reason: string) => {
+      logger.info('Socket disconnected, will retry', { reason }, 'RealSocketService');
     });
 
-    this.socket.io.on('reconnect_error', () => {
-      // Reconnection attempt failed
+    this.socket.on('connect_error', (error: unknown) => {
+      logger.warn('Socket reconnection attempt failed', { error }, 'RealSocketService');
     });
 
     this.socket.io.on('reconnect_failed', () => {
-      // Maximum reconnection attempts reached
+      logger.error('Socket reconnection failed - maximum attempts reached', {}, 'RealSocketService');
     });
 
     this.socket.on(SOCKET_EVENTS.RECONNECT, () => {
-      // Successfully reconnected
+      logger.info('Socket successfully reconnected', {}, 'RealSocketService');
     });
   }
 
@@ -86,6 +92,7 @@ class RealSocketService {
    */
   setupSocketConnection(): void {
     if (!this.socket.connected) {
+      logger.debug('Establishing socket connection', {}, 'RealSocketService');
       this.socket.connect();
     }
   }
@@ -95,10 +102,12 @@ class RealSocketService {
    * @param event - Name of the event to emit
    * @param data - Data payload to send with the event
    */
-  emit(event: string, data: any): void {
+  emit(event: string, data: unknown): void {
     if (!this.connectionReady) {
+      logger.warn('Attempted to emit event while socket not ready', { event }, 'RealSocketService');
       return;
     }
+    logger.debug('Emitting socket event', { event }, 'RealSocketService');
     this.socket.emit(event, data);
   }
 
@@ -107,10 +116,9 @@ class RealSocketService {
    * @param event - Name of the event to listen for
    * @param callback - Function to call when the event occurs
    */
-  on(event: string, callback: (data: any) => void): void {
-    this.socket.on(event, (data: any) => {
+  on(event: string, callback: SocketEventHandler): void {
+    this.socket.on(event, (data: unknown) => {
       if (!this.connectionReady && event !== SOCKET_EVENTS.CONNECT) {
-        // Buffer the event for processing after connect
         this.eventBuffer.push({event, data, callback});
         return;
       }
@@ -131,6 +139,7 @@ class RealSocketService {
    */
   disconnect(): void {
     if (this.socket.connected) {
+      logger.debug('Disconnecting socket', {}, 'RealSocketService');
       this.socket.disconnect();
     }
   }

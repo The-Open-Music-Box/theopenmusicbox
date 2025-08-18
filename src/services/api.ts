@@ -17,7 +17,6 @@ const apiClient = axios.create({
   withCredentials: config.api.withCredentials,
   headers: {
     Accept: 'application/json',
-    'Content-Type': 'multipart/form-data',
   },
 })
 
@@ -113,7 +112,7 @@ export default {
    * @returns The response data from the API
    * @throws Error if the request fails
    */
-  async post(endpoint: string, data: any, config?: AxiosRequestConfig) {
+  async post(endpoint: string, data: unknown, config?: AxiosRequestConfig) {
     try {
       const response = await apiClient.post(endpoint, data, config)
       return response.data

@@ -9,6 +9,7 @@
 
 import axios, { AxiosError, InternalAxiosRequestConfig, AxiosResponse, AxiosProgressEvent } from 'axios'
 import { API_ROUTES } from '../constants/apiRoutes'
+import logger from '../utils/logger'
 
 const apiBaseUrl = window.location.origin;
 
@@ -20,28 +21,17 @@ const apiClient = axios.create({
   baseURL: apiBaseUrl,
   timeout: 60000,
   headers: {
-    Accept: 'application/json',
-    'Content-Type': 'application/json'
+    Accept: 'application/json'
   }
 })
 
 /**
- * In-memory cache for API responses to avoid redundant network requests
+ * Import centralized cache service
  */
-const cache = new Map()
+import cacheService from './cacheService'
 
-interface ComponentHealth {
-  status: string
-  timestamp: number
-}
 
-interface SystemHealth {
-  components: {
-    [key: string]: ComponentHealth
-  }
-  status: string
-  timestamp: number
-}
+// SystemHealth interface removed as it's not used in the current implementation
 
 /**
  * Metrics collection for API performance monitoring
@@ -130,7 +120,7 @@ class RealApiService {
 
       return response.data.playlists
     } catch (error) {
-      console.error('Error fetching playlists:', error)
+      logger.error('Error fetching playlists', error, 'RealApiService')
       throw error
     }
   }
@@ -145,7 +135,7 @@ class RealApiService {
       const response = await apiClient.get(API_ROUTES.PLAYLIST(playlistId))
       return response.data
     } catch (error) {
-      console.error('Error fetching playlist:', error)
+      logger.error('Error fetching playlist', error, 'RealApiService')
       throw error
     }
   }
@@ -155,34 +145,28 @@ class RealApiService {
    * @param playlistData - Playlist data object
    * @returns Promise resolving to created playlist
    */
-  async createPlaylist(playlistData: any) {
+  async createPlaylist(playlistData: { title: string }) {
     try {
       // Force the correct structure with title property
       const payload = { title: playlistData.title || 'New Playlist' }
 
-      // Logs détaillés pour le débogage
-      console.log('[realApiService] Creating playlist with raw data:', playlistData)
-      console.log('[realApiService] Normalized payload:', payload)
-      console.log('[realApiService] API_ROUTES.PLAYLISTS =', API_ROUTES.PLAYLISTS)
-      console.log('[realApiService] Full URL =', apiBaseUrl + API_ROUTES.PLAYLISTS)
-      console.log('[realApiService] Headers =', apiClient.defaults.headers)
+      // Debug logs for playlist creation
+      logger.debug('Creating playlist with raw data', playlistData, 'RealApiService')
+      logger.debug('Normalized payload', payload, 'RealApiService')
+      logger.debug('API route', { route: API_ROUTES.PLAYLISTS, fullUrl: apiBaseUrl + API_ROUTES.PLAYLISTS }, 'RealApiService')
 
       // Make POST request to create playlist
       const response = await apiClient.post(API_ROUTES.PLAYLISTS, payload)
-      console.log('[realApiService] Create playlist response status:', response.status)
-      console.log('[realApiService] Create playlist response data:', response.data)
+      logger.debug('Create playlist response', { status: response.status, data: response.data }, 'RealApiService')
       return response.data
-    } catch (error: any) {
-      console.error('[realApiService] Error creating playlist:', error)
-      if (error.response) {
-        console.error('[realApiService] Error response status:', error.response.status)
-        console.error('[realApiService] Error response data:', error.response.data)
-        console.error('[realApiService] Error response headers:', error.response.headers)
-      } else if (error.request) {
-        console.error('[realApiService] Error request:', error.request)
-      } else {
-        console.error('[realApiService] Error message:', error.message)
-      }
+    } catch (error: unknown) {
+      const axiosError = error as AxiosError;
+      logger.error('Error creating playlist', {
+        message: axiosError.message,
+        status: axiosError.response?.status,
+        data: axiosError.response?.data,
+        hasRequest: !!axiosError.request
+      }, 'RealApiService')
       throw error
     }
   }
@@ -197,7 +181,7 @@ class RealApiService {
       const response = await apiClient.delete(API_ROUTES.PLAYLIST(playlistId))
       return response.data
     } catch (error) {
-      console.error('Error deleting playlist:', error)
+      logger.error('Error deleting playlist', error, 'RealApiService')
       throw error
     }
   }
@@ -208,14 +192,14 @@ class RealApiService {
    * @param playlistData - Updated playlist data
    * @returns Promise resolving to updated playlist
    */
-  async updatePlaylist(playlistId: string, playlistData: any) {
+  async updatePlaylist(playlistId: string, playlistData: { title?: string; [key: string]: unknown }) {
     try {
-      console.debug(`Calling API: PUT ${API_ROUTES.PLAYLIST(playlistId)}`, playlistData)
+      logger.debug(`Calling API: PUT ${API_ROUTES.PLAYLIST(playlistId)}`, playlistData, 'RealApiService')
       const response = await apiClient.put(API_ROUTES.PLAYLIST(playlistId), playlistData)
-      console.debug('API response:', response.data)
+      logger.debug('API response', response.data, 'RealApiService')
       return response.data
     } catch (error) {
-      console.error('Error updating playlist:', error)
+      logger.error('Error updating playlist', error, 'RealApiService')
       throw error
     }
   }
@@ -248,18 +232,18 @@ class RealApiService {
   /**
    * Initializes a chunked upload session
    * @param playlistId - ID of the playlist
-   * @param metadata - File metadata (filename, size, chunks)
+   * @param metadata - File metadata (filename, file_size)
    * @returns Promise resolving to session initialization data
    */
-  async initUpload(playlistId: string, metadata: { filename: string, total_size: number, total_chunks: number }) {
+  async initUpload(playlistId: string, metadata: { filename: string, file_size: number }) {
     try {
       const response = await apiClient.post(
-        API_ROUTES.PLAYLIST_UPLOAD_INIT(playlistId),
+        API_ROUTES.PLAYLIST_UPLOAD_SESSION(playlistId),
         metadata
       )
       return response.data
     } catch (error) {
-      console.error('Error initializing upload:', error)
+      logger.error('Error initializing upload', error, 'RealApiService')
       throw error
     }
   }
@@ -270,10 +254,10 @@ class RealApiService {
    * @param formData - FormData containing session_id, chunk_index, and file chunk
    * @returns Promise resolving to chunk upload result
    */
-  async uploadChunk(playlistId: string, formData: FormData) {
+  async uploadChunk(playlistId: string, sessionId: string, chunkIndex: number, formData: FormData) {
     try {
       const response = await apiClient.post(
-        API_ROUTES.PLAYLIST_UPLOAD_CHUNK(playlistId),
+        API_ROUTES.PLAYLIST_UPLOAD_CHUNK(playlistId, sessionId, chunkIndex),
         formData,
         {
           headers: { 'Content-Type': 'multipart/form-data' }
@@ -281,7 +265,7 @@ class RealApiService {
       )
       return response.data
     } catch (error) {
-      console.error('Error uploading chunk:', error)
+      logger.error('Error uploading chunk', error, 'RealApiService')
       throw error
     }
   }
@@ -295,12 +279,12 @@ class RealApiService {
   async finalizeUpload(playlistId: string, data: { session_id: string }) {
     try {
       const response = await apiClient.post(
-        API_ROUTES.PLAYLIST_UPLOAD_FINALIZE(playlistId),
+        API_ROUTES.PLAYLIST_UPLOAD_FINALIZE(playlistId, data.session_id),
         data
       )
       return response.data
     } catch (error) {
-      console.error('Error finalizing upload:', error)
+      logger.error('Error finalizing upload', error, 'RealApiService')
       throw error
     }
   }
@@ -310,14 +294,14 @@ class RealApiService {
    * @param sessionId - ID of the upload session
    * @returns Promise resolving to session status
    */
-  async getUploadStatus(sessionId: string) {
+  async getUploadStatus(playlistId: string, sessionId: string) {
     try {
       const response = await apiClient.get(
-        API_ROUTES.PLAYLIST_UPLOAD_STATUS(sessionId)
+        API_ROUTES.PLAYLIST_UPLOAD_STATUS(playlistId, sessionId)
       )
       return response.data
     } catch (error) {
-      console.error('Error getting upload status:', error)
+      logger.error('Error getting upload status', error, 'RealApiService')
       throw error
     }
   }
@@ -325,42 +309,31 @@ class RealApiService {
   /**
    * Reorder tracks in a playlist
    * @param playlistId - ID of the playlist
-   * @param newOrder - Array of track numbers/IDs
+   * @param trackOrder - Array of track numbers in new order
    * @returns Promise resolving to server response
    */
-  async reorderTracks(playlistId: string, newOrder: number[]) {
+  async reorderTracks(playlistId: string, trackOrder: number[]) {
     try {
-      const response = await apiClient.post(API_ROUTES.PLAYLIST_REORDER(playlistId), { order: newOrder })
+      const response = await apiClient.post(API_ROUTES.PLAYLIST_REORDER(playlistId), { track_order: trackOrder })
       return response.data
     } catch (error) {
-      console.error('Error reordering tracks:', error)
+      logger.error('Error reordering tracks', error, 'RealApiService')
       throw error
     }
   }
 
   /**
-   * Move a track from one playlist to another
-   * @param sourcePlaylistId - ID of the source playlist
-   * @param targetPlaylistId - ID of the target playlist
-   * @param trackNumber - Number of the track to move
-   * @param targetPosition - Optional position in target playlist
+   * Play a specific track in a playlist
+   * @param playlistId - ID of the playlist
+   * @param trackNumber - Number of the track to play
    * @returns Promise resolving to server response
    */
-  async moveTrackBetweenPlaylists(
-    sourcePlaylistId: string,
-    targetPlaylistId: string,
-    trackNumber: number,
-    targetPosition?: number
-  ) {
+  async playTrack(playlistId: string, trackNumber: number) {
     try {
-      const response = await apiClient.post(API_ROUTES.MOVE_TRACK(sourcePlaylistId), {
-        track_number: trackNumber,
-        target_playlist_id: targetPlaylistId,
-        target_position: targetPosition
-      })
+      const response = await apiClient.post(API_ROUTES.PLAYLIST_TRACK(playlistId, trackNumber))
       return response.data
     } catch (error) {
-      console.error('Error moving track between playlists:', error)
+      logger.error('Error playing track', error, 'RealApiService')
       throw error
     }
   }
@@ -379,7 +352,7 @@ class RealApiService {
       })
       return response.data
     } catch (error) {
-      console.error('Error deleting track:', error)
+      logger.error('Error deleting track', error, 'RealApiService')
       throw error
     }
   }
@@ -398,7 +371,7 @@ class RealApiService {
       })
       return response.data
     } catch (error) {
-      console.error('Error deleting tracks:', error)
+      logger.error('Error deleting tracks', error, 'RealApiService')
       throw error
     }
   }
@@ -411,10 +384,10 @@ class RealApiService {
   async startPlaylist(playlistId: string) {
     try {
       const response = await apiClient.post(API_ROUTES.PLAYBACK_START(playlistId))
-      console.debug('Start playlist response:', response.data)
+      logger.debug('Start playlist response', response.data, 'RealApiService')
       return response.data
     } catch (error) {
-      console.error('Error starting playlist:', error)
+      logger.error('Error starting playlist', error, 'RealApiService')
       throw error
     }
   }
@@ -429,13 +402,24 @@ class RealApiService {
       const response = await apiClient.post(API_ROUTES.PLAYBACK_CONTROL, { action })
       return response.data;
     } catch (error) {
-      console.error('Error controlling playlist:', error);
+      logger.error('Error controlling playlist', error, 'RealApiService');
       throw error;
     }
   }
 
-  // Playback status is handled via WebSocket events (PLAYBACK_STATUS, TRACK_PROGRESS, etc.)
-  // Use WebSocket listeners instead of polling an API endpoint
+  /**
+   * Get current playback status
+   * @returns Promise resolving to playback status
+   */
+  async getPlaybackStatus() {
+    try {
+      const response = await apiClient.get(API_ROUTES.PLAYBACK_STATUS)
+      return response.data
+    } catch (error) {
+      logger.error('Error getting playback status', error, 'RealApiService')
+      throw error
+    }
+  }
 
   // YouTube methods
 
@@ -449,7 +433,7 @@ class RealApiService {
       const response = await apiClient.post(API_ROUTES.YOUTUBE_DOWNLOAD, { url })
       return response.data
     } catch (error) {
-      console.error('Error downloading YouTube audio:', error)
+      logger.error('Error downloading YouTube audio', error, 'RealApiService')
       throw error
     }
   }
@@ -462,10 +446,10 @@ class RealApiService {
    */
   async checkHealth() {
     try {
-      const response = await apiClient.get(API_ROUTES.HEALTH)
+      const response = await apiClient.get(API_ROUTES.SYSTEM_INFO)
       return response.data
     } catch (error) {
-      console.error('Error fetching health status:', error)
+      logger.error('Error fetching health status', error, 'RealApiService')
       throw error
     }
   }
@@ -479,7 +463,7 @@ class RealApiService {
       const response = await apiClient.get(API_ROUTES.VOLUME)
       return response.data
     } catch (error) {
-      console.error('Error getting volume:', error)
+      logger.error('Error getting volume', error, 'RealApiService')
       throw error
     }
   }
@@ -497,7 +481,7 @@ class RealApiService {
       const response = await apiClient.post(API_ROUTES.VOLUME, { volume })
       return response.data
     } catch (error) {
-      console.error('Error setting volume:', error)
+      logger.error('Error setting volume', error, 'RealApiService')
       throw error
     }
   }
@@ -509,26 +493,27 @@ class RealApiService {
    */
   async getAudioFiles() {
     const cacheKey = 'audio_files'
-    if (cache.has(cacheKey)) {
-      return cache.get(cacheKey)
+    const cachedData = cacheService.get(cacheKey)
+    if (cachedData) {
+      return cachedData
     }
     try {
-      console.log('Fetching audio files from API...')
+      logger.debug('Fetching audio files from API', undefined, 'RealApiService')
       const response = await apiClient.get('/api/nfc_mapping')
-      console.log('Audio files response:', response.data)
+      logger.debug('Audio files response', response.data, 'RealApiService')
 
       const playlists = response.data
-      console.log('Playlists transformées:', playlists)
+      logger.debug('Transformed playlists', playlists, 'RealApiService')
 
-      cache.set(cacheKey, playlists)
+      cacheService.set(cacheKey, playlists)
       return playlists
     } catch (err) {
       const error = err as AxiosError
-      console.error('Error fetching audio files:', {
+      logger.error('Error fetching audio files', {
         response: error.response?.data,
         status: error.response?.status,
         headers: error.response?.headers
-      })
+      }, 'RealApiService')
       if (error.response?.status === 401) {
         // Gérer l'authentification
       } else if (error.response?.status === 503) {
@@ -544,16 +529,12 @@ class RealApiService {
    * @returns Promise resolving to the session ID string
    */
   async getUploadSessionId(): Promise<string> {
-    // If backend supports session endpoint, implement it; otherwise, mock it
     try {
-      const response = await apiClient.get('/api/uploads/session_id');
+      const response = await apiClient.post('/api/uploads/session', {});
       return response.data.session_id;
     } catch (error) {
-      // fallback: generate a UUID if endpoint does not exist
-      return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-        const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-      });
+      logger.error('Error getting upload session ID', error, 'RealApiService')
+      throw error
     }
   }
 
@@ -566,7 +547,7 @@ class RealApiService {
   async downloadFile(fileId: number, onProgress?: (progress: number) => void): Promise<Blob> {
     const response = await apiClient.get(`/api/files/${fileId}/download`, {
       responseType: 'blob',
-      onDownloadProgress: (progressEvent: any) => {
+      onDownloadProgress: (progressEvent: AxiosProgressEvent) => {
         if (onProgress && progressEvent.total) {
           const percent = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           onProgress(percent);
@@ -586,17 +567,77 @@ class RealApiService {
   }
 
   /**
-   * Initiates NFC association between a tag and a playlist
-   * @param tagId - NFC tag identifier
+   * Associate an NFC tag with a playlist
+   * @param nfcTagId - NFC tag identifier
    * @param playlistId - Playlist identifier
    * @returns Promise resolving to association status
    */
-  async initiateNfcAssociation(tagId: string, playlistId: string) {
+  async associateNfcTag(nfcTagId: string, playlistId: string) {
     try {
-      const response = await apiClient.post(API_ROUTES.NFC_LINK, { tag_id: tagId, playlist_id: playlistId })
+      const response = await apiClient.post(API_ROUTES.NFC_ASSOCIATE(nfcTagId, playlistId))
       return response.data
     } catch (error) {
-      console.error('Error initiating NFC association:', error)
+      logger.error('Error associating NFC tag', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Remove NFC association from a playlist
+   * @param playlistId - Playlist identifier
+   * @returns Promise resolving to removal status
+   */
+  async removeNfcAssociation(playlistId: string) {
+    try {
+      const response = await apiClient.delete(API_ROUTES.NFC_REMOVE_ASSOCIATION(playlistId))
+      return response.data
+    } catch (error) {
+      logger.error('Error removing NFC association', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Get playlist associated with an NFC tag
+   * @param nfcTagId - NFC tag identifier
+   * @returns Promise resolving to associated playlist
+   */
+  async getNfcPlaylist(nfcTagId: string) {
+    try {
+      const response = await apiClient.get(API_ROUTES.NFC_GET_PLAYLIST(nfcTagId))
+      return response.data
+    } catch (error) {
+      logger.error('Error getting NFC playlist', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Scan for available NFC tags
+   * @returns Promise resolving to scan results
+   */
+  async scanNfcTags() {
+    try {
+      const response = await apiClient.get(API_ROUTES.NFC_SCAN)
+      return response.data
+    } catch (error) {
+      logger.error('Error scanning NFC tags', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Write data to an NFC tag
+   * @param tagId - NFC tag identifier
+   * @param data - Data to write to the tag
+   * @returns Promise resolving to write status
+   */
+  async writeNfcTag(tagId: string, data: string) {
+    try {
+      const response = await apiClient.post(API_ROUTES.NFC_WRITE, { tag_id: tagId, data })
+      return response.data
+    } catch (error) {
+      logger.error('Error writing NFC tag', error, 'RealApiService')
       throw error
     }
   }
@@ -610,36 +651,136 @@ class RealApiService {
       const response = await apiClient.get(API_ROUTES.NFC_STATUS)
       return response.data
     } catch (error) {
-      console.error('Error getting NFC status:', error)
+      logger.error('Error getting NFC status', error, 'RealApiService')
       throw error
     }
   }
 
   /**
-   * Starts NFC listening mode for a specific playlist
-   * @param playlistId - ID of the playlist to associate
-   * @returns Promise resolving to listening status
+   * Search YouTube videos
+   * @param query - Search query
+   * @param maxResults - Maximum number of results (optional)
+   * @returns Promise resolving to search results
    */
-  async startNfcListening(playlistId: string) {
+  async searchYouTube(query: string, maxResults?: number) {
     try {
-      const response = await apiClient.post(API_ROUTES.NFC_LISTEN(playlistId))
+      const params = new URLSearchParams({ query })
+      if (maxResults) {
+        params.append('max_results', maxResults.toString())
+      }
+      const response = await apiClient.get(`${API_ROUTES.YOUTUBE_SEARCH}?${params}`)
       return response.data
     } catch (error) {
-      console.error('Error starting NFC listening:', error)
+      logger.error('Error searching YouTube', error, 'RealApiService')
       throw error
     }
   }
 
   /**
-   * Stops NFC listening mode
-   * @returns Promise resolving to stop status
+   * Get YouTube download task status
+   * @param taskId - Task identifier
+   * @returns Promise resolving to task status
    */
-  async stopNfcListening() {
+  async getYouTubeStatus(taskId: string) {
     try {
-      const response = await apiClient.post(API_ROUTES.NFC_STOP)
+      const response = await apiClient.get(API_ROUTES.YOUTUBE_STATUS(taskId))
       return response.data
     } catch (error) {
-      console.error('Error stopping NFC listening:', error)
+      logger.error('Error getting YouTube status', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Get system information
+   * @returns Promise resolving to system info
+   */
+  async getSystemInfo() {
+    try {
+      const response = await apiClient.get(API_ROUTES.SYSTEM_INFO)
+      return response.data
+    } catch (error) {
+      logger.error('Error getting system info', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Get system logs
+   * @returns Promise resolving to system logs
+   */
+  async getSystemLogs() {
+    try {
+      const response = await apiClient.get(API_ROUTES.SYSTEM_LOGS)
+      return response.data
+    } catch (error) {
+      logger.error('Error getting system logs', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Restart the system
+   * @returns Promise resolving to restart status
+   */
+  async restartSystem() {
+    try {
+      const response = await apiClient.post(API_ROUTES.SYSTEM_RESTART)
+      return response.data
+    } catch (error) {
+      logger.error('Error restarting system', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Sync playlists with filesystem
+   * @returns Promise resolving to sync status
+   */
+  async syncPlaylists() {
+    try {
+      const response = await apiClient.post(API_ROUTES.PLAYLIST_SYNC)
+      return response.data
+    } catch (error) {
+      logger.error('Error syncing playlists', error, 'RealApiService')
+      throw error
+    }
+  }
+
+  /**
+   * Move a track from one playlist to another
+   * @param sourcePlaylistId - Source playlist identifier
+   * @param targetPlaylistId - Target playlist identifier
+   * @param trackNumber - Track number to move
+   * @param targetPosition - Position in target playlist (optional)
+   * @returns Promise resolving to move operation result
+   */
+  async moveTrackBetweenPlaylists(
+    sourcePlaylistId: string,
+    targetPlaylistId: string,
+    trackNumber: number,
+    targetPosition?: number
+  ) {
+    try {
+      const payload: {
+        source_playlist_id: string;
+        target_playlist_id: string;
+        track_number: number;
+        target_position?: number;
+      } = {
+        source_playlist_id: sourcePlaylistId,
+        target_playlist_id: targetPlaylistId,
+        track_number: trackNumber
+      }
+      
+      if (targetPosition !== undefined) {
+        payload.target_position = targetPosition
+      }
+
+      const response = await apiClient.post('/api/playlists/move-track', payload)
+      return response.data
+    } catch (error) {
+      logger.error('Error moving track between playlists', error, 'RealApiService')
       throw error
     }
   }

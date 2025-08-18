@@ -1,4 +1,7 @@
 import realSocketService from './realSocketService';
+import { logger } from '../utils/logger';
+import type { SocketEventHandler } from '../types/socket';
+import { normalizeError } from '../types/errors';
 
 /**
  * Interface defining the required methods for socket service implementations.
@@ -6,8 +9,8 @@ import realSocketService from './realSocketService';
  */
 interface SocketService {
   setupSocketConnection(): void;
-  emit(event: string, data: any): void;
-  on(event: string, callback: (data: any) => void): void;
+  emit(event: string, data: unknown): void;
+  on(event: string, callback: SocketEventHandler): void;
   off(event: string): void;
   disconnect?(): void;
 }
@@ -36,8 +39,9 @@ class SocketServiceWrapper implements SocketService {
   setupSocketConnection(): void {
     try {
       this.service.setupSocketConnection();
-    } catch (error) {
-      console.error('Error setting up socket connection:', error);
+    } catch (error: unknown) {
+      const normalizedError = normalizeError(error, 'SocketService');
+      logger.error('Error setting up socket connection', { error: normalizedError }, 'SocketService');
     }
   }
 
@@ -46,24 +50,26 @@ class SocketServiceWrapper implements SocketService {
    * @param event - Name of the event to emit
    * @param data - Data payload to send with the event
    */
-  emit(event: string, data: any): void {
+  emit(event: string, data: unknown): void {
     try {
       this.service.emit(event, data);
-    } catch (error) {
-      console.error('Error emitting event:', event, error);
+    } catch (error: unknown) {
+      const normalizedError = normalizeError(error, 'SocketService');
+      logger.error(`Error emitting event: ${event}`, { error: normalizedError }, 'SocketService');
     }
   }
 
   /**
-   * Registers an event listener for socket events
+   * Registers an event listener with error handling and logging
    * @param event - Name of the event to listen for
    * @param callback - Function to call when the event occurs
    */
-  on(event: string, callback: (data: any) => void): void {
+  on(event: string, callback: SocketEventHandler): void {
     try {
       this.service.on(event, callback);
-    } catch (error) {
-      console.error('Error setting up event listener:', event, error);
+    } catch (error: unknown) {
+      const normalizedError = normalizeError(error, 'SocketService');
+      logger.error(`Error setting up event listener: ${event}`, { error: normalizedError }, 'SocketService');
     }
   }
 
@@ -74,8 +80,9 @@ class SocketServiceWrapper implements SocketService {
   off(event: string): void {
     try {
       this.service.off(event);
-    } catch (error) {
-      console.error('Error removing event listener:', event, error);
+    } catch (error: unknown) {
+      const normalizedError = normalizeError(error, 'SocketService');
+      logger.error(`Error removing event listener: ${event}`, { error: normalizedError }, 'SocketService');
     }
   }
 
