@@ -1,18 +1,16 @@
 <template>
-  <div class="min-h-full">
-    <HeaderNavigation />
-    <router-view />
-  </div>
-  <div id="app">
+  <div id="app" class="min-h-full">
     <div
       v-if="socketError"
-      :class="['bg-error bg-opacity-10', 'border', 'border-error', 'text-error', 'px-4 py-3 rounded relative']"
+      :class="['bg-error bg-opacity-10', 'border', 'border-error', 'text-error', 'px-4 py-3 rounded relative', 'mb-4']"
       role="alert"
     >
       <strong class="font-bold">{{ t('common.socketError') }}</strong>
       <span class="block sm:inline"> {{ t('common.fallbackToMock') }}</span>
     </div>
-
+    
+    <HeaderNavigation />
+    <router-view />
   </div>
 </template>
 
@@ -26,7 +24,8 @@
 import HeaderNavigation from './components/HeaderNavigation.vue'
 import { onMounted, onUnmounted, ref, getCurrentInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { colors, getColor } from '@/theme/colors'
+import { colors } from '@/theme/colors'
+import { logger } from '@/utils/logger'
 
 const { t } = useI18n()
 const { proxy } = getCurrentInstance()
@@ -39,11 +38,11 @@ const socketError = ref(false)
  */
 const setupSocketListeners = () => {
   proxy.$socketService.on('response', (data) => {
-    console.log('Received response from server:', data)
+    logger.debug('Received response from server', { data }, 'App')
   })
 
   proxy.$socketService.on('connect_error', (error) => {
-    console.error('Socket connection error:', error)
+    logger.error('Socket connection error', { error }, 'App')
     socketError.value = true
   })
 }
