@@ -16,10 +16,14 @@
  * - Upload statistics and ETA calculation
  */
 
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, reactive, computed, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
-import dataService from '../../../services/dataService'
-import socketService from '../../../services/realSocketService'
+import dataService from '@/services/dataService'
+import socketService from '@/services/socketService'
+import type { SocketProgressData, SocketCompleteData, SocketErrorData } from '@/types/socket'
+import { createTypedSocketHandler } from '@/types/socket'
+import { normalizeError, type UploadError } from '@/types/errors'
+import { logger } from '@/utils/logger'
 import { SOCKET_EVENTS } from '../../../constants/apiRoutes'
 
 // Configuration constants
@@ -64,7 +68,7 @@ export interface UploadConfig {
  * Provides a complete upload solution with chunked upload support,
  * progress tracking, error handling, and state management.
  */
-export function useUnifiedUpload(config: Partial<UploadConfig> = {}) {
+export function useUnifiedUpload(config: Partial<UploadConfig> = {}, onError?: (error: UploadError) => void) {
   const { t } = useI18n()
 
   // Merge configuration with defaults
@@ -107,7 +111,8 @@ export function useUnifiedUpload(config: Partial<UploadConfig> = {}) {
   const socketCleanupFunctions = ref<(() => void)[]>([])
 
   // Progress throttling
-  let lastProgressUpdate = 0
+  const lastProgressUpdate = ref<number>(0)
+  const progressUpdateQueue = ref<Map<string, number>>(new Map())
 
   // Computed properties
   const estimatedTimeRemaining = computed(() => {
@@ -180,15 +185,22 @@ export function useUnifiedUpload(config: Partial<UploadConfig> = {}) {
   }
 
   // Error handling
-  const handleError = (error: any, context: string, filename?: string) => {
-    console.error(`[UnifiedUpload] Error in ${context}:`, error)
+  const handleError = (error: unknown, context: string, filename?: string) => {
+    const normalizedError = normalizeError(error, context) as UploadError
+    normalizedError.fileName = filename
+    
+    logger.error(`Upload error in ${context}`, { error: normalizedError }, 'UnifiedUpload')
     
     const errorMessage = filename 
-      ? `${filename}: ${error.message || 'Unknown error'}`
-      : `${context}: ${error.message || 'Unknown error'}`
+      ? `${t('upload.failedToUpload')} ${filename}: ${normalizedError.message}`
+      : `${t('upload.error')}: ${normalizedError.message}`
     
-    if (!uploadErrors.value.includes(errorMessage)) {
-      uploadErrors.value.push(errorMessage)
+    uploadErrors.value.push(errorMessage)
+    isUploading.value = false
+    
+    // Emit error event for parent components
+    if (onError) {
+      onError(normalizedError)
     }
   }
 
@@ -196,50 +208,65 @@ export function useUnifiedUpload(config: Partial<UploadConfig> = {}) {
   const setupSocketListeners = () => {
     cleanupSocketListeners()
 
-    const progressHandler = (data: any) => {
+    const progressHandler = (data: SocketProgressData) => {
       const currentFile = uploadFiles.value[currentFileIndex.value]
       if (currentFile && data.session_id === currentFile.sessionId) {
+        // Queue progress updates to avoid UI blocking
+        progressUpdateQueue.value.set(data.session_id, data.progress || 0)
+        
         // Throttle progress updates
         const now = Date.now()
-        if (now - lastProgressUpdate >= PROGRESS_THROTTLE_MS) {
-          currentFileProgress.value = Math.round(data.progress || 0)
-          currentChunkIndex.value = (data.chunk_index || 0) + 1
+        if (now - lastProgressUpdate.value > PROGRESS_THROTTLE_MS) {
+          // Process queued updates
+          progressUpdateQueue.value.forEach((progress, sessionId) => {
+            const file = uploadFiles.value.find(f => f.sessionId === sessionId)
+            if (file) {
+              file.progress = Math.round(progress)
+            }
+          })
           
-          // Update file progress
-          currentFile.progress = currentFileProgress.value
+          // Update total progress
+          const totalProgress = uploadFiles.value.reduce((sum, file) => {
+            return sum + (file.progress || 0)
+          }, 0)
           
-          // Update overall progress
-          updateOverallProgress()
-          
-          lastProgressUpdate = now
+          overallProgress.value = Math.round(totalProgress / uploadFiles.value.length)
+          lastProgressUpdate.value = now
+          progressUpdateQueue.value.clear()
         }
       }
     }
 
-    const completeHandler = (data: any) => {
+    const completeHandler = (data: SocketCompleteData) => {
       const currentFile = uploadFiles.value[currentFileIndex.value]
       if (currentFile && data.session_id === currentFile.sessionId) {
         currentFile.status = 'success'
         currentFile.progress = 100
-        currentFileProgress.value = 100
-        stats.value.filesCompleted++
-        updateOverallProgress()
+        
+        // File completion is handled by the main upload loop
+        logger.debug('Upload completed via socket', { sessionId: data.session_id, fileName: currentFile.file.name }, 'UnifiedUpload')
       }
     }
 
-    const errorHandler = (data: any) => {
+    const errorHandler = (data: SocketErrorData) => {
       const currentFile = uploadFiles.value[currentFileIndex.value]
       if (currentFile && data.session_id === currentFile.sessionId) {
         currentFile.status = 'error'
-        currentFile.error = data.error || 'Socket upload error'
-        handleError(new Error(data.error), 'Socket error', currentFile.file.name)
+        const error: UploadError = {
+          message: data.error || 'Socket upload error',
+          code: data.code,
+          context: data.context || 'Socket error event',
+          sessionId: data.session_id,
+          fileName: currentFile.file.name
+        }
+        handleError(error, 'Socket error event', currentFile.file.name)
       }
     }
 
-    // Register listeners
-    socketService.on(SOCKET_EVENTS.UPLOAD_PROGRESS, progressHandler)
-    socketService.on(SOCKET_EVENTS.UPLOAD_COMPLETE, completeHandler)
-    socketService.on(SOCKET_EVENTS.UPLOAD_ERROR, errorHandler)
+    // Register listeners with type safety
+    socketService.on(SOCKET_EVENTS.UPLOAD_PROGRESS, createTypedSocketHandler<SocketProgressData>(progressHandler))
+    socketService.on(SOCKET_EVENTS.UPLOAD_COMPLETE, createTypedSocketHandler<SocketCompleteData>(completeHandler))
+    socketService.on(SOCKET_EVENTS.UPLOAD_ERROR, createTypedSocketHandler<SocketErrorData>(errorHandler))
 
     // Store cleanup functions
     socketCleanupFunctions.value = [
@@ -290,7 +317,7 @@ export function useUnifiedUpload(config: Partial<UploadConfig> = {}) {
       if (isCancelled.value) return false
 
       try {
-        await dataService.uploadChunk(playlistId, formData)
+        await dataService.uploadChunk(playlistId, uploadFile.sessionId!, chunkIndex, formData)
         return true
       } catch (error) {
         lastError = error as Error
@@ -321,8 +348,7 @@ export function useUnifiedUpload(config: Partial<UploadConfig> = {}) {
       // 1. Initialize upload session
       const metadata = {
         filename: file.name,
-        total_size: file.size,
-        total_chunks: totalFileChunks
+        file_size: file.size
       }
 
       const initResponse = await dataService.initUpload(currentPlaylistId.value!, metadata)
@@ -487,8 +513,10 @@ export function useUnifiedUpload(config: Partial<UploadConfig> = {}) {
             await new Promise(resolve => setTimeout(resolve, 200))
           }
 
-        } catch (error) {
-          console.error(`[UnifiedUpload] File ${i + 1} failed:`, error)
+        } catch (error: unknown) {
+          const normalizedError = normalizeError(error, 'FileUpload')
+          logger.error(`File ${i + 1} upload failed`, { error: normalizedError, fileName: uploadFile.file.name }, 'UnifiedUpload')
+          uploadFile.status = 'error'
           // Continue with next file
         }
       }
@@ -545,6 +573,16 @@ export function useUnifiedUpload(config: Partial<UploadConfig> = {}) {
     try {
       cleanupSocketListeners()
       currentPlaylistId.value = null
+      progressUpdateQueue.value.clear()
+      
+      // Clear any pending timers or intervals
+      if (typeof window !== 'undefined') {
+        // Clear any RAF callbacks that might be pending
+        const highestTimeoutId = setTimeout(() => { /* cleanup timers */ }, 0) as unknown as number
+        for (let i = 0; i < highestTimeoutId; i++) {
+          clearTimeout(i)
+        }
+      }
     } catch (error) {
       console.warn('[UnifiedUpload] Error during cleanup:', error)
     } finally {

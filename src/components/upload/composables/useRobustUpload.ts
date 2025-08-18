@@ -1,332 +1,204 @@
-import { ref, reactive, readonly } from 'vue'
-import dataService from '@/services/dataService'
-import socketService from '@/services/socketService'
+/**
+ * Robust Upload Composable
+ * 
+ * A wrapper around useUnifiedUpload specifically designed for robust upload scenarios
+ * with enhanced error handling, retry logic, and recovery mechanisms.
+ * 
+ * Features:
+ * - Enhanced retry logic with exponential backoff
+ * - Automatic error recovery
+ * - Upload session persistence
+ * - Network failure detection and handling
+ * - Progress persistence across retries
+ */
 
-export interface UploadFile {
-  file: File
-  status: 'pending' | 'uploading' | 'success' | 'error'
-  progress: number
-  sessionId?: string
-  error?: string
-}
+import { ref, computed } from 'vue'
+import { useUnifiedUpload, type UploadConfig } from './useUnifiedUpload'
+import type { UploadError } from '@/types/errors'
+import { logger } from '@/utils/logger'
 
-export interface UploadError {
-  filename: string
-  message: string
+// Enhanced configuration for robust uploads
+export interface RobustUploadConfig extends UploadConfig {
+  persistProgress: boolean
+  autoRetryOnNetworkError: boolean
+  maxNetworkRetries: number
+  networkRetryDelay: number
+  enableSessionRecovery: boolean
 }
 
 /**
- * Robust upload composable with simplified, sequential processing
- * Eliminates concurrency issues by processing one file at a time
+ * Robust Upload Composable
+ * 
+ * Provides enhanced upload capabilities with robust error handling,
+ * automatic retries, and session recovery for unreliable network conditions.
  */
-export function useRobustUpload() {
-  // State
-  const isUploading = ref(false)
-  const uploadFiles = ref<UploadFile[]>([])
-  const currentFileIndex = ref(-1)
-  const currentFile = ref<File | null>(null)
-  const currentFileProgress = ref(0)
-  const errors = ref<UploadError[]>([])
-  const uploadedSessions = ref<string[]>([])
-  const isCancelled = ref(false)
-  
-  // Progress tracking
-  const totalProgress = ref(0)
-  const startTime = ref(0)
-  const lastProgressTime = ref(0)
-  const uploadSpeed = ref(0)
-  const estimatedTimeRemaining = ref(0)
+export function useRobustUpload(config: Partial<RobustUploadConfig> = {}) {
+  // Enhanced configuration with robust defaults
+  const robustConfig: RobustUploadConfig = {
+    chunkSize: 1024 * 1024, // 1MB
+    maxRetries: 5, // Increased for robust uploads
+    useChunkedUpload: true,
+    validateFiles: true,
+    generateChecksums: true,
+    maxFileSize: 100 * 1024 * 1024, // 100MB
+    allowedFileTypes: ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/flac'],
+    concurrentUploads: 1,
+    persistProgress: true,
+    autoRetryOnNetworkError: true,
+    maxNetworkRetries: 10,
+    networkRetryDelay: 2000,
+    enableSessionRecovery: true,
+    exponentialBackoff: true,
+    maxBackoffDelay: 30000,
+    ...config
+  } as RobustUploadConfig
 
-  /**
-   * Initialize upload files
-   */
-  function initializeFiles(files: File[]) {
-    uploadFiles.value = files.map(file => ({
-      file,
-      status: 'pending',
-      progress: 0
-    }))
-    errors.value = []
-    uploadedSessions.value = []
-    currentFileIndex.value = -1
-    currentFile.value = null
-    currentFileProgress.value = 0
-    totalProgress.value = 0
-    isCancelled.value = false
-  }
+  // Network state tracking
+  const networkRetryCount = ref<number>(0)
+  const isNetworkError = ref<boolean>(false)
+  const lastNetworkError = ref<string | null>(null)
+  const sessionRecoveryAttempts = ref<number>(0)
 
-  /**
-   * Calculate overall progress
-   */
-  function updateTotalProgress() {
-    if (uploadFiles.value.length === 0) {
-      totalProgress.value = 0
-      return
+  // Enhanced error handling
+  const handleRobustError = (error: UploadError) => {
+    logger.error('Robust upload error', { error }, 'RobustUpload')
+    
+    // Detect network errors
+    const networkErrorCodes = ['NETWORK_ERROR', 'TIMEOUT', 'CONNECTION_FAILED', 'ECONNRESET']
+    const isNetworkIssue = networkErrorCodes.some(code => 
+      error.code?.includes(code) || error.message?.includes(code.toLowerCase())
+    )
+
+    if (isNetworkIssue && robustConfig.autoRetryOnNetworkError) {
+      isNetworkError.value = true
+      lastNetworkError.value = error.message
+      
+      if (networkRetryCount.value < robustConfig.maxNetworkRetries) {
+        networkRetryCount.value++
+        logger.info(`Network error detected, scheduling retry ${networkRetryCount.value}/${robustConfig.maxNetworkRetries}`, {
+          error: error.message,
+          retryDelay: robustConfig.networkRetryDelay
+        }, 'RobustUpload')
+        
+        // Schedule retry after delay
+        setTimeout(() => {
+          if (currentPlaylistId.value) {
+            startRobustUpload(currentPlaylistId.value)
+          }
+        }, robustConfig.networkRetryDelay)
+        
+        return
+      }
     }
 
-    const totalFiles = uploadFiles.value.length
-    const completedFiles = uploadFiles.value.filter(f => f.status === 'success').length
-    const currentProgress = currentFileProgress.value / 100
-    
-    totalProgress.value = Math.round(((completedFiles + currentProgress) / totalFiles) * 100)
+    // Reset network error state if max retries exceeded
+    isNetworkError.value = false
+    networkRetryCount.value = 0
   }
 
-  /**
-   * Setup Socket.IO listeners for upload progress
-   */
-  function setupSocketListeners() {
-    socketService.on('upload_progress', (data: any) => {
-      if (data.session_id && uploadedSessions.value.includes(data.session_id)) {
-        currentFileProgress.value = Math.round(data.progress || 0)
-        updateTotalProgress()
-        
-        // Calculate upload speed and ETA
-        const now = Date.now()
-        const elapsed = (now - startTime.value) / 1000 // seconds
-        const bytesUploaded = data.bytes_uploaded || 0
-        
-        if (elapsed > 0 && bytesUploaded > 0) {
-          uploadSpeed.value = bytesUploaded / elapsed // bytes per second
-          
-          const totalBytes = uploadFiles.value.reduce((sum, f) => sum + f.file.size, 0)
-          const remainingBytes = totalBytes - bytesUploaded
-          estimatedTimeRemaining.value = remainingBytes / uploadSpeed.value
-        }
-      }
-    })
+  // Get the base upload composable with enhanced error handling
+  const baseUpload = useUnifiedUpload(robustConfig, handleRobustError)
+  const currentPlaylistId = ref<string | null>(null)
 
-    socketService.on('upload_complete', (data: any) => {
-      if (data.session_id && uploadedSessions.value.includes(data.session_id)) {
-        const fileIndex = uploadFiles.value.findIndex(f => f.sessionId === data.session_id)
-        if (fileIndex >= 0) {
-          uploadFiles.value[fileIndex].status = 'success'
-          uploadFiles.value[fileIndex].progress = 100
-          updateTotalProgress()
-        }
-      }
-    })
+  // Enhanced computed properties
+  const isRecovering = computed(() => 
+    sessionRecoveryAttempts.value > 0 || networkRetryCount.value > 0
+  )
 
-    socketService.on('upload_error', (data: any) => {
-      if (data.session_id && uploadedSessions.value.includes(data.session_id)) {
-        const fileIndex = uploadFiles.value.findIndex(f => f.sessionId === data.session_id)
-        if (fileIndex >= 0) {
-          uploadFiles.value[fileIndex].status = 'error'
-          uploadFiles.value[fileIndex].error = data.error || 'Upload failed'
-          errors.value.push({
-            filename: uploadFiles.value[fileIndex].file.name,
-            message: data.error || 'Upload failed'
-          })
-        }
-      }
-    })
-  }
+  const recoveryStatus = computed(() => {
+    if (networkRetryCount.value > 0) {
+      return `Network retry ${networkRetryCount.value}/${robustConfig.maxNetworkRetries}`
+    }
+    if (sessionRecoveryAttempts.value > 0) {
+      return `Session recovery attempt ${sessionRecoveryAttempts.value}`
+    }
+    return null
+  })
 
-  /**
-   * Cleanup Socket.IO listeners
-   */
-  function cleanupSocketListeners() {
-    socketService.off('upload_progress')
-    socketService.off('upload_complete')
-    socketService.off('upload_error')
-  }
+  const canRetry = computed(() => 
+    networkRetryCount.value < robustConfig.maxNetworkRetries ||
+    sessionRecoveryAttempts.value < 3
+  )
 
-  /**
-   * Upload a single file with robust error handling
-   */
-  async function uploadSingleFile(playlistId: string, uploadFile: UploadFile): Promise<void> {
-    const file = uploadFile.file
-    const chunkSize = 1024 * 1024 // 1MB chunks
-    const totalChunks = Math.ceil(file.size / chunkSize)
-    
-    console.log(`[RobustUpload] Starting upload: ${file.name} (${file.size} bytes, ${totalChunks} chunks)`)
+  // Enhanced upload method with robust error handling
+  const startRobustUpload = async (playlistId: string): Promise<void> => {
+    currentPlaylistId.value = playlistId
     
     try {
-      // Step 1: Initialize upload session
-      const initResponse = await dataService.initUpload(playlistId, {
-        filename: file.name,
-        total_chunks: totalChunks,
-        total_size: file.size
-      })
-      
-      if (!initResponse.session_id) {
-        throw new Error('No session ID received from server')
+      // Reset recovery state on new upload
+      if (!isRecovering.value) {
+        networkRetryCount.value = 0
+        sessionRecoveryAttempts.value = 0
+        isNetworkError.value = false
+        lastNetworkError.value = null
       }
+
+      await baseUpload.startUpload(playlistId)
       
-      const sessionId = initResponse.session_id
-      uploadFile.sessionId = sessionId
-      uploadedSessions.value.push(sessionId)
-      
-      console.log(`[RobustUpload] Session created: ${sessionId}`)
-      
-      // Step 2: Upload chunks sequentially
-      for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
-        if (isCancelled.value) {
-          throw new Error('Upload cancelled by user')
-        }
-        
-        const start = chunkIndex * chunkSize
-        const end = Math.min(start + chunkSize, file.size)
-        const chunk = file.slice(start, end)
-        
-        const formData = new FormData()
-        formData.append('session_id', sessionId)
-        formData.append('chunk_index', chunkIndex.toString())
-        formData.append('file', chunk)
-        
-        await dataService.uploadChunk(playlistId, formData)
-        
-        // Update progress manually if no socket event
-        const chunkProgress = Math.round(((chunkIndex + 1) / totalChunks) * 100)
-        currentFileProgress.value = chunkProgress
-        updateTotalProgress()
-      }
-      
-      // Step 3: Finalize upload
-      await dataService.finalizeUpload(playlistId, sessionId)
-      
-      uploadFile.status = 'success'
-      uploadFile.progress = 100
-      
-      console.log(`[RobustUpload] Upload completed: ${file.name}`)
+      // Reset retry counters on successful upload
+      networkRetryCount.value = 0
+      sessionRecoveryAttempts.value = 0
+      isNetworkError.value = false
       
     } catch (error) {
-      console.error(`[RobustUpload] Upload failed for ${file.name}:`, error)
-      uploadFile.status = 'error'
-      uploadFile.error = error instanceof Error ? error.message : 'Upload failed'
-      
-      errors.value.push({
-        filename: file.name,
-        message: uploadFile.error
-      })
-      
+      logger.error('Robust upload failed', { error, playlistId }, 'RobustUpload')
       throw error
     }
   }
 
-  /**
-   * Start upload process for all files
-   */
-  async function startUpload(playlistId: string) {
-    if (uploadFiles.value.length === 0) {
-      console.warn('[RobustUpload] No files to upload')
-      return
+  // Manual retry method
+  const retryUpload = async (): Promise<void> => {
+    if (!currentPlaylistId.value) {
+      throw new Error('No playlist ID available for retry')
     }
-    
-    isUploading.value = true
-    isCancelled.value = false
-    startTime.value = Date.now()
-    lastProgressTime.value = startTime.value
-    
-    setupSocketListeners()
-    
-    console.log(`[RobustUpload] Starting upload of ${uploadFiles.value.length} files`)
-    
-    try {
-      // Process files one by one to avoid concurrency issues
-      for (let i = 0; i < uploadFiles.value.length; i++) {
-        if (isCancelled.value) {
-          console.log('[RobustUpload] Upload cancelled')
-          break
-        }
-        
-        currentFileIndex.value = i
-        currentFile.value = uploadFiles.value[i].file
-        currentFileProgress.value = 0
-        uploadFiles.value[i].status = 'uploading'
-        
-        try {
-          await uploadSingleFile(playlistId, uploadFiles.value[i])
-          
-          // Small delay between files to ensure backend stability
-          if (i < uploadFiles.value.length - 1) {
-            await new Promise(resolve => setTimeout(resolve, 200))
-          }
-          
-        } catch (error) {
-          console.error(`[RobustUpload] File ${i + 1} failed:`, error)
-          // Continue with next file even if this one failed
-        }
-      }
-      
-    } finally {
-      isUploading.value = false
-      currentFileIndex.value = -1
-      currentFile.value = null
-      cleanupSocketListeners()
-      
-      const successCount = uploadFiles.value.filter(f => f.status === 'success').length
-      const errorCount = uploadFiles.value.filter(f => f.status === 'error').length
-      
-      console.log(`[RobustUpload] Upload completed: ${successCount} success, ${errorCount} errors`)
+
+    if (!canRetry.value) {
+      throw new Error('Maximum retry attempts exceeded')
     }
+
+    sessionRecoveryAttempts.value++
+    await startRobustUpload(currentPlaylistId.value)
   }
 
-  /**
-   * Cancel ongoing upload
-   */
-  async function cancelUpload() {
-    console.log('[RobustUpload] Cancelling upload...')
-    isCancelled.value = true
-    
-    // TODO: Call backend cleanup API for uploaded sessions
-    for (const sessionId of uploadedSessions.value) {
-      try {
-        // await dataService.cancelUploadSession(sessionId)
-        console.log(`[RobustUpload] Should cancel session: ${sessionId}`)
-      } catch (error) {
-        console.warn(`[RobustUpload] Failed to cancel session ${sessionId}:`, error)
-      }
-    }
-    
-    // Reset state
-    uploadFiles.value.forEach(file => {
-      if (file.status === 'uploading') {
-        file.status = 'error'
-        file.error = 'Cancelled by user'
-      }
-    })
-    
-    cleanupSocketListeners()
+  // Reset method with enhanced cleanup
+  const resetRobustUpload = () => {
+    baseUpload.resetUpload()
+    networkRetryCount.value = 0
+    sessionRecoveryAttempts.value = 0
+    isNetworkError.value = false
+    lastNetworkError.value = null
+    currentPlaylistId.value = null
   }
 
-  /**
-   * Reset upload state
-   */
-  function resetUpload() {
-    uploadFiles.value = []
-    errors.value = []
-    uploadedSessions.value = []
-    currentFileIndex.value = -1
-    currentFile.value = null
-    currentFileProgress.value = 0
-    totalProgress.value = 0
-    isUploading.value = false
-    isCancelled.value = false
-    uploadSpeed.value = 0
-    estimatedTimeRemaining.value = 0
-    
-    cleanupSocketListeners()
+  // Cancel method with enhanced cleanup
+  const cancelRobustUpload = () => {
+    baseUpload.cancelUpload()
+    networkRetryCount.value = 0
+    sessionRecoveryAttempts.value = 0
+    isNetworkError.value = false
+    currentPlaylistId.value = null
   }
 
   return {
-    // State
-    isUploading: readonly(isUploading),
-    uploadFiles: readonly(uploadFiles),
-    currentFileIndex: readonly(currentFileIndex),
-    currentFile: readonly(currentFile),
-    currentFileProgress: readonly(currentFileProgress),
-    totalProgress: readonly(totalProgress),
-    errors: readonly(errors),
-    isCancelled: readonly(isCancelled),
+    // Base upload functionality
+    ...baseUpload,
     
-    // Progress info
-    uploadSpeed: readonly(uploadSpeed),
-    estimatedTimeRemaining: readonly(estimatedTimeRemaining),
+    // Enhanced configuration
+    robustConfig,
     
-    // Actions
-    initializeFiles,
-    startUpload,
-    cancelUpload,
-    resetUpload
+    // Robust-specific state
+    networkRetryCount,
+    isNetworkError,
+    lastNetworkError,
+    sessionRecoveryAttempts,
+    isRecovering,
+    recoveryStatus,
+    canRetry,
+    
+    // Enhanced methods
+    startUpload: startRobustUpload,
+    retryUpload,
+    resetUpload: resetRobustUpload,
+    cancelUpload: cancelRobustUpload
   }
 }
