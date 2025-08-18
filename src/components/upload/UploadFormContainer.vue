@@ -19,8 +19,7 @@
  * Container component that orchestrates file uploading process.
  * Handles file validation, upload process, and progress tracking.
  */
-import { useUploadValidation } from './composables/useUploadValidation'
-import { useChunkedUpload } from './composables/useChunkedUpload'
+import { useUnifiedUpload } from './composables/useUnifiedUpload'
 import UploadFormUI from './UploadFormUI.vue'
 import UploadProgress from './UploadProgress.vue'
 
@@ -31,9 +30,15 @@ interface Props {
 
 const props = defineProps<Props>()
 
-// Use composables for validation and file uploading functionality
-const { validateFiles } = useUploadValidation()
-const { uploadFiles, uploadProgress, isUploading, upload } = useChunkedUpload()
+// Use unified upload composable
+const {
+  uploadFiles,
+  isUploading,
+  overallProgress: uploadProgress,
+  initializeFiles,
+  startUpload,
+  validateFile
+} = useUnifiedUpload()
 
 /**
  * Handle file selection from the form
@@ -42,9 +47,11 @@ const { uploadFiles, uploadProgress, isUploading, upload } = useChunkedUpload()
  * @param {FileList} files - Files selected by user
  */
 const handleFileSelection = async (files: FileList) => {
-    const validatedFiles = await validateFiles(Array.from(files))
-    if (validatedFiles.length > 0) {
-        uploadFiles.value = validatedFiles
+    const fileArray = Array.from(files)
+    // Filter valid files using the unified validation
+    const validFiles = fileArray.filter(file => !validateFile(file))
+    if (validFiles.length > 0) {
+        initializeFiles(validFiles)
     }
 }
 
@@ -55,7 +62,7 @@ const handleFileSelection = async (files: FileList) => {
  */
 const handleSubmit = async () => {
     if (uploadFiles.value.length) {
-        await upload(props.playlistId)
+        await startUpload(props.playlistId)
     }
 }
 </script>

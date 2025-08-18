@@ -64,20 +64,17 @@
     <!-- Upload progress -->
     <div v-if="isUploading" class="mt-4 space-y-3">
       <div class="flex justify-between text-sm text-onBackground">
-        <span>{{ currentFileName }}</span>
-        <span>{{ currentChunkIndex }}/{{ totalChunks }}</span>
+        <span>{{ t('upload.uploading') }}</span>
+        <span>{{ uploadFiles.length }} {{ t('file.files') }}</span>
       </div>
       <div class="overflow-hidden rounded-full bg-background">
         <div
           class="h-2 rounded-full bg-primary transition-all"
-          :style="{ width: uploadProgress + '%' }"
+          :style="{ width: overallProgress + '%' }"
         ></div>
       </div>
       <div class="flex justify-between text-xs text-disabled">
-        <span>{{ formatProgress(uploadProgress) }}%</span>
-        <span v-if="estimatedTimeRemaining > 0">
-          {{ formatTime(estimatedTimeRemaining) }} {{ t('upload.remaining') }}
-        </span>
+        <span>{{ formatProgress(overallProgress) }}%</span>
       </div>
       <button
         @click="cancelUpload"
@@ -105,7 +102,7 @@
  * using the chunked upload API. Supports progress tracking and error handling.
  */
 import { ref, onBeforeUnmount } from 'vue'
-import { useChunkedUpload } from '../upload/composables/useChunkedUpload'
+import { useUnifiedUpload } from '../upload/composables/useUnifiedUpload'
 import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n();
@@ -116,7 +113,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'upload-complete': []
-  'upload-error': [error: any]
+  'upload-error': [error: unknown]
 }>();
 
 // References
@@ -125,20 +122,17 @@ const fileInput = ref<HTMLInputElement>();
 // Drag state
 const isDragging = ref(false);
 
-// Use the chunked upload composable
+// Use the unified upload composable
 const {
   uploadFiles,
-  uploadProgress,
   isUploading,
+  overallProgress,
   uploadErrors,
-  estimatedTimeRemaining,
-  stats,
-  currentFileName,
-  currentChunkIndex,
-  totalChunks,
-  upload,
-  cancelUpload
-} = useChunkedUpload();
+  startUpload,
+  cancelUpload,
+  initializeFiles,
+  validateFile
+} = useUnifiedUpload();
 
 /**
  * Trigger the file input click
@@ -212,8 +206,11 @@ async function handleFileSelect(event: Event) {
  */
 async function processFiles(files: File[]) {
   
-  // Validate files (only audio files)
-  const validFiles = files.filter(file => file.type.startsWith('audio/'));
+  // Filter valid files using unified validation
+  const validFiles = files.filter(file => {
+    const error = validateFile(file);
+    return !error; // Keep files that have no validation errors
+  });
   
   if (validFiles.length === 0) {
     uploadErrors.value = [t('file.noValidFiles')];
@@ -222,11 +219,9 @@ async function processFiles(files: File[]) {
   
   try {
     
-    // Set the files to upload
-    uploadFiles.value = validFiles;
-    
-    // Start the upload process
-    await upload(props.playlistId);
+    // Initialize and start the upload process
+    initializeFiles(validFiles);
+    await startUpload(props.playlistId);
     
     // Emit completion event
     emit('upload-complete');

@@ -152,7 +152,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRobustUpload } from './composables/useRobustUpload'
-import { useUploadModalStore } from '@/stores/uploadModalStore'
+import { useUploadStore } from '@/stores/uploadStore'
 
 // Props
 interface Props {
@@ -169,32 +169,39 @@ const emit = defineEmits<{
   success: []
 }>()
 
-// Upload composable
+// Robust upload composable
 const {
   isUploading,
   uploadFiles,
-  currentFileIndex,
-  currentFile,
-  currentFileProgress,
-  totalProgress,
-  errors,
-  isCancelled,
-  uploadSpeed,
-  estimatedTimeRemaining,
+  overallProgress,
+  uploadErrors,
+  isRecovering,
+  recoveryStatus,
+  canRetry,
+  stats,
   initializeFiles,
   startUpload,
-  cancelUpload,
-  resetUpload
+  cancelUpload: cancelRobustUpload,
+  resetUpload,
+  retryUpload
 } = useRobustUpload()
 
 // Local state
 const fileInput = ref<HTMLInputElement>()
 const isDragOver = ref(false)
-const uploadModalStore = useUploadModalStore()
+const uploadStore = useUploadStore()
 
 // Computed
-const isOpen = computed(() => uploadModalStore.isOpen)
-const currentPlaylistId = computed(() => props.playlistId || uploadModalStore.currentPlaylistId)
+const isOpen = computed(() => uploadStore.isModalOpen)
+const currentPlaylistId = computed(() => props.playlistId || uploadStore.modalPlaylistId)
+const totalProgress = computed(() => overallProgress.value)
+const errors = computed(() => uploadErrors.value.map(error => ({ filename: 'Unknown', message: error })))
+const uploadSpeed = computed(() => stats.value.speed)
+const estimatedTimeRemaining = computed(() => {
+  if (stats.value.speed === 0) return 0
+  const remainingBytes = stats.value.totalBytes - stats.value.bytesUploaded
+  return Math.ceil(remainingBytes / stats.value.speed)
+})
 
 // File handling
 function handleFileSelect(event: Event) {
@@ -241,11 +248,11 @@ async function handleStartUpload() {
 
 async function handleCancel() {
   if (isUploading.value) {
-    await cancelUpload()
+    await cancelRobustUpload()
   }
   
   resetUpload()
-  uploadModalStore.close()
+  uploadStore.closeUploadModal()
   emit('close')
 }
 
@@ -253,7 +260,7 @@ function handleConfirm() {
   const hasSuccessfulUploads = uploadFiles.value.some(f => f.status === 'success')
   
   resetUpload()
-  uploadModalStore.close()
+  uploadStore.closeUploadModal()
   
   if (hasSuccessfulUploads) {
     emit('success')

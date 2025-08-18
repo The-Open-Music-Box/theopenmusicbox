@@ -1,131 +1,39 @@
 <template>
   <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="isVisible" class="modal-overlay" @click.self="handleOverlayClick">
-        <div class="modal-container">
+    <Transition name="modal">
+      <div
+        v-if="uploadStore.isModalOpen"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+        @click="handleOverlayClick"
+      >
+        <div
+          class="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden"
+          @click.stop
+        >
           <!-- Header -->
-          <div class="modal-header">
-            <h2>{{ t('upload.title') }}</h2>
-            <button 
-              v-if="!isUploading" 
+          <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 class="text-lg font-medium text-gray-900">
+              {{ t('upload.title') }}
+            </h3>
+            <button
+              type="button"
+              class="text-gray-400 hover:text-gray-600"
               @click="handleClose"
-              class="close-button"
-              :aria-label="t('common.close')"
             >
-              <i class="fas fa-times"></i>
+              <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 
-          <!-- Body -->
-          <div class="modal-body">
-            <!-- File Selection -->
-            <div v-if="!hasFiles" class="upload-dropzone" 
-                 @drop="handleDrop"
-                 @dragover.prevent
-                 @dragenter.prevent>
-              <i class="fas fa-cloud-upload-alt upload-icon"></i>
-              <p>{{ t('upload.dragDropHint') }}</p>
-              <p class="upload-or">{{ t('common.or') }}</p>
-              <label class="file-input-label">
-                <input
-                  ref="fileInput"
-                  type="file"
-                  multiple
-                  accept="audio/*"
-                  @change="handleFileSelect"
-                  class="file-input-hidden"
-                />
-                <span class="btn btn-primary">
-                  <i class="fas fa-folder-open"></i>
-                  {{ t('upload.selectFiles') }}
-                </span>
-              </label>
-            </div>
-
-            <!-- Upload Progress -->
-            <div v-else class="upload-progress-container">
-              <!-- Current File -->
-              <div v-if="currentFile" class="current-file">
-                <div class="file-info">
-                  <i class="fas fa-music file-icon"></i>
-                  <div class="file-details">
-                    <div class="file-name">{{ currentFile.name }}</div>
-                    <div class="file-meta">
-                      {{ formatFileSize(currentFile.size) }} • 
-                      {{ currentFileIndex + 1 }}/{{ totalFiles }}
-                    </div>
-                  </div>
-                </div>
-                
-                <!-- Progress Bar -->
-                <div class="progress-wrapper">
-                  <div class="progress-bar-container">
-                    <div 
-                      class="progress-bar"
-                      :style="{ width: `${currentFileProgress}%` }"
-                    >
-                      <span class="progress-text">{{ Math.round(currentFileProgress) }}%</span>
-                    </div>
-                  </div>
-                  <div class="progress-stats">
-                    <span>{{ formatSpeed(uploadSpeed) }}</span>
-                    <span v-if="estimatedTime">{{ formatTime(estimatedTime) }}</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Overall Progress -->
-              <div class="overall-progress">
-                <h4>{{ t('upload.overallProgress') }}</h4>
-                <div class="progress-bar-container small">
-                  <div 
-                    class="progress-bar"
-                    :style="{ width: `${overallProgress}%` }"
-                  ></div>
-                </div>
-                <div class="files-status">
-                  {{ successCount }} {{ t('upload.completed') }} • 
-                  {{ errorCount }} {{ t('upload.failed') }}
-                </div>
-              </div>
-
-              <!-- Error List -->
-              <div v-if="errors.length > 0" class="error-list">
-                <h4>{{ t('upload.errors') }}</h4>
-                <div v-for="(error, idx) in errors" :key="idx" class="error-item">
-                  <i class="fas fa-exclamation-circle"></i>
-                  <span>{{ error.filename }}: {{ error.message }}</span>
-                </div>
-              </div>
-
-              <!-- Success Message -->
-              <div v-if="isComplete && !hasErrors" class="success-message">
-                <i class="fas fa-check-circle"></i>
-                <p>{{ t('upload.allFilesUploaded') }}</p>
-              </div>
-            </div>
-          </div>
-
-          <!-- Footer -->
-          <div class="modal-footer">
-            <button 
-              v-if="!isComplete"
-              @click="handleCancel"
-              class="btn btn-secondary"
-              :disabled="!isUploading && !hasFiles"
-            >
-              <i class="fas fa-ban"></i>
-              {{ t('common.cancel') }}
-            </button>
-            
-            <button 
-              v-if="isComplete"
-              @click="handleOk"
-              class="btn btn-primary"
-            >
-              <i class="fas fa-check"></i>
-              {{ t('common.ok') }}
-            </button>
+          <!-- Content -->
+          <div class="px-6 py-4 max-h-[70vh] overflow-y-auto">
+            <UnifiedUploader
+              v-if="uploadStore.modalPlaylistId"
+              :playlist-id="uploadStore.modalPlaylistId"
+              @upload-complete="handleUploadComplete"
+              @upload-error="handleUploadError"
+            />
           </div>
         </div>
       </div>
@@ -134,10 +42,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useUploadModalStore } from '@/stores/uploadModalStore'
-import { useModalUpload } from './composables/useModalUpload'
+import { useUploadStore } from '@/stores/uploadStore'
+import UnifiedUploader from './UnifiedUploader.vue'
 
 // Props
 interface Props {
@@ -150,120 +57,27 @@ const props = defineProps<Props>()
 const { t } = useI18n()
 
 // Store
-const uploadModalStore = useUploadModalStore()
-
-// Upload composable
-const {
-  files,
-  currentFile,
-  currentFileIndex,
-  currentFileProgress,
-  overallProgress,
-  uploadSpeed,
-  estimatedTime,
-  errors,
-  successCount,
-  errorCount,
-  isUploading,
-  isComplete,
-  startUpload,
-  cancelUpload,
-  reset
-} = useModalUpload()
-
-// Local state
-const fileInput = ref<HTMLInputElement>()
-
-// Computed
-const isVisible = computed(() => uploadModalStore.isOpen())
-const hasFiles = computed(() => files.value.length > 0)
-const hasErrors = computed(() => errors.value.length > 0)
-const totalFiles = computed(() => files.value.length)
+const uploadStore = useUploadStore()
 
 // Methods
 function handleOverlayClick() {
-  if (!isUploading.value) {
+  if (!uploadStore.isUploading) {
     handleClose()
   }
 }
 
 function handleClose() {
-  uploadModalStore.close()
-  reset()
+  uploadStore.closeUploadModal()
 }
 
-async function handleCancel() {
-  if (isUploading.value) {
-    await cancelUpload(props.playlistId)
-  }
-  handleClose()
-}
-
-async function handleOk() {
-  // Refresh the playlist to show new tracks
-  uploadModalStore.close()
-  reset()
-  // Emit event to refresh playlists
+function handleUploadComplete() {
+  // Emit event to refresh playlists or handle completion
   window.location.reload() // Simple refresh for now
 }
 
-function handleDrop(event: DragEvent) {
-  event.preventDefault()
-  const droppedFiles = event.dataTransfer?.files
-  if (droppedFiles) {
-    handleFiles(droppedFiles)
-  }
+function handleUploadError(error: unknown) {
+  console.error('Upload error:', error)
 }
-
-function handleFileSelect(event: Event) {
-  const input = event.target as HTMLInputElement
-  if (input.files) {
-    handleFiles(input.files)
-  }
-}
-
-function handleFiles(fileList: FileList) {
-  const audioFiles = Array.from(fileList).filter(file => 
-    file.type.startsWith('audio/') || 
-    file.name.match(/\.(mp3|wav|ogg|m4a|flac|aac)$/i)
-  )
-  
-  if (audioFiles.length === 0) {
-    alert(t('upload.noAudioFiles'))
-    return
-  }
-  
-  files.value = audioFiles
-  startUpload(props.playlistId)
-}
-
-// Formatting helpers
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
-
-function formatSpeed(bytesPerSecond: number): string {
-  if (!bytesPerSecond) return ''
-  return formatFileSize(bytesPerSecond) + '/s'
-}
-
-function formatTime(seconds: number): string {
-  if (!seconds) return ''
-  const mins = Math.floor(seconds / 60)
-  const secs = Math.floor(seconds % 60)
-  return mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
-}
-
-// Watch for modal open/close
-watch(isVisible, (newVal) => {
-  if (!newVal) {
-    reset()
-  }
-})
 </script>
 
 <style scoped>

@@ -60,9 +60,9 @@ const uploadWithErrorHandling = async (uploadFunction: () => Promise<void>) => {
   
   try {
     await uploadFunction()
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('🚨 [UploadErrorBoundary] Upload operation failed:', error)
-    lastError.value = error.message || 'Upload failed'
+    lastError.value = error instanceof Error ? error.message : 'Upload failed'
     showErrorNotification.value = true
     
     // Ne pas propager l'erreur pour éviter des refreshs

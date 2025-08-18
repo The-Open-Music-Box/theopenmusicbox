@@ -75,12 +75,12 @@
         <div class="relative h-2 bg-border rounded-full overflow-hidden">
           <div
             class="absolute top-0 left-0 h-full bg-success transition-all duration-300"
-            :style="{ width: `${uploadProgress}%` }"
+            :style="{ width: `${overallProgress}%` }"
           ></div>
         </div>
         
         <div class="flex justify-between items-center mt-1">
-          <span class="text-xs text-disabled">{{ uploadProgress.toFixed(1) }}%</span>
+          <span class="text-xs text-disabled">{{ overallProgress.toFixed(1) }}%</span>
         </div>
       </div>
     </div>
@@ -102,8 +102,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useChunkedUpload } from '../upload/composables/useChunkedUpload'
-import { useUploadValidation } from '../upload/composables/useUploadValidation'
+import { useUnifiedUpload } from '../upload/composables/useUnifiedUpload'
 
 const { t } = useI18n()
 
@@ -121,15 +120,16 @@ const isDragging = ref(false)
 const errorMessage = ref('')
 
 // Get upload utilities
-const { 
-  uploadFiles, 
-  uploadProgress, 
-  isUploading, 
-  uploadErrors, 
-  upload, 
-  cancelUpload 
-} = useChunkedUpload()
-const { validateFiles } = useUploadValidation()
+const {
+  uploadFiles,
+  isUploading,
+  overallProgress,
+  uploadErrors,
+  startUpload,
+  cancelUpload,
+  initializeFiles,
+  validateFile
+} = useUnifiedUpload()
 
 /**
  * Trigger file input click
@@ -163,7 +163,7 @@ async function handleDrop(event: DragEvent) {
   if (!event.dataTransfer) return
   
   const files = Array.from(event.dataTransfer.files)
-  await processFiles(files)
+  handleFiles(files)
 }
 
 /**
@@ -177,31 +177,37 @@ async function handleFileSelect(event: Event) {
   if (!input.files || input.files.length === 0) return
   
   const files = Array.from(input.files)
-  await processFiles(files)
+  handleFiles(files)
   
   // Reset input to allow selecting the same file again
   input.value = ''
 }
 
 /**
- * Process and upload files
- * @param {File[]} files - Files to process
+ * Handle file selection from input or drop
+ * @param files - Selected files
  */
-async function processFiles(files: File[]) {
-  // Validate files (only audio files)
-  const validFiles = files.filter(file => file.type.startsWith('audio/'))
+function handleFiles(files: File[]) {
+  if (!files || files.length === 0) return
   
-  if (validFiles.length === 0) {
-    errorMessage.value = t('file.noValidFiles')
-    return
+  // Filter valid files using unified validation
+  const validFiles = Array.from(files).filter(file => {
+    const error = validateFile(file)
+    return !error // Keep files that have no validation errors
+  })
+  
+  if (validFiles.length > 0) {
+    initializeFiles(validFiles)
   }
-  
+}
+
+/**
+ * Process and upload files
+ */
+async function processFiles() {
   try {
-    // Set the files to upload
-    uploadFiles.value = validFiles
-    
     // Start the upload process
-    await upload(props.playlistId)
+    await startUpload(props.playlistId)
     
     // Emit completion event
     emit('upload-complete')

@@ -303,7 +303,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useUploadStore } from '../../stores/uploadStore'
+import { useUploadStore } from '@/stores/uploadStore'
 
 const { t } = useI18n()
 const uploadStore = useUploadStore()
@@ -316,7 +316,7 @@ const props = defineProps<{
 // Emits
 const emit = defineEmits<{
   'upload-complete': []
-  'upload-error': [error: any]
+  'upload-error': [error: unknown]
 }>()
 
 // Local state
@@ -344,7 +344,7 @@ const {
 
 // Methods
 const triggerFileInput = () => {
-  if (!isUploading.value) {
+  if (!isUploading) {
     fileInput.value?.click()
   }
 }
@@ -360,7 +360,7 @@ const handleDragLeave = () => {
 const handleDrop = (event: DragEvent) => {
   isDragging.value = false
   
-  if (!event.dataTransfer || isUploading.value) return
+  if (!event.dataTransfer || isUploading) return
   
   const files = Array.from(event.dataTransfer.files)
   addFiles(files)

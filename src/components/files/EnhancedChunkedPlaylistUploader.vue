@@ -59,13 +59,13 @@
       </div>
 
       <!-- Upload Progress -->
-      <div v-if="isUploading || uploadProgress > 0" class="mt-4">
+      <div v-if="isUploading || overallProgress > 0" class="mt-4">
         <div class="flex justify-between items-center mb-2">
           <span class="text-sm font-medium text-onBackground">
-            {{ t('file.uploading') }} {{ currentFileName || '' }}
+            {{ t('file.uploading') }} {{ uploadFiles.length }} {{ t('file.files') }}
           </span>
           <span class="text-sm text-disabled">
-            {{ formatProgress(uploadProgress) }}%
+            {{ formatProgress(overallProgress) }}%
           </span>
         </div>
         
@@ -73,13 +73,8 @@
         <div class="w-full bg-border rounded-full h-2 mb-2">
           <div 
             class="bg-success h-2 rounded-full transition-all duration-300"
-            :style="{ width: `${uploadProgress}%` }"
+            :style="{ width: `${overallProgress}%` }"
           ></div>
-        </div>
-        
-        <!-- Upload stats -->
-        <div v-if="estimatedTimeRemaining" class="text-xs text-disabled">
-          {{ t('file.estimatedTimeRemaining') }}: {{ formatTime(estimatedTimeRemaining) }}
         </div>
         
         <!-- Cancel button -->
@@ -109,8 +104,8 @@
       </div>
 
       <!-- Upload State Debug Info -->
-      <div v-if="uploadState !== 'idle'" class="mt-2 text-xs text-disabled">
-        State: {{ uploadState }}
+      <div v-if="isUploading" class="mt-2 text-xs text-disabled">
+        {{ t('upload.uploading') }}
       </div>
     </div>
   </UploadErrorBoundary>
@@ -118,7 +113,7 @@
 
 <script setup lang="ts">
 import { ref, onBeforeUnmount } from 'vue'
-import { useEnhancedChunkedUpload } from '../upload/composables/useEnhancedChunkedUpload'
+import { useUnifiedUpload } from '../upload/composables/useUnifiedUpload'
 import { useI18n } from 'vue-i18n'
 import UploadErrorBoundary from '../upload/UploadErrorBoundary.vue'
 
@@ -130,28 +125,24 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'upload-complete': []
-  'upload-error': [error: any]
+  'upload-error': [error: unknown]
   'all-uploads-complete': [playlistId: string]
 }>()
 
 // References
 const fileInput = ref<HTMLInputElement>()
 
-// Enhanced upload composable
+// Unified upload composable
 const {
   uploadFiles,
-  uploadProgress,
   isUploading,
+  overallProgress,
   uploadErrors,
-  uploadState,
-  currentFileName,
-  estimatedTimeRemaining,
-  currentProgressPercent,
-  upload,
+  startUpload,
   cancelUpload,
-  handleError,
-  safeAsync
-} = useEnhancedChunkedUpload()
+  initializeFiles,
+  validateFile
+} = useUnifiedUpload()
 
 // UI state
 const isDragging = ref(false)
@@ -191,7 +182,7 @@ function handleDrop(event: DragEvent) {
   
   const files = Array.from(event.dataTransfer?.files || [])
   if (files.length > 0) {
-    // Use setTimeout to prevent any potential sync issues
+    // Use setTimeout to prevent potential sync issues
     setTimeout(() => {
       processFiles(files)
     }, 10)
@@ -224,36 +215,33 @@ function handleFileSelect(event: Event) {
  * Process and upload files with enhanced error handling
  */
 async function processFiles(files: File[]) {
-  // Validate files (only audio files)
-  const validFiles = files.filter(file => file.type.startsWith('audio/'))
+  // Filter valid files using unified validation
+  const validFiles = files.filter(file => {
+    const error = validateFile(file)
+    return !error // Keep files that have no validation errors
+  })
   
   if (validFiles.length === 0) {
-    handleError(new Error(t('file.noValidFiles')), 'File validation')
+    uploadErrors.value = [t('file.noValidFiles')]
     return
   }
   
   try {
-    // Set the files to upload
-    uploadFiles.value = validFiles
+    // Initialize and start the upload process
+    initializeFiles(validFiles)
+    await startUpload(props.playlistId)
     
-    // Use the enhanced upload with error boundary
-    await safeAsync(async () => {
-      await upload(props.playlistId)
-      
-      // Emit completion event for individual file
-      emit('upload-complete')
-      
-      // Check if this was the last file and all uploads are complete
-      // The upload composable sets uploadFiles.value = [] after all files are processed
-      // Only emit all-uploads-complete when upload state is 'idle' and no files remain
-      if (uploadState.value === 'idle' && uploadFiles.value.length === 0) {
-        console.log('[EnhancedUploader] All uploads truly complete, emitting event')
-        emit('all-uploads-complete', props.playlistId)
-      }
-      
-    }, 'Enhanced upload process', undefined)
+    // Emit completion event
+    emit('upload-complete')
+    
+    // Check if all uploads are complete
+    if (!isUploading.value && uploadFiles.value.length === 0) {
+      console.log('[EnhancedUploader] All uploads complete, emitting event')
+      emit('all-uploads-complete', props.playlistId)
+    }
     
   } catch (err) {
+    console.error('[EnhancedUploader] Upload error:', err)
     emit('upload-error', err)
   }
 }
