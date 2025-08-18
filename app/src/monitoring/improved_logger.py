@@ -88,8 +88,9 @@ class ImprovedLogger:
         exc_info: Optional[Exception] = None,
         **kwargs,
     ):
-        """Log a message with the specified level, formatting extra context and
-        handling errors.
+        """Log a message with the specified level.
+
+        Formats extra context and handles errors appropriately.
 
         Args:
             level: LogLevel (severity)

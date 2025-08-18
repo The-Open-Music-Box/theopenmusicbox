@@ -8,8 +8,9 @@ from typing import Any, Dict, Optional
 
 from mutagen.mp3 import MP3
 
-from app.src.model.playlist import Playlist
-from app.src.model.track import Track
+from app.src.module.audio.models import AudioState
+from app.src.services.notification_service import PlaybackSubject
+from app.src.config import config
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
@@ -25,7 +26,7 @@ class AudioStateManager:
         self._is_playing = False
         self._current_track = None
         self._playlist = None
-        self._volume = 100
+        self._volume = config.audio.default_volume  # Use centralized config
         self._stream_start_time = 0
         self._paused_position = 0
         self._pause_time = 0

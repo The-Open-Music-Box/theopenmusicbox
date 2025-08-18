@@ -481,3 +481,22 @@ class PlaylistRepository:
         except sqlite3.Error as e:
             logger.log(LogLevel.ERROR, f"Error disassociating NFC tag: {str(e)}")
             return False
+
+
+# Singleton instance for dependency injection
+_playlist_repository_instance = None
+
+
+def get_playlist_repository(config_obj=None) -> PlaylistRepository:
+    """Get or create a singleton PlaylistRepository instance.
+    
+    Args:
+        config_obj: Optional configuration object
+        
+    Returns:
+        PlaylistRepository instance
+    """
+    global _playlist_repository_instance
+    if _playlist_repository_instance is None:
+        _playlist_repository_instance = PlaylistRepository(config_obj)
+    return _playlist_repository_instance

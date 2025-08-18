@@ -97,9 +97,19 @@ class ControlesGPIO:
                 pin_factory=pin_factory,
             )
 
-            # Set up callbacks for button press and release
-            self._buttons[pin].when_pressed = lambda: callback(True)
-            self._buttons[pin].when_released = lambda: callback(False)
+            # Set up callback only for button press (not release)
+            # This prevents double-triggering on press+release
+            def press_only_callback():
+                logger.log(LogLevel.INFO, f"[GPIO] Button PRESS detected on pin {pin}")
+                # Always pass True for press event
+                callback(True)
+            
+            # Only set when_pressed, explicitly set when_released to None
+            self._buttons[pin].when_pressed = press_only_callback
+            self._buttons[pin].when_released = None  # Explicitly disable release callback
+            
+            # Log current button state
+            logger.log(LogLevel.INFO, f"[GPIO] Button on pin {pin} initial state: {'pressed' if self._buttons[pin].is_pressed else 'released'}")
 
             logger.log(LogLevel.DEBUG, f"Set up button on GPIO pin {pin}")
         except Exception as e:

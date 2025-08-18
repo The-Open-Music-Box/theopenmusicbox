@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 """Production starter script that explicitly uses StandardConfig.
 
-This script starts the application in production mode with real
-hardware.
+This script starts the application in production mode with real hardware.
 """
 import sys
 from pathlib import Path
@@ -23,15 +22,15 @@ print("[TheOpenMusicBox] Starting application in PRODUCTION mode")
 # Get production configuration
 config = ConfigFactory.create_config(ConfigType.PRODUCTION)
 
-if config.use_mock_hardware:
+if config.hardware.mock_hardware:
     print("[TheOpenMusicBox] WARNING: Mock hardware is enabled in production!")
 else:
     print("[TheOpenMusicBox] Using REAL hardware")
 
 try:
     # Display complete configuration info
-    hw_mode = "REAL" if not config.use_mock_hardware else "MOCK"
-    print(f"[TheOpenMusicBox] Configuration details:")
+    hw_mode = "REAL" if not config.hardware.mock_hardware else "MOCK"
+    print("[TheOpenMusicBox] Configuration details:")
     print(f"  - App module: {config.app_module}")
     print(f"  - Host: {config.socketio_host}")
     print(f"  - Port: {config.socketio_port}")

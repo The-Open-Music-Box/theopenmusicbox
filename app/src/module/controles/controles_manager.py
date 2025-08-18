@@ -20,6 +20,7 @@ from app.src.module.controles.events.controles_events import ControlesEventType
 from app.src.module.controles.input_devices.button import Button
 from app.src.module.controles.input_devices.rotary_encoder import RotaryEncoder
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.config import config
 
 logger = ImprovedLogger(__name__)
 
@@ -105,10 +106,10 @@ class ControlesManager:
             try:
                 # Create input devices with appropriate pin assignments and event types
 
-                # Create "next track" button (GPIO05)
+                # Create "next track" button
                 next_track_button = Button(
                     hardware=self._hardware,
-                    pin=5,
+                    pin=config.hardware.gpio_next_track_button,
                     event_type=ControlesEventType.NEXT_TRACK,
                     name="next_track",
                     event_subject=self._event_subject,
@@ -116,10 +117,10 @@ class ControlesManager:
                 )
                 self._devices.append(next_track_button)
 
-                # Create "previous track" button (GPIO24)
+                # Create "previous track" button
                 prev_track_button = Button(
                     hardware=self._hardware,
-                    pin=24,
+                    pin=config.hardware.gpio_previous_track_button,
                     event_type=ControlesEventType.PREVIOUS_TRACK,
                     name="previous_track",
                     event_subject=self._event_subject,
@@ -127,16 +128,16 @@ class ControlesManager:
                 )
                 self._devices.append(prev_track_button)
 
-                # Create volume rotary encoder (CLK=GPIO17, DT=GPIO27, SW=GPIO22)
+                # Create volume rotary encoder
                 volume_encoder = RotaryEncoder(
                     hardware=self._hardware,
-                    clk_pin=17,
-                    dt_pin=27,
+                    clk_pin=config.hardware.gpio_volume_encoder_clk,
+                    dt_pin=config.hardware.gpio_volume_encoder_dt,
                     name="volume",
                     clockwise_event_type=ControlesEventType.VOLUME_UP,
                     counter_clockwise_event_type=ControlesEventType.VOLUME_DOWN,
                     event_subject=self._event_subject,
-                    sw_pin=22,
+                    sw_pin=config.hardware.gpio_volume_encoder_sw,
                     sw_event_type=ControlesEventType.PLAY_PAUSE,
                     pull_up=True,
                 )

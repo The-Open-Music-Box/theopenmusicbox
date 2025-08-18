@@ -66,6 +66,7 @@ class RotaryEncoder:
         self.sw_event_type = sw_event_type
         self.event_subject = event_subject
         self.pull_up = pull_up
+        self._last_sw_press_time = 0  # Initialize debounce timer
 
         # Set up the rotary encoder in hardware
         if hardware.is_available():
@@ -131,8 +132,28 @@ class RotaryEncoder:
         Args:
             pressed: True if switch is pressed, False if released
         """
+        logger.log(
+            LogLevel.INFO,
+            f"[ROTARY] Switch event received on pin {self.sw_pin}: pressed={pressed}"
+        )
+        
         # Only emit event on switch press, not release
+        # Added extra protection against double-triggering
         if pressed and self.sw_event_type is not None:
+            # Add a simple debounce mechanism
+            import time
+            current_time = time.time()
+            
+            # Debounce: ignore presses within 200ms of each other
+            if current_time - self._last_sw_press_time < 0.2:
+                logger.log(
+                    LogLevel.DEBUG,
+                    f"Rotary encoder '{self.name}' switch press ignored (debounce)",
+                )
+                return
+            
+            self._last_sw_press_time = current_time
+            
             event = ControlesEvent(
                 event_type=self.sw_event_type,
                 source=f"rotary_switch:{self.name}",
@@ -140,7 +161,12 @@ class RotaryEncoder:
             )
 
             logger.log(
-                LogLevel.DEBUG,
-                f"Rotary encoder '{self.name}' switch pressed, emitting {self.sw_event_type.name}",
+                LogLevel.INFO,
+                f"[ROTARY] Emitting {self.sw_event_type.name} event from switch pin {self.sw_pin}",
             )
             self.event_subject.on_next(event)
+        elif not pressed:
+            logger.log(
+                LogLevel.INFO,
+                f"[ROTARY] Switch release ignored on pin {self.sw_pin}"
+            )

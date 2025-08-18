@@ -1,5 +1,7 @@
 #!/usr/bin/env python
-"""Development starter script that explicitly uses DevConfig."""
+"""
+Development starter script that explicitly uses DevConfig.
+"""
 import os
 import sys
 from pathlib import Path
@@ -20,7 +22,7 @@ print("[TheOpenMusicBox] Starting application in DEVELOPMENT mode")
 # Get development configuration with mock hardware
 config = ConfigFactory.create_config(ConfigType.DEVELOPMENT)
 
-if not config.use_mock_hardware:
+if not config.hardware.mock_hardware:
     print("[TheOpenMusicBox] WARNING: Mock hardware is not enabled!")
 else:
     print("[TheOpenMusicBox] Using MOCK hardware")
@@ -31,7 +33,7 @@ os.environ["DEBUG"] = "1"
 
 try:
     # Display complete configuration info
-    hw_mode = "MOCK" if config.use_mock_hardware else "REAL"
+    hw_mode = "MOCK" if config.hardware.mock_hardware else "REAL"
     print(f"[TheOpenMusicBox] Configuration details:")
     print(f"  - App module: {config.app_module}")
     print(f"  - Host: {config.socketio_host}")

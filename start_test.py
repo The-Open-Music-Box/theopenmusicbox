@@ -1,5 +1,6 @@
 #!/usr/bin/env python
-"""Test runner script that uses TestConfig.
+"""
+Test runner script that uses TestConfig.
 
 This script runs the tests with the proper test configuration.
 """
@@ -13,7 +14,9 @@ from app.src.config.config_factory import ConfigFactory, ConfigType
 
 # Check if we're already in a virtual environment
 def is_venv_active():
-    """Check if a virtual environment is currently active."""
+    """
+    Check if a virtual environment is currently active.
+    """
     return hasattr(sys, "real_prefix") or (
         hasattr(sys, "base_prefix") and sys.base_prefix != sys.prefix
     )
@@ -74,7 +77,7 @@ print("[TheOpenMusicBox] Starting tests with TEST configuration")
 # Get test configuration
 config = ConfigFactory.create_config(ConfigType.TEST)
 
-if not config.use_mock_hardware:
+if not config.hardware.mock_hardware:
     print(
         "[TheOpenMusicBox] WARNING: Mock hardware is not enabled in test configuration!"
     )

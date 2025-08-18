@@ -3,9 +3,9 @@
 # See the LICENSE file for details.
 
 import asyncio
-import os
 import sys
 
+from app.src.config import config
 from .nfc_handler import NFCHandler
 from .nfc_hardware import NFCHardware
 
@@ -23,7 +23,7 @@ async def get_nfc_handler(bus_lock: asyncio.Lock) -> NFCHandler[NFCHardware]:
         Initialized NFCHandler instance with proper hardware backend.
     """
     if (
-        os.environ.get("USE_MOCK_HARDWARE", "").lower() == "true"
+        config.hardware.mock_hardware
         or sys.platform == "darwin"
     ):
         from .nfc_mock import MockNFC

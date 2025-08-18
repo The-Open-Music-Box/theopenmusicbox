@@ -10,19 +10,51 @@ different hardware implementations.
 
 import threading
 import time
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from app.src.model.playlist import Playlist
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+
+# Import models directly to avoid circular imports
+from enum import Enum, auto
+
+# Local version of models to avoid circular imports
+
+
+class AudioState(Enum):
+    """Enum representing the possible states of audio playback."""
+    
+    STOPPED = auto()
+    PLAYING = auto()
+    PAUSED = auto()
+    LOADING = auto()
+    ERROR = auto()
+
+
+class PlaybackEvent(Enum):
+    """Enum representing playback events that can be emitted."""
+    
+    TRACK_STARTED = auto()
+    TRACK_ENDED = auto()
+    TRACK_PAUSED = auto()
+    TRACK_RESUMED = auto()
+    PLAYLIST_STARTED = auto()
+    PLAYLIST_ENDED = auto()
+    PLAYBACK_ERROR = auto()
+    PROGRESS_UPDATE = auto()
+
+
+from app.src.config import config
 from app.src.services.notification_service import PlaybackSubject
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
 
 # MARK: - Base Audio Player Class
 
 
-class BaseAudioPlayer:
+class BaseAudioPlayer(ABC):
     """Base class for audio player implementations.
 
     Provides common functionality for state management, notification,
@@ -41,7 +73,7 @@ class BaseAudioPlayer:
         self._is_playing = False
         self._playlist = None
         self._current_track = None
-        self._volume = 50
+        self._volume = config.audio.default_volume  # Use centralized config
         self._progress_thread = None
         self._stop_progress = False
         self._track_start_time = 0

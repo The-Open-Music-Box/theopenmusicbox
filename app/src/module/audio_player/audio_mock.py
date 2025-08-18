@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from app.src.config import config
 from app.src.model.playlist import Playlist
 from app.src.model.track import Track
 from app.src.module.audio_player.audio_hardware import AudioPlayerHardware
@@ -43,7 +44,7 @@ class MockAudioPlayer(
             playback_subject: Optional observer for playback events (used for real-time status updates)
         """
         super().__init__(playback_subject)
-        self._track_duration = 180.0  # Simulated track duration in seconds
+        self._track_duration = config.audio.mock_track_duration  # Simulated track duration in seconds
         self._track_position = 0.0
         logger.log(LogLevel.INFO, "Mock Audio Player initialized")
 

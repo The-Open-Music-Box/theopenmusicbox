@@ -16,6 +16,7 @@ from typing import Callable, Dict
 import pygame
 from mutagen.mp3 import MP3
 
+from app.src.config import config
 from app.src.module.audio_player.audio_backend import AudioBackend
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
@@ -63,9 +64,9 @@ class PygameAudioBackend(AudioBackend):
     def __init__(self):
         """Initialize the pygame audio backend."""
         # Set environment variables BEFORE any pygame initialization
-        os.environ["SDL_AUDIODRIVER"] = "alsa"  # Explicitly use ALSA
-        os.environ["SDL_AUDIODEV"] = "hw:1"  # Target WM8960 (card 1)
-        os.environ["SDL_VIDEODRIVER"] = "dummy"  # Disable video mode
+        os.environ["SDL_AUDIODRIVER"] = config.audio.sdl_audiodriver
+        os.environ["SDL_AUDIODEV"] = config.audio.sdl_audiodev
+        os.environ["SDL_VIDEODRIVER"] = config.audio.sdl_videodriver
 
         self._initialized = False
         self._end_event_callback = None
@@ -79,8 +80,13 @@ class PygameAudioBackend(AudioBackend):
     def initialize(self) -> bool:
         """Initialize the pygame audio system."""
         try:
-            # Initialize the mixer module with specific parameters for Raspberry Pi
-            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+            # Initialize the mixer module with parameters from config
+            pygame.mixer.init(
+                frequency=config.audio.sample_rate,
+                size=-config.audio.bits_per_sample,
+                channels=config.audio.channels,
+                buffer=config.audio.buffer_size
+            )
 
             # Initialize pygame with only the modules we need
             # Explicitly exclude the display module
@@ -97,6 +103,7 @@ class PygameAudioBackend(AudioBackend):
             self._initialized = True
 
             try:
+                self.set_volume(config.audio.default_volume)
                 pygame.mixer.music.set_volume(self._volume / 100.0)
                 logger.log(LogLevel.INFO, f"Default volume set to {self._volume}%")
             except Exception as e:
@@ -152,7 +159,12 @@ class PygameAudioBackend(AudioBackend):
             # Make sure the mixer is initialized
             if not pygame.mixer.get_init():
                 logger.log(LogLevel.WARNING, "Mixer not initialized, reinitializing...")
-                pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                pygame.mixer.init(
+                    frequency=config.audio.sample_rate,
+                    size=-config.audio.bits_per_sample,
+                    channels=config.audio.channels,
+                    buffer=config.audio.buffer_size
+                )
 
             # Try to play the audio
             try:
@@ -168,12 +180,15 @@ class PygameAudioBackend(AudioBackend):
                     pygame.quit()
 
                     # Set environment variables again
-                    os.environ["SDL_VIDEODRIVER"] = "dummy"
+                    os.environ["SDL_VIDEODRIVER"] = config.audio.sdl_videodriver
                     # SDL_AUDIODRIVER is not set here to allow auto-detection
 
                     # Initialize mixer first, then pygame
                     pygame.mixer.init(
-                        frequency=44100, size=-16, channels=2, buffer=1024
+                        frequency=config.audio.sample_rate,
+                        size=-config.audio.bits_per_sample,
+                        channels=config.audio.channels,
+                        buffer=config.audio.buffer_size
                     )
                     pygame.init()
 
@@ -207,7 +222,12 @@ class PygameAudioBackend(AudioBackend):
         # Make sure the mixer is initialized
         if not pygame.mixer.get_init():
             logger.log(LogLevel.WARNING, "Mixer not initialized, reinitializing...")
-            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+            pygame.mixer.init(
+                frequency=config.audio.sample_rate,
+                size=-config.audio.bits_per_sample,
+                channels=config.audio.channels,
+                buffer=config.audio.buffer_size
+            )
 
         # Store the current position before pausing
         self._paused_position = self.get_position()
@@ -227,7 +247,12 @@ class PygameAudioBackend(AudioBackend):
             # Make sure the mixer is initialized
             if not pygame.mixer.get_init():
                 logger.log(LogLevel.WARNING, "Mixer not initialized, reinitializing...")
-                pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                pygame.mixer.init(
+                    frequency=config.audio.sample_rate,
+                    size=-config.audio.bits_per_sample,
+                    channels=config.audio.channels,
+                    buffer=config.audio.buffer_size
+                )
 
             # Only attempt to unpause if playback is initialized but paused
             if pygame.mixer.get_init() and not self.is_playing():
@@ -245,12 +270,15 @@ class PygameAudioBackend(AudioBackend):
                         pygame.quit()
 
                         # Set environment variables again
-                        os.environ["SDL_VIDEODRIVER"] = "dummy"
+                        os.environ["SDL_VIDEODRIVER"] = config.audio.sdl_videodriver
                         # SDL_AUDIODRIVER is not set here to allow auto-detection
 
                         # Initialize mixer first, then pygame
                         pygame.mixer.init(
-                            frequency=44100, size=-16, channels=2, buffer=1024
+                            frequency=config.audio.sample_rate,
+                            size=-config.audio.bits_per_sample,
+                            channels=config.audio.channels,
+                            buffer=config.audio.buffer_size
                         )
                         pygame.init()
 
@@ -296,7 +324,12 @@ class PygameAudioBackend(AudioBackend):
         # Make sure the mixer is initialized
         if not pygame.mixer.get_init():
             logger.log(LogLevel.WARNING, "Mixer not initialized, reinitializing...")
-            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+            pygame.mixer.init(
+                frequency=config.audio.sample_rate,
+                size=-config.audio.bits_per_sample,
+                channels=config.audio.channels,
+                buffer=config.audio.buffer_size
+            )
 
         # Stop the audio
         pygame.mixer.music.stop()
@@ -317,7 +350,12 @@ class PygameAudioBackend(AudioBackend):
             # Make sure the mixer is initialized
             if not pygame.mixer.get_init():
                 logger.log(LogLevel.WARNING, "Mixer not initialized, reinitializing...")
-                pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+                pygame.mixer.init(
+                    frequency=config.audio.sample_rate,
+                    size=-config.audio.bits_per_sample,
+                    channels=config.audio.channels,
+                    buffer=config.audio.buffer_size
+                )
 
             # Convert position from seconds to ratio (0.0 to 1.0)
             duration = self.get_duration(self._current_file)
@@ -342,12 +380,15 @@ class PygameAudioBackend(AudioBackend):
                     pygame.quit()
 
                     # Set environment variables again
-                    os.environ["SDL_VIDEODRIVER"] = "dummy"
+                    os.environ["SDL_VIDEODRIVER"] = config.audio.sdl_videodriver
                     # SDL_AUDIODRIVER is not set here to allow auto-detection
 
                     # Initialize mixer first, then pygame
                     pygame.mixer.init(
-                        frequency=44100, size=-16, channels=2, buffer=1024
+                        frequency=config.audio.sample_rate,
+                        size=-config.audio.bits_per_sample,
+                        channels=config.audio.channels,
+                        buffer=config.audio.buffer_size
                     )
                     pygame.init()
 
@@ -442,7 +483,7 @@ class PygameAudioBackend(AudioBackend):
                     LogLevel.WARNING,
                     "Video system error during get_volume, returning default volume",
                 )
-                return self._volume if hasattr(self, "_volume") else 100
+                return self._volume if hasattr(self, "_volume") else config.audio.default_volume
             # For other errors, return default but log them
             logger.log(LogLevel.ERROR, f"Error getting volume: {str(e)}")
             return 0
@@ -516,11 +557,16 @@ class PygameAudioBackend(AudioBackend):
             pygame.quit()
 
             # Set environment variables again
-            os.environ["SDL_VIDEODRIVER"] = "dummy"
-            os.environ["SDL_AUDIODRIVER"] = "alsa"
+            os.environ["SDL_VIDEODRIVER"] = config.audio.sdl_videodriver
+            os.environ["SDL_AUDIODRIVER"] = config.audio.sdl_audiodriver
 
-            # Initialize mixer with specific parameters
-            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=4096)
+            # Initialize mixer with parameters from config
+            pygame.mixer.init(
+                frequency=config.audio.sample_rate,
+                size=-config.audio.bits_per_sample,
+                channels=config.audio.channels,
+                buffer=config.audio.buffer_size
+            )
             pygame.init()
 
             # Set up MUSIC_END event handling
@@ -528,6 +574,7 @@ class PygameAudioBackend(AudioBackend):
             self._music_end_event = pygame.USEREVENT + 1
 
             # Set the volume
+            self.set_volume(config.audio.default_volume)
             pygame.mixer.music.set_volume(self._volume / 100.0)
 
             # Reload the current file if there is one

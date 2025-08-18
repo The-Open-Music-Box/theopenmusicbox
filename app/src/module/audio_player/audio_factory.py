@@ -2,10 +2,10 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-import os
 import sys
 from typing import Optional
 
+from app.src.config import config
 from app.src.services.notification_service import PlaybackSubject
 
 from .audio_hardware import AudioPlayerHardware
@@ -28,7 +28,7 @@ def get_audio_player(
         AudioPlayer[AudioPlayerHardware]: An instance of AudioPlayer using either mock or hardware implementation.
     """
     if (
-        os.environ.get("USE_MOCK_HARDWARE", "").lower() == "true"
+        config.hardware.mock_hardware
         or sys.platform == "darwin"
     ):
         from .audio_mock import MockAudioPlayer

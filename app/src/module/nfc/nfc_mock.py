@@ -8,6 +8,7 @@ from typing import Optional
 
 from rx.subject import Subject
 
+from app.src.config import config
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 from .nfc_hardware import NFCHardware
@@ -48,8 +49,8 @@ class MockNFC(NFCHardware):
         while not self._stop_event.is_set():
             self._scan_counter += 1
 
-            # Simuler un scan toutes les ~5 secondes
-            if self._scan_counter % 50 == 0:
+            # Simuler un scan selon la configuration
+            if self._scan_counter % config.nfc.mock_scan_frequency == 0:
                 result = await self.read_nfc()
                 if result:
                     logger.log(LogLevel.INFO, f"Simulated tag detected: {result}")
@@ -60,8 +61,8 @@ class MockNFC(NFCHardware):
                     logger.log(LogLevel.INFO, "NFC reader waiting for tag scan...")
                     last_info_log = now
 
-            # Attendre 100ms entre chaque cycle
-            await asyncio.sleep(0.1)
+            # Attendre entre chaque cycle selon la configuration
+            await asyncio.sleep(config.nfc.mock_scan_interval)
 
     async def start_nfc_reader(self) -> None:
         """Démarre la simulation de lecture NFC."""
@@ -91,7 +92,7 @@ class MockNFC(NFCHardware):
         Returns:
             Optional[bytes]: The mock tag bytes if detected, otherwise None.
         """
-        if time.time() % 5 < 0.1:
+        if time.time() % config.nfc.mock_detection_interval < config.nfc.mock_detection_window:
             mock_tag = bytes([0x04, 0xA0, 0x71, 0xA6, 0xDF, 0x61, 0x80])
             self._tag_subject.on_next(
                 {

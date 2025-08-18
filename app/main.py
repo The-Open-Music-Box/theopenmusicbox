@@ -41,7 +41,14 @@ sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=cors_origins)
 
 @asynccontextmanager
 async def lifespan(fastapi_app):
-    """Application lifespan event handler for FastAPI startup and shutdown."""
+    """Application lifespan event handler for FastAPI startup and shutdown.
+
+    Args:
+        fastapi_app: The FastAPI application instance.
+
+    Yields:
+        None: Control during application runtime.
+    """
     try:
         # Async resource initialization
         await container.initialize_async()
@@ -98,17 +105,20 @@ async def lifespan(fastapi_app):
                 else:
                     logger.log(
                         LogLevel.WARNING,
-                        "main.py: Could not find _setup_controls_integration method on playlist_routes",
+                        "main.py: Could not find _setup_controls_integration "
+                        "method on playlist_routes",
                     )
             except Exception as e:
                 logger.log(
                     LogLevel.ERROR,
-                    f"main.py: Failed to initialize physical controls: {str(e)}\n{traceback.format_exc()}",
+                    f"main.py: Failed to initialize physical controls: "
+                    f"{str(e)}\n{traceback.format_exc()}",
                 )
         else:
             logger.log(
                 LogLevel.WARNING,
-                "main.py: No playlist_routes instance found, physical controls not initialized.",
+                "main.py: No playlist_routes instance found, "
+                "physical controls not initialized.",
             )
 
         yield
@@ -124,12 +134,14 @@ async def lifespan(fastapi_app):
             try:
                 playlist_routes._cleanup_controls()
                 logger.log(
-                    LogLevel.INFO, "main.py: Physical controls cleaned up successfully."
+                    LogLevel.INFO,
+                    "main.py: Physical controls cleaned up successfully."
                 )
             except Exception as e:
                 logger.log(
                     LogLevel.ERROR,
-                    f"main.py: Error while cleaning up physical controls: {str(e)}",
+                    f"main.py: Error while cleaning up physical controls: "
+                    f"{str(e)}",
                 )
 
         # Then proceed with normal container cleanup

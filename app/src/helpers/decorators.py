@@ -15,8 +15,9 @@ F = TypeVar("F", bound=Callable[..., Any])
 
 
 def deprecated(func: F) -> F:
-    """Decorator to mark functions as deprecated. It will result in a warning
-    being emitted when the function is used.
+    """Decorator to mark functions as deprecated.
+
+    It will result in a warning being emitted when the function is used.
 
     Args:
         func: The function to mark as deprecated

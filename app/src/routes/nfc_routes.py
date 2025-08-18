@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 
 from app.src.dependencies import get_config
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.services import PlaylistService
+from app.src.core.service_container import ServiceContainer
 from app.src.services.nfc_service import NFCService
 
 logger = ImprovedLogger(__name__)
@@ -233,7 +233,7 @@ class NFCRoutes:
                         {"status": "error", "message": "Playlist not found"},
                         status_code=404,
                     )
-                # Utiliser la méthode asynchrone start_nfc_reader
+                # Use the asynchronous start_nfc_reader method
                 await nfc_service.start_nfc_reader()
                 return JSONResponse(
                     {"status": "success", "message": "NFC listening started"},
@@ -280,7 +280,7 @@ class NFCRoutes:
                         status_code=400,
                     )
                 tag_id = data["tag_id"]
-                # Utiliser la méthode asynchrone handle_tag_detected
+                # Use the asynchronous handle_tag_detected method
                 success = await nfc_service.handle_tag_detected(tag_id)
                 if success:
                     return JSONResponse(
@@ -303,4 +303,94 @@ class NFCRoutes:
                 return JSONResponse(
                     {"status": "error", "message": "Internal server error"},
                     status_code=500,
+                )
+
+        @self.router.get("/scan")
+        async def scan_nfc_tag(nfc_service: NFCService = Depends(get_nfc_service)):
+            """Scan for NFC tags and return detected tag information."""
+            try:
+                if not nfc_service or not hasattr(nfc_service, "_nfc_handler") or not nfc_service._nfc_handler:
+                    logger.log(LogLevel.WARNING, "NFC reader not available for scanning")
+                    return JSONResponse(
+                        status_code=503, 
+                        content={"error": "NFC reader not available"}
+                    )
+
+                # Start a scan operation
+                scan_result = await nfc_service.scan_for_tags()
+                
+                if scan_result.get("status") == "success":
+                    return JSONResponse(
+                        content={
+                            "status": "success",
+                            "tags_found": scan_result.get("tags", []),
+                            "message": f"Found {len(scan_result.get('tags', []))} tag(s)"
+                        },
+                        status_code=200
+                    )
+                else:
+                    return JSONResponse(
+                        content={
+                            "status": "no_tags",
+                            "tags_found": [],
+                            "message": "No NFC tags detected"
+                        },
+                        status_code=200
+                    )
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error scanning for NFC tags: {str(e)}")
+                return JSONResponse(
+                    content={"error": f"Scan failed: {str(e)}"},
+                    status_code=500
+                )
+
+        @self.router.post("/write")
+        async def write_nfc_tag(
+            request: Request,
+            nfc_service: NFCService = Depends(get_nfc_service)
+        ):
+            """Write data to an NFC tag."""
+            try:
+                if not nfc_service or not hasattr(nfc_service, "_nfc_handler") or not nfc_service._nfc_handler:
+                    logger.log(LogLevel.WARNING, "NFC reader not available for writing")
+                    return JSONResponse(
+                        status_code=503,
+                        content={"error": "NFC reader not available"}
+                    )
+
+                data = await request.json()
+                tag_id = data.get("tag_id")
+                write_data = data.get("data")
+                
+                if not tag_id or not write_data:
+                    return JSONResponse(
+                        content={"error": "tag_id and data are required"},
+                        status_code=400
+                    )
+
+                # Attempt to write data to the specified tag
+                write_result = await nfc_service.write_tag_data(tag_id, write_data)
+                
+                if write_result.get("status") == "success":
+                    return JSONResponse(
+                        content={
+                            "status": "success",
+                            "tag_id": tag_id,
+                            "message": "Data written to NFC tag successfully"
+                        },
+                        status_code=200
+                    )
+                else:
+                    return JSONResponse(
+                        content={
+                            "status": "failed",
+                            "error": write_result.get("message", "Write operation failed")
+                        },
+                        status_code=500
+                    )
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"Error writing to NFC tag: {str(e)}")
+                return JSONResponse(
+                    content={"error": f"Write failed: {str(e)}"},
+                    status_code=500
                 )

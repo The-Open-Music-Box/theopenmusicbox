@@ -10,6 +10,7 @@ from typing import Optional
 
 from mutagen.mp3 import MP3
 
+from app.src.config import config
 from app.src.helpers.exceptions import AppError
 from app.src.model.track import Track
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
@@ -255,8 +256,8 @@ class AudioPlayerWM8960(BaseAudioPlayer, AudioPlayerHardware):
             logger.log(LogLevel.WARNING, f"Error stopping playback: {str(e)}")
 
         # Set environment variables
-        os.environ["SDL_VIDEODRIVER"] = "dummy"
-        os.environ["SDL_AUDIODRIVER"] = "alsa"
+        os.environ["SDL_VIDEODRIVER"] = config.audio.sdl_videodriver
+        os.environ["SDL_AUDIODRIVER"] = config.audio.sdl_audiodriver
 
         # Reinitialize if needed
         if not self._audio_backend.is_playing():

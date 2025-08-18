@@ -227,8 +227,9 @@ class PlaylistController:
     def _should_ignore_tag_scan(
         self, tag_uid: str, tag_data: Optional[Dict[str, Any]] = None
     ) -> bool:
-        """
-        Determine if a tag scan should be ignored based on:
+        """Determine if a tag scan should be ignored.
+
+        Based on:
         - NFC association mode active
         - Recent manual action (manual_action_priority_window)
         - Duplicate detection (not a new_detection)
@@ -448,11 +449,10 @@ class PlaylistController:
                         and self._audio
                         and hasattr(self._audio, "is_playing")
                         and self._audio.is_playing
-                        and self._auto_pause_enabled
+                        and self._config.auto_pause_enabled
                     ):
                         if time.time() - self._tag_last_seen > self._pause_threshold:
-                            # Disable auto-pause before pausing
-                            self._auto_pause_enabled = False
+                            # No need to modify config here, just log the action
                             self._audio.pause()
                             logger.log(
                                 LogLevel.INFO,
@@ -515,8 +515,7 @@ class PlaylistController:
         """
         # Record the timestamp of the manual action
         self._last_manual_action_time = time.time()
-        # Disable automatic pause when user controls manually
-        self._auto_pause_enabled = False
+        # Manual actions are tracked separately, no need to modify config
 
         logger.log(LogLevel.INFO, f"Manual control action: {action}")
 

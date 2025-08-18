@@ -162,8 +162,10 @@ def dummy_audio():
 
 @pytest.fixture
 def mock_playlist_with_tracks(test_client_with_mock_db):
-    """Creates a mock playlist with tracks in the test DB and returns its
-    id."""
+    """Creates a mock playlist with tracks in the test DB.
+
+    Returns its id for use in tests.
+    """
     # The test_client_with_mock_db parameter ensures the test DB is set up
     # before creating the playlist
     import uuid

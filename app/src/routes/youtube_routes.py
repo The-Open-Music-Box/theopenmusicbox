@@ -82,7 +82,7 @@ class YouTubeRoutes:
                 # correct
                 response = JSONResponse(content=result, status_code=200)
 
-                # Ajouter des en-têtes anti-cache
+                # Add anti-cache headers
                 response.headers["Cache-Control"] = (
                     "no-cache, no-store, must-revalidate"
                 )
@@ -100,5 +100,121 @@ class YouTubeRoutes:
                 )
 
                 # Utiliser JSONResponse pour l'erreur au lieu de HTTPException
+                error_data = {"error": error_msg, "status": "error"}
+                return JSONResponse(content=error_data, status_code=500)
+
+        @self.app.get("/api/youtube/search", tags=["youtube"])
+        async def search_youtube(request: Request, query: str, max_results: int = 10):
+            """Search for YouTube videos."""
+            logger.log(LogLevel.INFO, f"YouTubeRoutes: Received YouTube search request for: {query}")
+
+            if not query:
+                logger.log(LogLevel.WARNING, "YouTubeRoutes: Empty search query provided")
+                error_data = {"error": "Search query is required", "status": "error"}
+                return JSONResponse(content=error_data, status_code=400)
+
+            try:
+                # Get container from app state
+                container = getattr(request.app, "container", None)
+                if not container:
+                    logger.log(LogLevel.ERROR, "YouTubeRoutes: Container not available")
+                    error_data = {
+                        "error": "Application container not available",
+                        "status": "error",
+                    }
+                    return JSONResponse(content=error_data, status_code=500)
+
+                service = YouTubeService(self.socketio, container.config)
+                # Perform YouTube search
+                search_results = await service.search_videos(query, max_results)
+
+                response_data = {
+                    "status": "success",
+                    "query": query,
+                    "results": search_results,
+                    "count": len(search_results)
+                }
+
+                response = JSONResponse(content=response_data, status_code=200)
+
+                # Add anti-cache headers
+                response.headers["Cache-Control"] = (
+                    "no-cache, no-store, must-revalidate"
+                )
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
+                return response
+
+            except Exception as e:
+                error_msg = str(e)
+                logger.log(
+                    LogLevel.ERROR,
+                    f"YouTubeRoutes: Search failed: {error_msg}",
+                    exc_info=True,
+                )
+
+                error_data = {"error": error_msg, "status": "error"}
+                return JSONResponse(content=error_data, status_code=500)
+
+        @self.app.get("/api/youtube/status/{task_id}", tags=["youtube"])
+        async def get_youtube_status(request: Request, task_id: str):
+            """Get the status of a YouTube download task."""
+            logger.log(LogLevel.INFO, f"YouTubeRoutes: Checking status for task: {task_id}")
+
+            if not task_id:
+                logger.log(LogLevel.WARNING, "YouTubeRoutes: Empty task_id provided")
+                error_data = {"error": "Task ID is required", "status": "error"}
+                return JSONResponse(content=error_data, status_code=400)
+
+            try:
+                # Get container from app state
+                container = getattr(request.app, "container", None)
+                if not container:
+                    logger.log(LogLevel.ERROR, "YouTubeRoutes: Container not available")
+                    error_data = {
+                        "error": "Application container not available",
+                        "status": "error",
+                    }
+                    return JSONResponse(content=error_data, status_code=500)
+
+                service = YouTubeService(self.socketio, container.config)
+                # Get task status
+                task_status = await service.get_task_status(task_id)
+
+                if task_status:
+                    response_data = {
+                        "status": "found",
+                        "task_id": task_id,
+                        "task_status": task_status
+                    }
+                    status_code = 200
+                else:
+                    response_data = {
+                        "status": "not_found",
+                        "task_id": task_id,
+                        "message": "Task not found or expired"
+                    }
+                    status_code = 404
+
+                response = JSONResponse(content=response_data, status_code=status_code)
+
+                # Add anti-cache headers
+                response.headers["Cache-Control"] = (
+                    "no-cache, no-store, must-revalidate"
+                )
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
+                return response
+
+            except Exception as e:
+                error_msg = str(e)
+                logger.log(
+                    LogLevel.ERROR,
+                    f"YouTubeRoutes: Status check failed: {error_msg}",
+                    exc_info=True,
+                )
+
                 error_data = {"error": error_msg, "status": "error"}
                 return JSONResponse(content=error_data, status_code=500)

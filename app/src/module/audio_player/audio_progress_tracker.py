@@ -6,6 +6,7 @@ import threading
 import time
 from typing import Callable, Optional
 
+from app.src.config import config
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 from app.src.services.notification_service import PlaybackSubject
 
@@ -79,7 +80,7 @@ class AudioProgressTracker:
                     )
                     self._handle_track_end()
                 last_playing_state = current_playing_state
-            time.sleep(0.1)  # Update frequently to catch track end
+            time.sleep(config.audio.progress_update_interval)  # Update interval from config
 
     # MARK: - Progress Updates
     def _update_progress(self) -> None:
@@ -142,8 +143,14 @@ class AudioProgressTracker:
                         LogLevel.INFO,
                         f"[UPDATE_PROGRESS] notify_track_progress called (elapsed={elapsed:.2f} / {total:.2f})",
                     )
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error updating progress: {str(e)}")
+        except AttributeError as e:
+            logger.log(LogLevel.ERROR, f"Attribute error updating progress: {str(e)}")
+        except TypeError as e:
+            logger.log(LogLevel.ERROR, f"Type error updating progress: {str(e)}")
+        except ValueError as e:
+            logger.log(LogLevel.ERROR, f"Value error updating progress: {str(e)}")
+        except RuntimeError as e:
+            logger.log(LogLevel.ERROR, f"Runtime error updating progress: {str(e)}")
 
     # MARK: - Track End Handling
     def _handle_track_end(self) -> None:

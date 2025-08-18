@@ -4,6 +4,7 @@
 
 import shutil
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
@@ -53,7 +54,7 @@ class ChunkedUploadService:
         """
         return (current_size + chunk_size) <= self.max_file_size
 
-    def create_session(self, filename: str, total_chunks: int, total_size: int) -> str:
+    def create_session(self, filename: str, total_chunks: int, total_size: int, playlist_id: str) -> str:
         """
         Create a new upload session for a file.
 
@@ -91,6 +92,8 @@ class ChunkedUploadService:
             "current_size": 0,
             "session_dir": session_dir,
             "complete": False,
+            "playlist_id": playlist_id,
+            "created_at": datetime.now(),
         }
 
         logger.log(
@@ -160,12 +163,12 @@ class ChunkedUploadService:
                 "complete": is_complete,
             }
 
-        except Exception as e:
+        except (ValueError, KeyError, IOError, OSError) as e:
             logger.log(
                 LogLevel.ERROR,
                 f"Error processing chunk {chunk_index} for session {session_id}: {str(e)}",
             )
-            raise ProcessingError(f"Error processing chunk: {str(e)}")
+            raise ProcessingError(f"Error processing chunk: {str(e)}") from e
 
     async def finalize_upload(
         self, session_id: str, playlist_path: str
@@ -228,7 +231,7 @@ class ChunkedUploadService:
                 f"Error finalizing upload for session {session_id}: {str(e)}",
             )
             self._cleanup_session(session_id)
-            raise ProcessingError(f"Error finalizing upload: {str(e)}")
+            raise ProcessingError(f"Error finalizing upload: {str(e)}") from e
 
     def get_session_status(self, session_id: str) -> Dict:
         """
@@ -267,9 +270,17 @@ class ChunkedUploadService:
                     shutil.rmtree(session_dir)
                 del self.active_uploads[session_id]
                 logger.log(LogLevel.INFO, f"Cleaned up session {session_id}")
-            except Exception as e:
+            except (OSError, shutil.Error) as e:
                 logger.log(
-                    LogLevel.ERROR, f"Error cleaning up session {session_id}: {str(e)}"
+                    LogLevel.ERROR, f"Error removing session directory {session_id}: {str(e)}"
+                )
+            except KeyError as e:
+                logger.log(
+                    LogLevel.ERROR, f"Session key error for {session_id}: {str(e)}"
+                )
+            except (FileNotFoundError, PermissionError) as e:
+                logger.log(
+                    LogLevel.ERROR, f"File access error for session {session_id}: {str(e)}"
                 )
 
     def cleanup_expired_sessions(self, max_age_hours: int = 24):
@@ -278,6 +289,17 @@ class ChunkedUploadService:
 
         Args:     max_age_hours: Maximum age in hours for inactive sessions
         """
-        # Implementation would check directory creation times
-        # and remove sessions older than max_age_hours
-        pass
+        current_time = datetime.now()
+        sessions_to_remove = []
+        
+        for session_id, session_data in self.active_uploads.items():
+            if "created_at" in session_data:
+                session_age = current_time - session_data["created_at"]
+                if session_age.total_seconds() > max_age_hours * 3600:
+                    sessions_to_remove.append(session_id)
+        
+        for session_id in sessions_to_remove:
+            self._cleanup_session(session_id)
+            logger.log(LogLevel.INFO, f"Removed expired session {session_id}")
+        
+        return len(sessions_to_remove)

@@ -7,6 +7,7 @@ import time
 
 import pygame
 
+from app.src.config import config
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
@@ -26,12 +27,17 @@ class AudioEngine:
         """Initialize Pygame for audio playback."""
         try:
             # Disable unnecessary components to avoid XDG_RUNTIME_DIR errors
-            os.environ["SDL_VIDEODRIVER"] = "dummy"  # Disable video mode
-            os.environ["SDL_AUDIODRIVER"] = "alsa"  # Force ALSA for Raspberry Pi
+            os.environ["SDL_VIDEODRIVER"] = config.audio.sdl_videodriver
+            os.environ["SDL_AUDIODRIVER"] = config.audio.sdl_audiodriver
 
             # Initialize only the required pygame subsystems
             pygame.init()  # Minimal initialization
-            pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=1024)
+            pygame.mixer.init(
+                frequency=config.audio.sample_rate,
+                size=-config.audio.bits_per_sample,
+                channels=config.audio.channels,
+                buffer=config.audio.buffer_size
+            )
 
             # Explicitly disable the display module
             pygame.display.quit()
@@ -96,7 +102,10 @@ class AudioEngine:
                 if attempts == 2:
                     pygame.mixer.quit()
                     pygame.mixer.init(
-                        frequency=44100, size=-16, channels=2, buffer=1024
+                        frequency=config.audio.sample_rate,
+                        size=-config.audio.bits_per_sample,
+                        channels=config.audio.channels,
+                        buffer=config.audio.buffer_size
                     )
 
         logger.log(LogLevel.ERROR, "All load attempts failed")

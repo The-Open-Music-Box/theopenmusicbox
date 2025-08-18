@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Request
 
-from app.src.dependencies import get_audio  # Assuming get_audio dependency injector
+from app.src.dependencies import get_audio, get_audio_controller
 from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
 
 logger = ImprovedLogger(__name__)
@@ -61,6 +61,39 @@ class SystemRoutes:
                 return response
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"DIRECT API /api/volume: Error: {str(e)}")
+                error_data = {"error": str(e)}
+                return JSONResponse(content=error_data, status_code=500)
+
+        # Route GET /api/playback/status
+        @self.app.get("/api/playback/status")
+        async def get_playback_status_direct(audio_controller=Depends(get_audio_controller)):
+            from fastapi.responses import JSONResponse
+
+            logger.log(LogLevel.INFO, "DIRECT API /api/playback/status: Route called")
+
+            try:
+                if not audio_controller:
+                    error_data = {"error": "Audio controller not available"}
+                    return JSONResponse(content=error_data, status_code=503)
+
+                playback_state = audio_controller.get_playback_state()
+                logger.log(
+                    LogLevel.INFO,
+                    f"API: Responding with playback state: {playback_state}",
+                )
+
+                response = JSONResponse(content=playback_state, status_code=200)
+
+                # Add anti-cache headers
+                response.headers["Cache-Control"] = (
+                    "no-cache, no-store, must-revalidate"
+                )
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
+                return response
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"DIRECT API /api/playback/status: Error: {str(e)}")
                 error_data = {"error": str(e)}
                 return JSONResponse(content=error_data, status_code=500)
 
@@ -131,6 +164,151 @@ class SystemRoutes:
             except Exception as e:
                 logger.log(LogLevel.ERROR, f"DIRECT API /api/health: Error: {str(e)}")
                 error_data = {"error": str(e), "status": "error"}
+                return JSONResponse(content=error_data, status_code=500)
+
+        # Route GET /api/system/info
+        @self.app.get("/api/system/info")
+        async def get_system_info_direct(request: Request):
+            from fastapi.responses import JSONResponse
+            import platform
+            import psutil
+            import os
+
+            logger.log(LogLevel.INFO, "DIRECT API /api/system/info: Route called")
+
+            try:
+                # Get container from app state
+                container = getattr(request.app, "container", None)
+                
+                # System information
+                system_info = {
+                    "system": {
+                        "platform": platform.system(),
+                        "platform_release": platform.release(),
+                        "platform_version": platform.version(),
+                        "architecture": platform.machine(),
+                        "hostname": platform.node(),
+                        "python_version": platform.python_version()
+                    },
+                    "hardware": {
+                        "cpu_count": psutil.cpu_count(),
+                        "memory_total": psutil.virtual_memory().total,
+                        "memory_available": psutil.virtual_memory().available,
+                        "disk_usage": {
+                            "total": psutil.disk_usage('/').total,
+                            "used": psutil.disk_usage('/').used,
+                            "free": psutil.disk_usage('/').free
+                        }
+                    },
+                    "application": {
+                        "name": "TheOpenMusicBox",
+                        "version": "1.0.0",
+                        "container_available": container is not None,
+                        "pid": os.getpid()
+                    }
+                }
+
+                response = JSONResponse(content=system_info, status_code=200)
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
+                return response
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"DIRECT API /api/system/info: Error: {str(e)}")
+                error_data = {"error": str(e)}
+                return JSONResponse(content=error_data, status_code=500)
+
+        # Route GET /api/system/logs
+        @self.app.get("/api/system/logs")
+        async def get_system_logs_direct():
+            from fastapi.responses import JSONResponse
+            import os
+            import glob
+
+            logger.log(LogLevel.INFO, "DIRECT API /api/system/logs: Route called")
+
+            try:
+                logs_data = {
+                    "logs": [],
+                    "log_files_available": []
+                }
+
+                # Try to find log files in common locations
+                possible_log_paths = [
+                    "/var/log/tomb-rpi/*.log",
+                    "/tmp/tomb-rpi*.log",
+                    "logs/*.log",
+                    "*.log"
+                ]
+
+                for pattern in possible_log_paths:
+                    log_files = glob.glob(pattern)
+                    for log_file in log_files:
+                        logs_data["log_files_available"].append(log_file)
+                        try:
+                            # Read last 100 lines of each log file
+                            with open(log_file, 'r') as f:
+                                lines = f.readlines()
+                                last_lines = lines[-100:] if len(lines) > 100 else lines
+                                logs_data["logs"].extend([
+                                    {"file": log_file, "line": line.strip()} 
+                                    for line in last_lines if line.strip()
+                                ])
+                        except (IOError, OSError):
+                            continue
+
+                # If no log files found, provide current session info
+                if not logs_data["logs"]:
+                    logs_data["logs"] = [
+                        {"file": "current_session", "line": "No log files found in standard locations"}
+                    ]
+
+                response = JSONResponse(content=logs_data, status_code=200)
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
+                return response
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"DIRECT API /api/system/logs: Error: {str(e)}")
+                error_data = {"error": str(e)}
+                return JSONResponse(content=error_data, status_code=500)
+
+        # Route POST /api/system/restart
+        @self.app.post("/api/system/restart")
+        async def restart_system_direct():
+            from fastapi.responses import JSONResponse
+            import asyncio
+            import os
+            import signal
+
+            logger.log(LogLevel.INFO, "DIRECT API /api/system/restart: Route called")
+
+            try:
+                # Schedule restart after response is sent
+                async def delayed_restart():
+                    await asyncio.sleep(2)  # Give time for response to be sent
+                    logger.log(LogLevel.INFO, "Restarting application...")
+                    os.kill(os.getpid(), signal.SIGTERM)
+
+                # Start the delayed restart task
+                asyncio.create_task(delayed_restart())
+
+                response_data = {
+                    "status": "restart_scheduled",
+                    "message": "Application restart scheduled in 2 seconds"
+                }
+
+                response = JSONResponse(content=response_data, status_code=200)
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+
+                return response
+            except Exception as e:
+                logger.log(LogLevel.ERROR, f"DIRECT API /api/system/restart: Error: {str(e)}")
+                error_data = {"error": str(e)}
                 return JSONResponse(content=error_data, status_code=500)
 
         # Inclure le routeur pour les autres routes (comme POST /api/volume)
