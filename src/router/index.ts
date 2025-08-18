@@ -1,22 +1,21 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import MainContent from '../views/HomePage.vue'
+import { HomePage, AboutPage, SettingsPage } from './lazyRoutes'
 
 const routes = [
   {
     path: '/',
     name: 'Home',
-    component: MainContent
+    component: HomePage
   },
   {
     path: '/about',
     name: 'About',
-    component: () => import('../views/AboutPage.vue')
+    component: AboutPage
   },
-
   {
     path: '/settings',
     name: 'Settings',
-    component: () => import('../views/SettingsPage.vue')
+    component: SettingsPage
   }
 ]
 
