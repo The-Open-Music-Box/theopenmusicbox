@@ -127,6 +127,8 @@
  */
 
 import { useI18n } from 'vue-i18n'
+import { defineEmits } from 'vue'
+import { logger } from '@/utils/logger'
 
 const { t } = useI18n()
 
@@ -149,12 +151,12 @@ const emit = defineEmits<{
 }>()
 
 const handlePrevious = () => {
-  console.log('[PlaybackControls] Previous button clicked')
+  logger.debug('Previous button clicked', {}, 'PlaybackControls')
   emit('previous')
 }
 
 const handleNext = () => {
-  console.log('[PlaybackControls] Next button clicked')
+  logger.debug('Next button clicked', {}, 'PlaybackControls')
   emit('next')
 }
 </script>

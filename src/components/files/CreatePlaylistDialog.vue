@@ -86,6 +86,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { logger } from '@/utils/logger'
 import {
   Dialog,
   DialogPanel,
@@ -108,7 +109,7 @@ const isCreating = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
 
 // Focus the title input when the dialog opens
-watch(() => props.open, (isOpen) => {
+watch(() => props.open, (isOpen: boolean) => {
   if (isOpen) {
     // Reset form state
     title.value = ''
@@ -133,7 +134,7 @@ async function createPlaylist() {
     isCreating.value = true
     emit('create', title.value.trim())
   } catch (err) {
-    console.error('Error creating playlist:', err)
+    logger.error('Error creating playlist', { error: err }, 'CreatePlaylistDialog')
     error.value = t('file.errorCreating')
   } finally {
     isCreating.value = false

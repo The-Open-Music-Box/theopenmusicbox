@@ -23,7 +23,12 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import dataService from '../services/dataService'
 
-const systemHealth = ref<any>(null)
+interface SystemHealth {
+  error?: string;
+  [key: string]: unknown;
+}
+
+const systemHealth = ref<SystemHealth | null>(null)
 const healthCheckInterval = ref<number | null>(null)
 
 const checkHealth = async () => {
@@ -35,7 +40,7 @@ const checkHealth = async () => {
   }
 }
 
-function formatJson(obj: any) {
+function formatJson(obj: unknown) {
   return JSON.stringify(obj, null, 2)
 }
 

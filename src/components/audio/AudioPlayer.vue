@@ -23,7 +23,6 @@
 </template>
 
 <script setup lang="ts">
-import { getColor } from '@/theme/colors'
 /**
  * AudioPlayer Component
  *
@@ -34,13 +33,14 @@ import { getColor } from '@/theme/colors'
  * - Skip forward/backward controls
  * - Track metadata display
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import TrackInfo from './TrackInfo.vue'
 import ProgressBar from './ProgressBar.vue'
 import PlaybackControls from './PlaybackControls.vue'
 import type { Track, PlayList } from '../files/types'
 import socketService from '@/services/socketService'
 import apiService from '@/services/realApiService'
+import { logger } from '@/utils/logger'
 
 // Component props with types and defaults
 interface Props {
@@ -50,7 +50,7 @@ interface Props {
   playlist?: PlayList | null;
 }
 
-const props = withDefaults(defineProps<Props>(), {
+withDefaults(defineProps<Props>(), {
   selectedTrack: null,
   playlist: null
 })
@@ -63,7 +63,6 @@ const currentTrack = ref<Track | null>(null)
 const currentPlaylist = ref<PlayList | null>(null)
 // Loading state for track change
 const isChangingTrack = ref(false)
-let pendingTrackFilename: string | null = null
 
 // Listen for WebSocket events
 let lastBackendTime = 0
@@ -72,7 +71,7 @@ let lastReceivedTimestamp = 0
 let progressInterval: ReturnType<typeof setInterval> | null = null
 
 function startProgressTimer() {
-  console.log('[AudioPlayer] startProgressTimer called. isPlaying:', isPlaying.value, 'duration:', duration.value, 'at', Date.now());
+  logger.debug('Starting progress timer', { isPlaying: isPlaying.value, duration: duration.value }, 'AudioPlayer');
   if (progressInterval) clearInterval(progressInterval)
   progressInterval = setInterval(() => {
     // Log à chaque tick d'update progress bar
@@ -87,37 +86,35 @@ function startProgressTimer() {
       if (progressInterval) {
         clearInterval(progressInterval)
         progressInterval = null
-        console.log('[AudioPlayer] Progress timer stopped (paused or no duration) at', Date.now());
+        logger.debug('Progress timer stopped (paused or no duration)', {}, 'AudioPlayer');
       }
     }
   }, 200)
 }
 
-import { watch } from 'vue'
-
 onMounted(() => {
-  console.log('[AudioPlayer] onMounted at', Date.now());
-  socketService.on('track_progress', (data: any) => {
+  logger.debug('AudioPlayer mounted', {}, 'AudioPlayer');
+  socketService.on('track_progress', (data: unknown) => {
     try {
-      console.log('[AudioPlayer] Received backend track_progress:', data, 'at', Date.now());
+      const trackData = data as { track?: Track; playlist?: PlayList; current_time?: number; duration?: number; is_playing?: boolean }
+      logger.debug('Received track_progress', { trackData }, 'AudioPlayer');
       // data: { track, playlist, current_time, duration, is_playing }
       // Detect track change
-      const isNewTrack = currentTrack.value?.filename !== data.track?.filename
+      const isNewTrack = currentTrack.value?.filename !== trackData.track?.filename
       if (isChangingTrack.value && isNewTrack) {
         isChangingTrack.value = false;
-        pendingTrackFilename = null;
         // Resume playback and reset progress bar
         isPlaying.value = true;
         currentTime.value = 0;
       }
-      currentTrack.value = data.track;
-      currentPlaylist.value = data.playlist;
-      lastBackendTime = data.current_time;
+      currentTrack.value = trackData.track || null;
+      currentPlaylist.value = trackData.playlist || null;
+      lastBackendTime = trackData.current_time || 0;
       lastReceivedTimestamp = Date.now() / 1000;
-      duration.value = data.duration;
+      duration.value = trackData.duration || 0;
       // Always sync from backend, but only auto-resume if this was a track change
       if (!isChangingTrack.value) {
-        isPlaying.value = data.is_playing;
+        isPlaying.value = trackData.is_playing || false;
       }
       // Set currentTime immediately to backend value or reset if new track
       if (!isChangingTrack.value) {
@@ -125,36 +122,38 @@ onMounted(() => {
       }
       // Timer will be managed by watcher
     } catch (err) {
-      console.error('[AudioPlayer] Error updating playback state from track_progress:', err, data);
+      logger.error('Error updating playback state from track_progress', { error: err, data }, 'AudioPlayer');
     }
   })
-  socketService.on('playback_status', (data: any) => {
+  socketService.on('playback_status', (data: unknown) => {
     try {
-      console.log('[AudioPlayer] Received backend playback_status:', data, 'at', Date.now());
+      const statusData = data as { status?: string; playlist?: PlayList; current_track?: Track }
+      logger.debug('Received playback_status', { statusData }, 'AudioPlayer');
       // data: { status, playlist, current_track }
       // Detect track change
-      const isNewTrack = currentTrack.value?.filename !== data.current_track?.filename
-      currentTrack.value = data.current_track || null
-      currentPlaylist.value = data.playlist || null
+      const isNewTrack = currentTrack.value?.filename !== statusData.current_track?.filename
+      currentTrack.value = statusData.current_track || null
+      currentPlaylist.value = statusData.playlist || null
       // Optionally map status to isPlaying
-      isPlaying.value = data.status === 'playing' // Always sync from backend
+      isPlaying.value = statusData.status === 'playing' // Always sync from backend
       // duration and currentTime may not be present; set to 0 if missing
-      duration.value = data.current_track?.duration || 0
+      duration.value = statusData.current_track?.duration ? parseInt(statusData.current_track.duration) : 0
       currentTime.value = isNewTrack ? 0 : currentTime.value
       // Timer will be managed by watcher
     } catch (err) {
-      console.error('[AudioPlayer] Error updating playback state from playback_status:', err, data);
+      logger.error('Error updating playback state from playback_status', { error: err, data }, 'AudioPlayer');
     }
   })
-  socketService.on('connection_status', (data: any) => {
+  socketService.on('connection_status', (data: unknown) => {
+    const connectionData = data as { status?: string }
     // Handle connection status changes, especially reconnection
-    if (data.status === 'connected') {
+    if (connectionData.status === 'connected') {
       // Request current playback status to resync state
       try {
         socketService.emit && socketService.emit('get_playback_status', {});
-        console.log('[AudioPlayer] Requested playback status after reconnect.');
+        logger.debug('Requested playback status after reconnect', {}, 'AudioPlayer');
       } catch (err) {
-        console.error('[AudioPlayer] Error requesting playback status after reconnect:', err);
+        logger.error('Error requesting playback status after reconnect', { error: err }, 'AudioPlayer');
       }
     }
   })
@@ -175,20 +174,19 @@ watch(isPlaying, (newVal) => {
   } else if (progressInterval) {
     clearInterval(progressInterval)
     progressInterval = null
-    console.log('[AudioPlayer] Progress timer stopped by watcher (paused) at', Date.now());
+    logger.debug('Progress timer stopped by watcher (paused)', {}, 'AudioPlayer');
   }
 })
 
 const togglePlayPause = async () => {
-  console.log('[AudioPlayer] Play/Pause button clicked. isPlaying before:', isPlaying.value, 'at', Date.now());
   const action = isPlaying.value ? 'pause' : 'resume';
-  console.log('[AudioPlayer] Sending controlPlaylist action:', action, 'at', Date.now());
+  logger.debug('Play/Pause button clicked', { action, wasPlaying: isPlaying.value }, 'AudioPlayer');
   try {
     // Ne pas faire de mise à jour optimiste !
     await apiService.controlPlaylist(action);
     // La vraie valeur sera resynchronisée via l'événement backend
   } catch (error) {
-    console.error('[AudioPlayer] Error in togglePlayPause():', error);
+    logger.error('Error in togglePlayPause', { error }, 'AudioPlayer');
   }
 }
 
@@ -201,28 +199,22 @@ const skip = () => {
 }
 
 const previous = async () => {
-  console.log('[AudioPlayer] previous() called at', Date.now(), {
-    currentPlaylist: currentPlaylist.value,
-    currentTrack: currentTrack.value
-  });
+  logger.debug('Previous track requested', { currentPlaylist: currentPlaylist.value?.id, currentTrack: currentTrack.value?.filename }, 'AudioPlayer');
   // Suppression de tout verrouillage : on envoie la commande à chaque clic
   try {
     await apiService.controlPlaylist('previous');
   } catch (error) {
-    console.error('[AudioPlayer] Error in previous():', error);
+    logger.error('Error in previous', { error }, 'AudioPlayer');
   }
 }
 
 const next = async () => {
-  console.log('[AudioPlayer] next() called at', Date.now(), {
-    currentPlaylist: currentPlaylist.value,
-    currentTrack: currentTrack.value
-  });
+  logger.debug('Next track requested', { currentPlaylist: currentPlaylist.value?.id, currentTrack: currentTrack.value?.filename }, 'AudioPlayer');
   // Suppression de tout verrouillage : on envoie la commande à chaque clic
   try {
     await apiService.controlPlaylist('next');
   } catch (error) {
-    console.error('[AudioPlayer] Error in next():', error);
+    logger.error('Error in next', { error }, 'AudioPlayer');
   }
 }
 </script>

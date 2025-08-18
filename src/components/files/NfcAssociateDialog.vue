@@ -103,7 +103,8 @@
 import { ref, watch, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import socketService from '@/services/socketService'
-import api from '@/services/api'
+import dataService from '@/services/dataService'
+import { logger } from '@/utils/logger'
 
 const props = defineProps<{
   open: boolean,
@@ -121,36 +122,58 @@ const lastTagId = ref<string | null>(null)
 
 const { t } = useI18n()
 
+// Socket event data interfaces
+interface NfcStatusData {
+  status: string;
+  message?: string;
+  associated_playlist_id?: string;
+  associated_playlist_title?: string;
+  tag_id?: string;
+}
+
+interface NfcScanningData {
+  last_tag_id?: string;
+}
+
+interface NfcTagDetectedData {
+  tag_id?: string;
+}
+
+interface NfcErrorData {
+  message?: string;
+}
+
 // Socket.IO event handlers
 function setupSocketHandlers() {
   // Handle NFC status updates
-  socketService.on('nfc_status', (data) => {
-    console.log('NFC status:', data)
-    const status = data.status
+  socketService.on('nfc_status', (data: unknown) => {
+    const nfcData = data as NfcStatusData
+    logger.debug('NFC status received', { data: nfcData }, 'NfcAssociateDialog')
+    const status = nfcData.status
 
     switch (status) {
       case 'waiting':
         state.value = 'waiting'
-        nfcStatusMessage.value = data.message || t('nfc.waiting_for_tag')
+        nfcStatusMessage.value = nfcData.message || t('nfc.waiting_for_tag')
         break
 
       case 'already_associated':
         state.value = 'already_associated'
-        nfcStatusMessage.value = data.message || t('nfc.tag_used_by_other_playlist')
-        if (data.associated_playlist_id && data.associated_playlist_title) {
+        nfcStatusMessage.value = nfcData.message || t('nfc.tag_used_by_other_playlist')
+        if (nfcData.associated_playlist_id && nfcData.associated_playlist_title) {
           associatedPlaylistInfo.value = {
-            id: data.associated_playlist_id,
-            title: data.associated_playlist_title
+            id: nfcData.associated_playlist_id,
+            title: nfcData.associated_playlist_title
           }
         }
-        if (data.tag_id) {
-          lastTagId.value = data.tag_id
+        if (nfcData.tag_id) {
+          lastTagId.value = nfcData.tag_id
         }
         break
 
       case 'success':
         state.value = 'success'
-        nfcStatusMessage.value = data.message || t('nfc.tag_associated_success')
+        nfcStatusMessage.value = nfcData.message || t('nfc.tag_associated_success')
         // Only emit success signal but don't close, wait for user to click OK
         // The dialog will stay open until user clicks the button
         emit('success', { closeDialog: false }) // Explicitly indicate not to close
@@ -158,7 +181,7 @@ function setupSocketHandlers() {
 
       case 'error':
         state.value = 'error'
-        errorMsg.value = data.message || t('nfc.general_error')
+        errorMsg.value = nfcData.message || t('nfc.general_error')
         break
 
       case 'stopped':
@@ -171,33 +194,36 @@ function setupSocketHandlers() {
 
       case 'override_mode':
         // When override mode is enabled, update the UI to show we're processing
-        nfcStatusMessage.value = data.message || t('nfc.override_in_progress')
+        nfcStatusMessage.value = nfcData.message || t('nfc.override_in_progress')
         break
     }
   })
 
   // Handle real-time scanning updates
-  socketService.on('nfc_scanning', (data) => {
+  socketService.on('nfc_scanning', (data: unknown) => {
+    const scanData = data as NfcScanningData
     scanStatus.value = new Date().toLocaleTimeString()
-    if (data.last_tag_id) {
-      lastTagId.value = data.last_tag_id
+    if (scanData.last_tag_id) {
+      lastTagId.value = scanData.last_tag_id
     }
   })
 
   // Handle tag detection events
-  socketService.on('nfc_tag_detected', (data) => {
-    console.log('NFC tag detected:', data)
-    if (data.tag_id) {
-      lastTagId.value = data.tag_id
-      scanStatus.value = new Date().toLocaleTimeString() + ` - Tag: ${data.tag_id}`
+  socketService.on('nfc_tag_detected', (data: unknown) => {
+    const tagData = data as NfcTagDetectedData
+    logger.info('NFC tag detected', { tagId: tagData.tag_id }, 'NfcAssociateDialog')
+    if (tagData.tag_id) {
+      lastTagId.value = tagData.tag_id
+      scanStatus.value = new Date().toLocaleTimeString() + ` - Tag: ${tagData.tag_id}`
     }
   })
 
   // Handle errors
-  socketService.on('nfc_error', (data) => {
-    console.error('NFC error:', data)
+  socketService.on('nfc_error', (data: unknown) => {
+    const errorData = data as NfcErrorData
+    logger.error('NFC error received', { data: errorData }, 'NfcAssociateDialog')
     state.value = 'error'
-    errorMsg.value = data.message || t('nfc.general_error')
+    errorMsg.value = errorData.message || t('nfc.general_error')
   })
 }
 
@@ -210,16 +236,16 @@ function cleanupSocketHandlers() {
 
 watch(() => props.open, async (newVal) => {
   if (newVal) {
-    // Vérifie le statut NFC au chargement du popup
+    // Check NFC status when popup loads
     try {
-      const data = await api.get('/api/health')
-      if (data?.nfc && data.nfc.available === false) {
+      const data = await dataService.getNfcStatus()
+      if (data?.status && data.status !== 'ready') {
         state.value = 'nfc_unavailable'
-        errorMsg.value = data.nfc.code
+        errorMsg.value = data.device_info || 'NFC_NOT_AVAILABLE'
         return
       }
     } catch (e) {
-      // Si l'appel health échoue, fallback sur erreur hardware
+      // If NFC status call fails, fallback to hardware error
       state.value = 'hardware_error'
       errorMsg.value = 'NFC_NOT_AVAILABLE'
       return
@@ -245,24 +271,30 @@ const startAssociation = async () => {
   state.value = 'waiting'
 
   try {
-    console.log('Starting NFC association for playlist:', props.playlistId)
+    logger.info('Starting NFC association', { playlistId: props.playlistId }, 'NfcAssociateDialog')
 
     // Emit Socket.IO event to start NFC listening
     socketService.emit('start_nfc_link', { playlist_id: props.playlistId })
 
     // Status updates will be handled by socket event handlers
-  } catch (err: any) {
-    console.error('Error starting NFC association:', err)
+  } catch (err: unknown) {
+    logger.error('Failed to start NFC association', { error: err }, 'NfcAssociateDialog')
 
     // Handle hardware errors
-    if (err?.response?.status === 503 ||
-        (typeof err?.response?.data?.error === 'string' &&
-         err.response.data.error.toLowerCase().includes('hardware'))) {
-      state.value = 'hardware_error'
-      errorMsg.value = err.response?.data?.error || t('nfc.hardware_error_details')
+    if (err && typeof err === 'object' && 'response' in err) {
+      const response = (err as { response?: { status?: number; data?: { error?: string } } }).response
+      if (response?.status === 503 ||
+          (typeof response?.data?.error === 'string' &&
+           response.data.error.toLowerCase().includes('hardware'))) {
+        state.value = 'hardware_error'
+        errorMsg.value = response?.data?.error || t('nfc.hardware_error_details')
+      } else {
+        state.value = 'error'
+        errorMsg.value = (err as { message?: string }).message || t('nfc.general_error')
+      }
     } else {
       state.value = 'error'
-      errorMsg.value = err?.message || t('nfc.general_error')
+      errorMsg.value = t('nfc.general_error')
     }
   }
 }
@@ -274,10 +306,10 @@ const overrideAssociation = async () => {
     socketService.emit('override_nfc_tag', {})
 
     // Status updates will be handled by socket event handlers
-  } catch (err: any) {
-    console.error('Error overriding NFC association:', err)
+  } catch (err: unknown) {
+    logger.error('Failed to override NFC association', { error: err }, 'NfcAssociateDialog')
     state.value = 'error'
-    errorMsg.value = err?.message || t('nfc.override_error')
+    errorMsg.value = (err as { message?: string })?.message || t('nfc.override_error')
   }
 }
 
@@ -285,13 +317,13 @@ const handleCancel = async () => {
   try {
     // Emit Socket.IO event to cancel NFC association
     socketService.emit('stop_nfc_link', {})
-    console.log('Sent stop_nfc_link event')
+    logger.debug('Sent stop_nfc_link event', {}, 'NfcAssociateDialog')
 
     // Update state but wait for confirmation from server before closing
     state.value = 'cancelling'
     nfcStatusMessage.value = t('nfc.cancelling_association')
   } catch (err) {
-    console.error('Error cancelling NFC association:', err)
+    logger.error('Failed to cancel NFC association', { error: err }, 'NfcAssociateDialog')
     // User can still cancel even if the request fails
     state.value = 'cancelled'
     emit('close')
@@ -301,9 +333,9 @@ const handleClose = async () => {
   try {
     // When closing the dialog, always ensure NFC association mode is stopped
     socketService.emit('stop_nfc_link', {})
-    console.log('Sent stop_nfc_link event from handleClose')
+    logger.debug('Sent stop_nfc_link event from handleClose', {}, 'NfcAssociateDialog')
   } catch (err) {
-    console.error('Error stopping NFC association on dialog close:', err)
+    logger.error('Failed to stop NFC association on dialog close', { error: err }, 'NfcAssociateDialog')
   } finally {
     // Always close the dialog
     emit('close')

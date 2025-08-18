@@ -257,21 +257,20 @@
 </template>
 
 <script setup lang="ts">
-import { colors } from '@/theme/colors'
-
-import { ref, computed, nextTick, watch, onMounted } from 'vue'
+import { ref, nextTick, watch, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PlayList, Track } from './types'
 import dataService from '@/services/dataService'
+import { logger } from '@/utils/logger'
 import NfcAssociateDialog from './NfcAssociateDialog.vue'
 import DeleteDialog from './DeleteDialog.vue'
 import CreatePlaylistDialog from './CreatePlaylistDialog.vue'
 import UploadModal from '@/components/upload/UploadModal.vue'
-import { useUploadModalStore } from '@/stores/uploadModalStore'
+import { useUploadStore } from '@/stores/uploadStore'
 import draggable from 'vuedraggable'
 
 const { t } = useI18n()
-const uploadModalStore = useUploadModalStore()
+const uploadStore = useUploadStore()
 
 const props = defineProps<{
   playlists: PlayList[];
@@ -283,10 +282,6 @@ const props = defineProps<{
 
 const emit = defineEmits(['refreshPlaylists', 'play-playlist', 'select-track', 'deleteTrack', 'feedback'])
 
-// Listen for feedback event from parent
-function onFeedback({ type, message }: { type: 'success' | 'error', message: string }) {
-  showFeedback(type, message)
-}
 
 // Edit mode state
 // Force le mode édition à false au démarrage du composant
@@ -294,7 +289,7 @@ const isEditMode = ref(false)
 // Simple local toggle for edit mode
 const toggleEditMode = () => {
   isEditMode.value = !isEditMode.value
-  console.log('[FilesList] Edit mode toggled to:', isEditMode.value)
+  logger.debug('Edit mode toggled', { editMode: isEditMode.value }, 'FilesList')
 }
 
 // Editable titles for playlists
@@ -342,6 +337,7 @@ onMounted(() => {
  * Watch for playlist changes but maintain closed state by default
  * This preserves the user's choice of which playlists to keep open
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 watch(() => props.playlists, (newPlaylists) => {
   // We intentionally don't auto-add playlists to openPlaylists
   // This ensures playlists remain closed by default
@@ -357,11 +353,11 @@ const selectedPlaylistId = ref<string | null>(null)
  * Refresh playlists but don't close the dialog automatically
  * @param {Object} data - Optional data from the success event
  */
-const handleNfcSuccess = (data: any) => {
+const handleNfcSuccess = (data: { closeDialog?: boolean } | unknown) => {
   // Emit refresh but don't close dialog unless specified
   emit('refreshPlaylists')
   // Only close dialog if explicitly requested
-  if (data && data.closeDialog === true) {
+  if (data && typeof data === 'object' && 'closeDialog' in data && data.closeDialog === true) {
     showNfcDialog.value = false
   }
   // Otherwise, leave dialog open for user to close manually
@@ -386,7 +382,7 @@ async function updatePlaylistTitle(playlistId: string) {
     showFeedback('success', t('file.playlistUpdated'))
   } catch (error) {
     showFeedback('error', t('file.errorUpdating'))
-    console.error('Error updating playlist title:', error)
+    logger.error('Failed to update playlist title', { playlistId, error }, 'FilesList')
   }
 }
 
@@ -408,11 +404,11 @@ async function deletePlaylist() {
   try {
     // Here you would call a method to delete the playlist
     // await filesStore.deletePlaylist(playlistToDelete.value)
-    console.log('[FilesList] Playlist deleted:', playlistToDelete.value)
+    logger.info('Playlist deleted', { playlistId: playlistToDelete.value }, 'FilesList')
     emit('refreshPlaylists')
     showFeedback('success', t('file.playlistDeleted'))
   } catch (err) {
-    console.error('[FilesList] Error deleting playlist:', err)
+    logger.error('Failed to delete playlist', { playlistId: playlistToDelete.value, error: err }, 'FilesList')
     // Reload playlists to reset the UI state
     emit('refreshPlaylists')
   } finally {
@@ -427,18 +423,18 @@ async function deletePlaylist() {
  */
 async function createNewPlaylist(title: string) {
   try {
-    console.log('[FilesList] Creating new playlist:', title)
+    logger.info('Creating new playlist', { title }, 'FilesList')
 
     // Créer la nouvelle playlist
     const newPlaylistId = await dataService.createPlaylist({ title })
-    console.log('[FilesList] Playlist created successfully with ID:', newPlaylistId)
+    logger.info('Playlist created successfully', { playlistId: newPlaylistId }, 'FilesList')
 
     showCreatePlaylistDialog.value = false
     showFeedback('success', t('file.playlistCreated'))
 
     // Store current edit mode state before refresh (smart refresh logic)
     const wasInEditMode = isEditMode.value
-    console.log('[FilesList] Smart refresh after playlist creation: preserving edit mode =', wasInEditMode)
+    logger.debug('Smart refresh after playlist creation', { wasInEditMode }, 'FilesList')
 
     // Activer le mode édition si ce n'est pas déjà fait
     if (!isEditMode.value) {
@@ -447,35 +443,35 @@ async function createNewPlaylist(title: string) {
     }
 
     // CRITICAL FIX: Refresh playlists directly after creation
-    console.log('[FilesList] Calling loadPlaylists directly after playlist creation')
+    logger.debug('Refreshing playlists after creation', {}, 'FilesList')
     emit('refreshPlaylists')
     
     // Also try to refresh via the files store directly as backup
     try {
       emit('refreshPlaylists')
-      console.log('[FilesList] Direct loadPlaylists completed successfully')
+      logger.debug('Direct playlist refresh completed', {}, 'FilesList')
     } catch (err) {
-      console.error('[FilesList] Error during direct loadPlaylists:', err)
+      logger.error('Failed during direct playlist refresh', { error: err }, 'FilesList')
     }
 
     // After refresh, ensure edit mode and playlist state are preserved
     nextTick(() => {
-      console.log('[FilesList] Smart refresh after playlist creation: restoring state')
+      logger.debug('Restoring state after playlist creation', {}, 'FilesList')
 
       // Ensure edit mode is preserved after refresh
       if (!isEditMode.value && (wasInEditMode || newPlaylistId)) {
-        console.log('[FilesList] Restoring edit mode after playlist creation refresh')
+        logger.debug('Restoring edit mode after refresh', {}, 'FilesList')
         isEditMode.value = true
       }
 
       // Add to open playlists and ensure the new playlist is opened in edit mode
       if (newPlaylistId && !openPlaylists.value.includes(newPlaylistId)) {
-        console.log('[FilesList] Opening newly created playlist in edit mode:', newPlaylistId)
+        logger.debug('Opening newly created playlist', { playlistId: newPlaylistId }, 'FilesList')
         openPlaylists.value.push(newPlaylistId)
       }
     })
   } catch (err) {
-    console.error('Error creating playlist:', err)
+    logger.error('Failed to create playlist', { error: err }, 'FilesList')
     showFeedback('error', t('file.errorCreating'))
   }
 }
@@ -507,17 +503,17 @@ function showFeedback(type: 'success' | 'error', message: string) {
  * Handle drag start event
  * @param {Event} evt - Drag event
  */
-function dragStart(evt: any) {
-  draggedTrack.value = evt.item
-  dragSourcePlaylistId.value = evt.from.dataset.playlistId || null
-  console.log('[FilesList] Drag started from playlist:', dragSourcePlaylistId.value)
+function dragStart(evt: DragEvent & { item?: Track; from?: { dataset?: { playlistId?: string } } }) {
+  draggedTrack.value = evt.item || null
+  dragSourcePlaylistId.value = evt.from?.dataset?.playlistId || null
+  logger.debug('Drag started', { sourcePlaylistId: dragSourcePlaylistId.value }, 'FilesList')
 }
 
 /**
  * Handle drag end event
  * @param {Event} evt - Drag event
  */
-function dragEnd(evt: any) {
+function dragEnd() {
   draggedTrack.value = null
   dragSourcePlaylistId.value = null
   dragTargetPlaylistId.value = null
@@ -528,8 +524,9 @@ function dragEnd(evt: any) {
  * @param {Event} evt - Change event
  * @param {string} playlistId - Current playlist ID
  */
-async function handleDragChange(evt: any, playlistId: string) {
-  console.log('[FilesList] Drag change event:', evt.added ? 'added' : evt.removed ? 'removed' : 'moved', 'in playlist:', playlistId)
+async function handleDragChange(evt: { moved?: { element: Track }; added?: { element: Track }; from?: { dataset?: { playlistId?: string } } }, playlistId: string) {
+  const eventType = evt.added ? 'added' : evt.moved ? 'moved' : 'unknown'
+  logger.debug('Drag change event', { eventType, playlistId }, 'FilesList')
 
   // Handle reordering within the same playlist
   if (evt.moved) {
@@ -541,10 +538,10 @@ async function handleDragChange(evt: any, playlistId: string) {
 
       // Call the API to update the order
       await dataService.reorderTracks(playlistId, trackNumbers)
-      console.log('[FilesList] Tracks reordered in playlist:', playlistId)
+      logger.info('Tracks reordered', { playlistId }, 'FilesList')
       showFeedback('success', t('file.tracksReordered'))
     } catch (err) {
-      console.error('[FilesList] Error reordering tracks:', err)
+      logger.error('Failed to reorder tracks', { playlistId, error: err }, 'FilesList')
       // Reload playlists to reset the UI state
       emit('refreshPlaylists')
     }
@@ -553,11 +550,11 @@ async function handleDragChange(evt: any, playlistId: string) {
 
   // Handle moving between playlists
   if (evt.added && evt.from) {
-    const sourcePlaylistId = evt.from.dataset.playlistId
+    const sourcePlaylistId = evt.from.dataset?.playlistId
     if (sourcePlaylistId && sourcePlaylistId !== playlistId) {
       try {
         const movedTrack = evt.added.element
-        console.log('[FilesList] Track moved between playlists:', movedTrack.number, 'from', sourcePlaylistId, 'to', playlistId)
+        logger.info('Track moved between playlists', { trackNumber: movedTrack.number, from: sourcePlaylistId, to: playlistId }, 'FilesList')
 
         // Call the API to move the track
         await dataService.moveTrackBetweenPlaylists(
@@ -595,7 +592,7 @@ function togglePlaylist(playlistId: string) {
  * Uses NO refresh to prevent interrupting multi-file uploads
  */
 function handleUploadComplete() {
-  console.log('[FilesList] Enhanced upload completed successfully')
+  logger.info('Enhanced upload completed', {}, 'FilesList')
 
   // DO NOT emit refreshPlaylists to prevent page refresh that breaks multi-file uploads
   // The playlist will be updated via optimistic updates or manual refresh when needed
@@ -610,12 +607,12 @@ function handleUploadComplete() {
  * while preserving the edit mode state
  */
 function handleAllUploadsComplete(playlistId: string) {
-  console.log('[FilesList] All uploads completed for playlist', playlistId)
+  logger.info('All uploads completed', { playlistId }, 'FilesList')
 
   // Store the current edit mode state before refresh
   const wasInEditMode = isEditMode.value
 
-  console.log('[FilesList] Smart refresh: preserving edit mode =', wasInEditMode, 'for playlist', playlistId)
+  logger.debug('Smart refresh preserving edit mode', { wasInEditMode, playlistId }, 'FilesList')
 
   // Emit refresh to update the playlist with newly uploaded tracks
   emit('refreshPlaylists')
@@ -624,7 +621,7 @@ function handleAllUploadsComplete(playlistId: string) {
   // Use nextTick to ensure DOM is updated after the refresh
   nextTick(() => {
     if (wasInEditMode) {
-      console.log('[FilesList] Smart refresh: restoring edit mode for playlist', playlistId)
+      logger.debug('Restoring edit mode after refresh', { playlistId }, 'FilesList')
       // Re-enable edit mode after refresh
       isEditMode.value = true
     }
@@ -635,10 +632,10 @@ function handleAllUploadsComplete(playlistId: string) {
 
 /**
  * Handle upload error from enhanced uploader
- * @param {any} error - Upload error details
+ * @param {unknown} error - Upload error details
  */
-function handleUploadError(error: any) {
-  console.error('[FilesList] Enhanced upload error:', error)
+function handleUploadError(error: unknown) {
+  logger.error('Enhanced upload error', { error }, 'FilesList')
   showFeedback('error', t('file.uploadError'))
 }
 
@@ -648,11 +645,11 @@ function handleUploadError(error: any) {
  */
 function openUploadModal(playlistId: string) {
   currentUploadPlaylistId.value = playlistId
-  uploadModalStore.open(playlistId)
+  uploadStore.openUploadModal(playlistId)
 }
 
 // Watch for modal close to refresh playlists
-watch(() => uploadModalStore.isOpen(), (isOpen) => {
+watch(() => uploadStore.isModalOpen, (isOpen) => {
   if (!isOpen && currentUploadPlaylistId.value) {
     // Modal closed, refresh playlists
     emit('refreshPlaylists')

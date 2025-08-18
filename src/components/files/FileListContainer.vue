@@ -35,10 +35,10 @@
 import { onMounted, ref } from 'vue'
 import { useFilesStore } from './composables/useFilesStore'
 import FilesList from './FilesList.vue'
-import DeleteDialog from '../DeleteDialog.vue'
+import DeleteDialog from './DeleteDialog.vue'
 import type { PlayList, Track } from './types'
 import { useI18n } from 'vue-i18n'
-import { colors } from '@theme/colors'
+import { logger } from '@/utils/logger'
 
 const { t } = useI18n()
 
@@ -52,6 +52,8 @@ const localSelectedTrack = ref<Track | null>(props.selectedTrack || null)
 const emit = defineEmits<{
   /** Emitted when a track is selected for playback */
   (e: 'select-track', data: { track: Track, playlist: PlayList }): void
+  /** Emitted when feedback needs to be shown */
+  (e: 'feedback', data: { type: 'success' | 'error', message: string }): void
 }>()
 
 import dataService from '@/services/dataService'
@@ -116,14 +118,17 @@ const handlePlayPlaylist = async (playlist: PlayList) => {
     // await loadPlaylists()
   } catch (err) {
     // Optionally show error to user
-    console.error('Error starting playlist:', err)
+    logger.error('Error starting playlist', { error: err }, 'FileListContainer')
   }
 }
+
+// Remove duplicate deleteTrackHandler function - functionality is already in handleDeleteTrack
 
 // Load playlists when component mounts
 onMounted(loadPlaylists)
 // Forward feedback event to FilesList
-function onFeedback({ type, message }: { type: 'success' | 'error', message: string }) {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function onFeedback(_: { type: 'success' | 'error', message: string }) {
   // No-op: FilesList handles its own feedback; this is just to satisfy the event interface
 }
 

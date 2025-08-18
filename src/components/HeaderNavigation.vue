@@ -88,7 +88,7 @@
  * Provides responsive navigation menu with mobile support.
  */
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
-import { colors, getColor } from '@/theme/colors'
+import { colors } from '@/theme/colors'
 import { Bars3Icon, XMarkIcon } from '@heroicons/vue/24/outline'
 import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
