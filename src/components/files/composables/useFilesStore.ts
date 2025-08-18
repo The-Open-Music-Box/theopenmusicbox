@@ -8,6 +8,7 @@ import { ref } from 'vue'
 import type { PlayList, BaseContent, Track } from '../types'
 import dataService from '../../../services/dataService'
 import { useI18n } from 'vue-i18n'
+import { logger } from '@/utils/logger'
 
 export function useFilesStore() {
   const { t } = useI18n()
@@ -37,7 +38,7 @@ export function useFilesStore() {
       playlists.value = data.filter((item: BaseContent): item is PlayList => item.type === 'playlist')
     } catch (err) {
       error.value = t('file.errorLoading')
-      console.error('Error loading playlists:', err)
+      logger.error('Failed to load playlists', { error: err }, 'useFilesStore')
     } finally {
       isLoading.value = false
     }
@@ -52,12 +53,14 @@ export function useFilesStore() {
   const deleteTrack = async (playlistId: string, trackNumber: number) => {
     try {
       await dataService.deleteTrack(playlistId, trackNumber)
+      // Invalidate cache to ensure fresh data on next load
+      dataService.invalidatePlaylistCache(playlistId)
       const playlist = playlists.value.find(p => p.id === playlistId)
       if (playlist) {
         playlist.tracks = playlist.tracks.filter(t => t.number !== trackNumber)
       }
     } catch (err) {
-      console.error('Error deleting track:', err)
+      logger.error('Failed to delete track', { playlistId, trackNumber, error: err }, 'useFilesStore')
       throw err
     }
   }
@@ -92,7 +95,7 @@ export function useFilesStore() {
       }
     } catch (err) {
       error.value = t('file.errorUpdating')
-      console.error('Error updating playlist title:', err)
+      logger.error('Failed to update playlist title', { playlistId, newTitle, error: err }, 'useFilesStore')
       throw err
     } finally {
       isSaving.value = false
@@ -128,7 +131,7 @@ export function useFilesStore() {
       }
     } catch (err) {
       error.value = t('file.errorReordering')
-      console.error('Error reordering tracks:', err)
+      logger.error('Failed to reorder tracks', { playlistId, newOrder, error: err }, 'useFilesStore')
       throw err
     } finally {
       isSaving.value = false
@@ -164,10 +167,10 @@ export function useFilesStore() {
       // Refresh both playlists to reflect the changes
       await loadPlaylists()
       
-      console.log('Track successfully moved between playlists')
+      logger.info('Track moved between playlists', { sourcePlaylistId, targetPlaylistId, trackNumber }, 'useFilesStore')
     } catch (err) {
       error.value = t('file.errorMoving')
-      console.error('Error moving track between playlists:', err)
+      logger.error('Failed to move track between playlists', { sourcePlaylistId, targetPlaylistId, trackNumber, error: err }, 'useFilesStore')
       throw err
     } finally {
       isSaving.value = false
@@ -196,13 +199,13 @@ export function useFilesStore() {
       if (response && response.playlist && response.playlist.id) {
         // Format 1: Nested playlist object
         playlistId = response.playlist.id
-        console.log('[useFilesStore] New playlist created with ID:', playlistId)
+        logger.info('New playlist created (nested format)', { playlistId }, 'useFilesStore')
       } else if (response && response.id) {
         // Format 2: Direct playlist object
         playlistId = response.id
-        console.log('[useFilesStore] New playlist created with ID:', playlistId)
+        logger.info('New playlist created (direct format)', { playlistId }, 'useFilesStore')
       } else {
-        console.error('[useFilesStore] Invalid response format:', response)
+        logger.error('Invalid playlist creation response format', { response }, 'useFilesStore')
         throw new Error('Invalid response format')
       }
       
@@ -214,7 +217,7 @@ export function useFilesStore() {
       return playlistId
     } catch (err) {
       error.value = t('file.errorCreating')
-      console.error('[useFilesStore] Error creating playlist:', err)
+      logger.error('Failed to create playlist', { title, error: err }, 'useFilesStore')
       throw err
     } finally {
       isSaving.value = false
