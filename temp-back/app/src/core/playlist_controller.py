@@ -1,0 +1,575 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+
+import asyncio
+import threading
+import time
+import traceback
+from typing import Any, Dict, Optional
+
+from app.src.config.nfc_config import NFCConfig
+from app.src.helpers.error_handler import ErrorHandler
+from app.src.model.track import Track
+from app.src.module.audio_player.audio_player import AudioPlayer
+from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.services.playlist_service import PlaylistService
+
+logger = ImprovedLogger(__name__)
+
+
+class PlaylistController:
+    """
+    Manage the interaction between NFC tags and playlist playback.
+
+    This controller links NFC tag detection events to the audio system for playing associated playlists.
+    It ensures real-time response to tag scans and handles playback control logic.
+
+    Playback state is determined strictly through the public properties `is_playing` and `is_paused` on the audio player.
+    """
+
+    def __init__(
+        self,
+        audio_player: Optional[AudioPlayer] = None,
+        playlist_service: Optional[PlaylistService] = None,
+        config: Optional[NFCConfig] = None,
+    ):
+        """Initialize the playlist controller.
+
+        Args:
+            audio_player: Optional audio player instance
+            playlist_service: Optional playlist service instance
+            config: Optional configuration for NFC-related settings
+        """
+        self._audio = audio_player
+        self._playlist_service = playlist_service
+        self._nfc_service = None
+        self._current_tag = None
+        self._auto_pause_flag = None
+        self._tag_last_seen = 0
+        self._tag_presence_time = 0
+        self._tag_absence_time = 0
+        self._last_manual_action_time = 0
+        self._manual_action_priority_window = 5
+        self._pause_lock = threading.Lock()
+
+        # Use provided config or default
+        self._config = config or NFCConfig()
+
+        # Pause threshold to avoid accidental pauses
+        self._pause_threshold = self._config.pause_threshold
+
+        # Reference to NFC service for coordination
+        self._nfc_service = None
+
+        # Variables for manual control management
+        self._last_manual_action_time = 0
+        self._manual_action_priority_window = self._config.manual_action_priority_window
+
+        # Async monitoring
+        self._monitor_task = None
+        self._stop_monitor = asyncio.Event()
+
+        # Async monitor is NOT started automatically to allow robust testing.
+        # Call self.start_monitoring() explicitly from an async context to start
+        # monitoring.
+
+    async def start_monitoring(self):
+        """Start the async tag monitor.
+
+        Must be called from an async context.
+        """
+        if self._monitor_task is None:
+            self._monitor_task = asyncio.create_task(self._start_tag_monitor())
+
+    def set_nfc_service(self, nfc_service) -> None:
+        """Configure a reference to the NFC service for coordination.
+
+        Args:
+            nfc_service: NFC service to use for coordination
+        """
+        self._nfc_service = nfc_service
+
+        # Subscribe to the playback subject if available
+        if hasattr(nfc_service, "playback_subject"):
+            nfc_service.playback_subject.subscribe(
+                lambda tag_tuple: self.handle_tag_scanned(tag_tuple[0], tag_tuple[1])
+            )
+
+        logger.log(LogLevel.INFO, "NFC service reference set in PlaylistController")
+
+    def handle_tag_scanned(
+        self, tag_uid: str, tag_data: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """
+        Handle a tag scan event strictly according to architecture use cases (A-E).
+
+        See README_ARCHITECTURE.md for detailed expected behaviors.
+        """
+        try:
+            current_time = time.time()
+            self._tag_presence_time = current_time
+            self._tag_last_seen = current_time
+
+            # Store previous tag to detect changes
+            previous_tag = self._current_tag
+            # Set current tag immediately to ensure it's set even if an exception occurs
+            self._current_tag = tag_uid
+
+            # Ignore scan if in association mode, manual override, duplicate scan, or
+            # audio unavailable
+            if self._should_ignore_tag_scan(tag_uid, tag_data):
+                return
+
+            playlist_data = self._playlist_service.get_playlist_by_nfc_tag(tag_uid)
+            has_playlist = playlist_data is not None
+            playlist_name = (
+                playlist_data.get("title", "Unknown") if has_playlist else "None"
+            )
+            logger.log(
+                LogLevel.INFO,
+                f"[NFC] Tag detected: {tag_uid} (Playlist: {playlist_name})",
+            )
+
+            # Robust audio state detection
+            is_playing = False
+            is_paused = False
+            is_finished = False
+            if self._audio:
+                is_playing = getattr(self._audio, "is_playing", False)
+                is_paused = getattr(self._audio, "is_paused", False)
+                is_finished = getattr(self._audio, "is_finished", lambda: False)()
+
+            # CASE A: New tag with playlist (always load and start from beginning)
+            if has_playlist and (previous_tag is None or tag_uid != previous_tag):
+                logger.log(
+                    LogLevel.INFO,
+                    "CASE A: New or different tag with playlist - loading and starting playlist from beginning",
+                )
+                self._playlist_service.play_playlist_with_validation(
+                    playlist_data, self._audio
+                )
+                self._auto_pause_flag = True
+                return
+
+            # CASE B: Same tag with finished playlist (restart from beginning)
+            if has_playlist and tag_uid == previous_tag and is_finished:
+                logger.log(
+                    LogLevel.INFO,
+                    "CASE B: Same tag with finished playlist - restarting playlist from beginning",
+                )
+                self._playlist_service.play_playlist_with_validation(
+                    playlist_data, self._audio
+                )
+                self._auto_pause_flag = True
+                return
+
+            # CASE C: Same tag, playback PAUSED (resume at paused position)
+            if (
+                has_playlist and tag_uid == previous_tag and is_paused
+            ):  # Check for is_paused explicitly
+                logger.log(
+                    LogLevel.INFO,
+                    "CASE C: Same tag with playlist detected while PAUSED - resuming playback at paused position",
+                )
+                if self._audio:
+                    self._audio.resume()
+                self._auto_pause_flag = True
+                return
+
+            # CASE D: Same tag, playback STOPPED (restart playlist from beginning)
+            if (
+                has_playlist
+                and tag_uid == previous_tag
+                and not is_playing
+                and not is_paused
+            ):
+                logger.log(
+                    LogLevel.INFO,
+                    "CASE D: Same tag with playlist detected while STOPPED - restarting playlist from beginning",
+                )
+                self._playlist_service.play_playlist_with_validation(
+                    playlist_data, self._audio
+                )
+                self._auto_pause_flag = True
+                return
+
+            # CASE E: Tag not associated with any playlist
+            if not has_playlist:
+                logger.log(
+                    LogLevel.INFO, "CASE E: Tag without playlist - no action taken"
+                )
+                return
+
+            # Safety: Same tag, already playing (continue, no state change)
+            if has_playlist and tag_uid == previous_tag and is_playing:
+                logger.log(
+                    LogLevel.DEBUG,
+                    "Same tag detected during playback - continuing (no action)",
+                )
+                self._auto_pause_flag = True
+                return
+
+            # Fallback: Log as unhandled
+            logger.log(
+                LogLevel.WARNING,
+                f"[NFC] Unhandled case: tag={tag_uid}, current_tag={previous_tag}, has_playlist={has_playlist}, is_playing={is_playing}, is_paused={is_paused}",
+            )
+            logger.log(
+                LogLevel.INFO, "No specific action taken for this tag scan event"
+            )
+        except Exception as e:
+            ErrorHandler.log_error(e, f"Error handling tag scan: {str(e)}")
+            logger.log(LogLevel.ERROR, f"Exception in handle_tag_scanned: {str(e)}")
+            # Ensure tag is still set even if an error occurs
+            self._current_tag = tag_uid
+
+    def _should_ignore_tag_scan(
+        self, tag_uid: str, tag_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """Determine if a tag scan should be ignored.
+
+        Based on:
+        - NFC association mode active
+        - Recent manual action (manual_action_priority_window)
+        - Duplicate detection (not a new_detection)
+        - Audio player not ready
+        """
+        if self._nfc_service and self._nfc_service.is_in_association_mode():
+            logger.log(
+                LogLevel.INFO,
+                f"Ignoring tag {tag_uid} - NFC service is in association mode",
+            )
+            return True
+        now = time.time()
+        if now - self._last_manual_action_time < self._manual_action_priority_window:
+            logger.log(
+                LogLevel.INFO,
+                f"Ignoring NFC tag {tag_uid} - recent manual control action",
+            )
+            return True
+        if tag_data and not tag_data.get("new_detection", True):
+            logger.log(
+                LogLevel.DEBUG,
+                f"Ignoring duplicate tag {tag_uid} - not a new detection",
+            )
+            return True
+        if not self._audio or not hasattr(self._audio, "is_playing"):
+            logger.log(
+                LogLevel.WARNING,
+                "Audio player not initialized or missing required methods",
+            )
+            return True
+        return False
+
+    def _get_audio_player_state(self) -> str:
+        """
+        Return the current state of the audio player as a string for debugging.
+
+        Returns:
+        str: Textual representation of the audio player state
+        """
+        if not self._audio:
+            return "Audio player not initialized"
+
+        state_parts = []
+
+        # Propriétés de base
+        if hasattr(self._audio, "is_playing"):
+            state_parts.append(f"is_playing={self._audio.is_playing}")
+        if hasattr(self._audio, "is_paused"):
+            state_parts.append(f"is_paused={self._audio.is_paused}")
+        if hasattr(self._audio, "is_finished") and callable(
+            getattr(self._audio, "is_finished")
+        ):
+            state_parts.append(f"is_finished={self._audio.is_finished()}")
+
+        # Position actuelle
+        if hasattr(self._audio, "_current_position"):
+            state_parts.append(f"current_position={self._audio._current_position:.2f}s")
+        if hasattr(self._audio, "_paused_position"):
+            state_parts.append(f"paused_position={self._audio._paused_position:.2f}s")
+
+        # Piste actuelle
+        if hasattr(self._audio, "_current_track_index"):
+            state_parts.append(f"track_index={self._audio._current_track_index}")
+
+        return ", ".join(state_parts)
+
+    def _process_new_tag(
+        self, tag_uid: str, tag_data: Optional[Dict[str, Any]] = None
+    ) -> bool:
+        """Process a newly detected NFC tag.
+
+        Args:
+            tag_uid (str): Unique identifier of the NFC tag.
+            tag_data (Optional[Dict[str, Any]]): Additional data associated with the tag.
+
+        Returns:
+            bool: True if a playlist was successfully loaded and started, False otherwise
+        """
+        try:
+            # Always update current tag immediately
+            self._current_tag = tag_uid
+            # Find the playlist associated with this tag
+            playlist_data = self._playlist_service.get_playlist_by_nfc_tag(tag_uid)
+
+            if playlist_data:
+                # Play the playlist
+                self._play_playlist(playlist_data)
+                logger.log(LogLevel.INFO, f"Started playlist for tag: {tag_uid}")
+                return True
+            else:
+                logger.log(LogLevel.WARNING, f"No playlist found for tag: {tag_uid}")
+                # Important: Ne pas reprendre la lecture si aucune playlist n'est associée à ce tag
+                # Le tag actuel reste celui qu'on vient de scanner, mais on ne fait rien
+                # de plus
+                return False
+
+        except (ValueError, KeyError, TypeError) as e:
+            ErrorHandler.log_error(e, f"Error processing tag {tag_uid}: {str(e)}")
+            return False
+        except Exception as e:
+            ErrorHandler.log_error(
+                e, f"Unexpected error processing tag {tag_uid}: {str(e)}"
+            )
+            logger.log(LogLevel.ERROR, f"Exception details: {traceback.format_exc()}")
+            return False
+
+    def _play_playlist(self, playlist_data: Dict[str, Any]) -> None:
+        """
+        Play a playlist using the audio player, with robust validation and metadata update.
+
+        Args:
+            playlist_data (Dict[str, Any]): Dictionary containing playlist data to play.
+        """
+        success = self._playlist_service.play_playlist_with_validation(
+            playlist_data, self._audio
+        )
+        if not success:
+            logger.log(
+                LogLevel.WARNING,
+                f"Failed to start playlist: {playlist_data.get('title', playlist_data.get('id'))}",
+            )
+
+    def _should_auto_pause(self) -> bool:
+        """
+        Determine if auto-pause should be applied based on config and internal state.
+
+        Returns:
+            bool: True if auto-pause should be applied, False otherwise
+        """
+        # Check if auto-pause is enabled in configuration
+        if not self._config.auto_pause_enabled:
+            return False
+
+        # Check if we have the required components to auto-pause
+        if not self._audio or not hasattr(self._audio, "is_playing"):
+            return False
+
+        # Check if internal flow flag is set
+        if not self._auto_pause_flag:
+            return False
+
+        # Check if audio is currently playing
+        return self._audio.is_playing
+
+    def _perform_auto_pause(self, tag_present_duration: float) -> None:
+        """Perform auto-pause operation and log appropriately.
+
+        Args:
+            tag_present_duration: Duration (seconds) the tag was present before removal
+        """
+        self._audio.pause()
+        logger.log(
+            LogLevel.INFO,
+            f"Auto-paused playback because tag was removed (tag present for {tag_present_duration:.2f}s)",
+        )
+
+        # Reset auto-pause flag after use
+        self._auto_pause_flag = False
+
+    def handle_tag_absence(self) -> None:
+        """Handle the absence (removal) of an NFC tag.
+
+        May auto-pause playback based on configuration.
+        """
+        # Utiliser un verrou pour éviter les problèmes de concurrence
+        with self._pause_lock:
+            # Record time of tag absence
+            current_time = time.time()
+            self._tag_absence_time = current_time
+
+            # Calculate how long the tag was present
+            tag_present_duration = current_time - self._tag_presence_time
+
+            # Check if auto-pause should be applied
+            if self._should_auto_pause():
+                self._perform_auto_pause(tag_present_duration)
+                return
+
+            # Auto-pause not applied, playback continues
+            # Check if audio is playing
+            is_playing = (
+                self._audio
+                and hasattr(self._audio, "is_playing")
+                and self._audio.is_playing
+            )
+
+            if is_playing:
+                logger.log(
+                    LogLevel.INFO,
+                    f"Tag removed but playback continues. Tag was present for {tag_present_duration:.2f}s",
+                )
+            elif not self._audio:
+                logger.log(
+                    LogLevel.WARNING, "Tag removed but no audio player available"
+                )
+            else:
+                logger.log(
+                    LogLevel.DEBUG,
+                    "Tag removed while playback was already paused or stopped",
+                )
+
+            # Always reset auto-pause flag
+            self._auto_pause_flag = False
+
+    async def _start_tag_monitor(self) -> None:
+        """
+        Start an async task to monitor NFC tag presence and automatically pause playback if the tag is removed.
+        """
+        self._stop_monitor.clear()
+
+        async def monitor_tags():
+            while not self._stop_monitor.is_set():
+                try:
+                    # Only pause if auto-pause is enabled
+                    if (
+                        self._current_tag
+                        and self._audio
+                        and hasattr(self._audio, "is_playing")
+                        and self._audio.is_playing
+                        and self._config.auto_pause_enabled
+                    ):
+                        if time.time() - self._tag_last_seen > self._pause_threshold:
+                            # No need to modify config here, just log the action
+                            self._audio.pause()
+                            logger.log(
+                                LogLevel.INFO,
+                                f"Paused playback for tag: {self._current_tag} (removed)",
+                            )
+                except (AttributeError, RuntimeError) as e:
+                    ErrorHandler.log_error(
+                        e, f"Audio player error in tag monitoring: {str(e)}"
+                    )
+                except Exception as e:
+                    ErrorHandler.log_error(
+                        e, f"Unexpected error in tag monitoring: {str(e)}"
+                    )
+                    logger.log(
+                        LogLevel.ERROR, f"Exception details: {traceback.format_exc()}"
+                    )
+
+                await asyncio.sleep(0.2)
+
+        self._monitor_task = asyncio.create_task(monitor_tags())
+        logger.log(LogLevel.INFO, "Tag monitor task started")
+
+    def update_playback_status_callback(
+        self, track: Optional[Track] = None, status: str = "unknown"
+    ) -> None:
+        """
+        Update playback status callback from the audio player.
+
+        Args:
+            track (Optional[Track]): The track currently playing.
+            status (str): Playback status. Expected values: 'playing', 'paused', 'stopped', etc.
+        """
+        # Record this action as a manual action (playback controls)
+        self._last_manual_action_time = time.time()
+
+        if track and track.id and status == "playing":
+            playlist_id = None
+            if self._current_tag:
+                playlist_data = self._playlist_service.get_playlist_by_nfc_tag(
+                    self._current_tag
+                )
+                if playlist_data:
+                    playlist_id = playlist_data["id"]
+
+            if playlist_id:
+                self._playlist_service.repository.update_track_counter(
+                    playlist_id, track.number
+                )
+                logger.log(
+                    LogLevel.DEBUG,
+                    f"Updated play counter for track {track.number} in playlist {playlist_id}",
+                )
+
+    def handle_manual_action(self, action: str) -> None:
+        """
+        Handle manual playback control actions (from UI or physical controls).
+
+        Args:
+            action (str): Control action ('play', 'pause', 'next', 'prev', etc.)
+        """
+        # Record the timestamp of the manual action
+        self._last_manual_action_time = time.time()
+        # Manual actions are tracked separately, no need to modify config
+
+        logger.log(LogLevel.INFO, f"Manual control action: {action}")
+
+        # Execute the requested action
+        try:
+            if action == "play" or action == "resume":
+                if self._audio:
+                    self._audio.resume()
+            elif action == "pause":
+                if self._audio:
+                    self._audio.pause()
+            elif action == "next":
+                if self._audio:
+                    self._audio.next_track()
+            elif action == "prev":
+                if self._audio:
+                    self._audio.prev_track()
+            elif action == "stop":
+                if self._audio:
+                    self._audio.stop()
+            else:
+                logger.log(LogLevel.WARNING, f"Unknown control action: {action}")
+        except Exception as e:
+            ErrorHandler.log_error(e, "Error executing manual control")
+            logger.log(
+                LogLevel.DEBUG, f"Control error details: {traceback.format_exc()}"
+            )
+
+    def on_manual_control(self, action: str) -> None:
+        """Handle manual playback control actions from UI buttons.
+
+        Args:
+            action (str): Control action ('play', 'pause', 'next', 'prev', etc.)
+        """
+        # Simple wrapper to the handle_manual_action method with cleaner name for
+        # external calls
+        self.handle_manual_action(action)
+
+    async def cleanup(self) -> None:
+        """Clean up resources used by the controller."""
+        # Signal the monitor to stop
+        if hasattr(self, "_stop_monitor"):
+            self._stop_monitor.set()
+
+        # Cancel the monitor task if it exists
+        if (
+            hasattr(self, "_monitor_task")
+            and self._monitor_task
+            and not self._monitor_task.done()
+        ):
+            self._monitor_task.cancel()
+            try:
+                await self._monitor_task
+            except asyncio.CancelledError:
+                pass
+
+        logger.log(LogLevel.INFO, "PlaylistController cleanup completed")

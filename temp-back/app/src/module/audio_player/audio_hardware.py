@@ -1,0 +1,91 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+"""Audio Player Protocol Definition.
+
+Defines the interface (Protocol) for all audio player hardware implementations.
+This abstraction ensures that both real and mock audio players provide a consistent set of methods for playback control, playlist management, and resource cleanup.
+
+Business Logic and Architectural Notes:
+- All hardware-specific audio logic must be implemented in a class conforming to this Protocol.
+- The Protocol is used by the AudioPlayer wrapper to enforce architectural boundaries and allow seamless switching between real and mock hardware.
+- Only methods required by the application's business logic are included here.
+- Any new method required by business logic must be added to this Protocol and implemented in all hardware classes.
+"""
+
+from typing import Protocol
+
+
+class AudioPlayerHardware(Protocol):
+    """Protocol for audio player hardware implementations.
+
+    Implementations must provide public properties `is_playing` and `is_paused` to fully describe
+    playback state. No private or protected member access should be used for
+    state detection. All methods here must be implemented by any concrete audio
+    player class. Used by the AudioPlayer wrapper to ensure consistent and safe
+    audio control.
+
+    State detection:
+    - All implementations must provide an `is_paused` property for robust playback state checks.
+    """
+
+    def play(self, track: str) -> None:
+        """Play a specific track by filename or path.
+
+        Args:
+            track: The filename or path of the audio track to play.
+        """
+
+    def pause(self) -> None:
+        """Pause playback."""
+
+    def resume(self) -> None:
+        """Resume playback from a paused state."""
+
+    def stop(self) -> None:
+        """Stop playback immediately."""
+
+    def set_volume(self, volume: float) -> None:
+        """Set the playback volume.
+
+        Args:
+            volume: A float in the range 0.0 to 100.0 representing the desired volume.
+        """
+
+    def cleanup(self) -> None:
+        """Release hardware resources and perform any necessary cleanup."""
+
+    def set_playlist(self, playlist) -> bool:
+        """Set the current playlist and start playback.
+
+        Args:
+            playlist: The playlist object to set for playback.
+
+        Returns:
+            True if the playlist was set and playback started, False otherwise.
+        """
+
+    def next_track(self) -> None:
+        """Advance to the next track in the current playlist."""
+
+    def previous_track(self) -> None:
+        """Return to the previous track in the current playlist."""
+
+    @property
+    def is_paused(self) -> bool:
+        """Return True if the player is paused (not playing, but a track is loaded).
+
+        Returns:
+            bool: True if the player is paused, False otherwise.
+        """
+        ...
+
+    def play_track(self, track_number: int) -> bool:
+        """Play a specific track in the playlist by its number.
+
+        Args:
+            track_number: The 1-based index of the track to play.
+
+        Returns:
+            True if the track was played successfully, False otherwise.
+        """
