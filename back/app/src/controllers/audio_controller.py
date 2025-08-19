@@ -44,7 +44,10 @@ class AudioController:
             audio_service: The audio service instance
         """
         self._audio_service = audio_service
-        if audio_service and hasattr(audio_service, '_volume'):
+        if audio_service and hasattr(audio_service, 'get_volume'):
+            self._current_volume = audio_service.get_volume()
+        elif audio_service and hasattr(audio_service, '_volume'):
+            # Fallback to protected member access if getter not available
             self._current_volume = audio_service._volume
 
     def get_audio_service(self) -> Optional[object]:
@@ -332,4 +335,105 @@ class AudioController:
                 "is_playing": False,
                 "volume": self._current_volume,
                 "audio_available": False
+            }
+            
+    def handle_playback_control(self, action: str, audio_service=None) -> dict:
+        """Handle playback control actions (play/pause/next/previous/stop).
+        
+        Args:
+            action: The action to perform (play, pause, next, previous, stop)
+            audio_service: Optional audio service to use instead of the default
+            
+        Returns:
+            Dictionary containing operation result and status
+            
+        Raises:
+            ValueError: If the action is invalid
+        """
+        if audio_service:
+            self._audio_service = audio_service
+            
+        if not self._audio_service:
+            logger.log(
+                LogLevel.WARNING,
+                f"Cannot perform action '{action}': No audio service available"
+            )
+            return {
+                "status": "error",
+                "action": action,
+                "message": "Audio service not available"
+            }
+            
+        try:
+            # Log the action being performed
+            logger.log(
+                LogLevel.INFO,
+                f"Processing playback control action: {action}"
+            )
+            
+            result = {
+                "status": "success",
+                "action": action
+            }
+            
+            # Handle different actions
+            if action == "play" or action == "resume":
+                if not self._audio_service.is_playing:
+                    self._audio_service.resume()
+                    result["message"] = "Playback started"
+                else:
+                    result["message"] = "Already playing"
+                    
+            elif action == "pause":
+                if self._audio_service.is_playing:
+                    self._audio_service.pause()
+                    result["message"] = "Playback paused"
+                else:
+                    result["message"] = "Already paused"
+                    
+            elif action == "toggle":
+                success = self.toggle_playback()
+                is_playing = getattr(self._audio_service, 'is_playing', False)
+                result["message"] = "Playback toggled" if success else "Failed to toggle playback"
+                result["is_playing"] = is_playing
+                
+            elif action == "next":
+                success = self.next_track()
+                result["message"] = "Skipped to next track" if success else "Failed to skip track"
+                
+            elif action == "previous":
+                success = self.previous_track()
+                result["message"] = "Returned to previous track" if success else "Failed to return to previous track"
+                
+            elif action == "stop":
+                if hasattr(self._audio_service, 'stop') and callable(self._audio_service.stop):
+                    self._audio_service.stop()
+                    result["message"] = "Playback stopped"
+                else:
+                    self._audio_service.pause()
+                    result["message"] = "Playback paused (stop not available)"
+            else:
+                logger.log(
+                    LogLevel.WARNING,
+                    f"Invalid playback control action: {action}"
+                )
+                return {
+                    "status": "error",
+                    "action": action,
+                    "message": f"Invalid action: {action}"
+                }
+                
+            # Add current state to the response
+            result["current_state"] = self.get_playback_state()
+            return result
+            
+        except Exception as e:
+            logger.log(
+                LogLevel.ERROR,
+                f"Error handling playback control action '{action}': {str(e)}"
+            )
+            return {
+                "status": "error",
+                "action": action,
+                "message": f"Error: {str(e)}"
             }
