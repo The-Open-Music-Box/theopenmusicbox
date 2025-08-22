@@ -4,7 +4,7 @@
 public_release/
 release_dev/
 .windsurf/
-
+.claude/
 # =========================
 # Dependencies
 # =========================
