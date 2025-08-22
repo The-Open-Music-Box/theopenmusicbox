@@ -1,6 +1,21 @@
 # The Open Music Box - Installation and Development Guide
 
-The Open Music Box is an interactive music player that links physical NFC tags to digital music playlists, creating a tangible music experience. This guide explains how to set up, use, and develop the application.
+## The Open Music Box
+### For Arthur and Merlin, my sons.
+I built this project because I wanted an open-source music box to share my songs without relying on external services.
+This software is designed to let us enjoy music with our children while protecting them from the pull of screens.
+
+### With The Open Music Box you can:
+- Upload your songs through a simple web interface hosted on a Raspberry Pi.
+- Store them locally, safe and private.
+- Associate any NFC tag with a playlist: just scan a tag and the music starts.
+
+### It works with existing figurines and cards (like Faba, Tonies, or Yoto), or with your own creations:
+- Slip an NFC tag inside a book,
+- 3D print a custom figurine,
+- Or simply reuse tags you already have.
+
+The Open Music Box is meant to be flexible, sustainable, and fun — giving kids independence while letting parents stay in control.
 
 ## Table of Contents
 
@@ -40,11 +55,11 @@ To set up a new Raspberry Pi for The Open Music Box:
 2. **Insert your SD card** into your computer
 
 3. **Open Raspberry Pi Imager and select**:
-   - Choose OS: Raspberry Pi OS (32-bit) or Raspberry Pi OS Lite (32-bit) for headless setup
+   - Choose OS: [TODO]
    - Choose Storage: Your SD card
 
 4. **Click on the gear icon** (Advanced options) and configure:
-   - Set hostname: `theopenmusicbox.local` (recommended)
+   - Set hostname: `theopenmusicbox.local` (or any name you want)
    - Enable SSH
    - Set username and password (default: `admin` / `musicbox`)
    - Configure WiFi
@@ -55,12 +70,14 @@ To set up a new Raspberry Pi for The Open Music Box:
 
 7. **Connect to your Raspberry Pi** via SSH to verify it's working:
    ```bash
-   ssh admin@theopenmusicbox.local
+   ssh [username]@[hostname].local
+   # the one you set in step 4
    ```
+
 
 ### 2. Configuring SSH with the Raspberry Pi (optional)
 
-SSH connection simplifies deployment and management of the Raspberry Pi.
+SSH connection simplifies deployment and management of the Raspberry Pi. Instead of typing the full SSH command each time, you can use an alias and connect as simple as `ssh theopenmusicbox`.
 
 #### Using the `setup_ssh_key_to_rpi.sh` Script
 
@@ -96,14 +113,14 @@ To deploy the application on your Raspberry Pi:
    ```bash
    tar -xzf tomb-rpi-release-*.tar.gz
    ```
-   
+
    Note: If you've already set up SSH access in step 2, you can use your configured SSH alias in the following steps.
 
 3. **Transfer the files to your Raspberry Pi**:
    ```bash
    # Copy the files to your Raspberry Pi using your SSH alias (if configured in step 2)
    scp -r public_release/tomb-rpi/* theopenmusicbox:/home/admin/tomb/
-   
+
    # Or using the direct hostname if you skipped the SSH configuration
    scp -r public_release/tomb-rpi/* admin@theopenmusicbox.local:/home/admin/tomb/
    ```
@@ -112,10 +129,10 @@ To deploy the application on your Raspberry Pi:
    ```bash
    # Connect to your Pi using your SSH alias (if configured in step 2)
    ssh theopenmusicbox
-   
+
    # Or using the direct hostname if you skipped the SSH configuration
    ssh admin@theopenmusicbox.local
-   
+
    # Then run the installation
    cd ~/tomb
    chmod +x setup.sh
@@ -149,10 +166,10 @@ To add new music:
    ```bash
    # If you're a developer with the full repository
    ./sync_tmbdev.sh
-   
+
    # Or manually copy the files using your SSH alias (if configured)
    scp -r your_music_files/* theopenmusicbox:/home/admin/tomb/app/data/upload/
-   
+
    # Or using the direct hostname if you skipped the SSH configuration
    scp -r your_music_files/* admin@theopenmusicbox.local:/home/admin/tomb/app/data/upload/
    ```
@@ -161,10 +178,10 @@ To add new music:
    ```bash
    # Connect using your SSH alias (if configured)
    ssh theopenmusicbox
-   
+
    # Or using the direct hostname if you skipped the SSH configuration
    ssh admin@theopenmusicbox.local
-   
+
    # Then restart the service
    sudo systemctl restart app.service
    ```

@@ -5,6 +5,7 @@
 ---
 
 ## Table of Contents
+- [Architecture Overview](#architecture-overview)
 - [Features](#features)
 - [Requirements](#requirements)
 - [Hardware Setup](#hardware-setup)
@@ -13,12 +14,47 @@
 - [Usage](#usage)
 - [API Documentation](#api-documentation)
 - [Project Structure](#project-structure)
+- [State Management](#state-management)
 - [Development Workflow](#development-workflow)
 - [Testing](#testing)
 - [Deployment](#deployment)
 - [Contributing](#contributing)
 - [License](#license)
 - [Contact / Support](#contact--support)
+
+---
+
+## Architecture Overview
+
+The Open Music Box backend implements a **server-authoritative state management architecture** designed for reliable hardware integration and real-time client synchronization.
+
+### Core Design Principles
+
+- **Single Source of Truth**: The backend maintains authoritative state for all playlists, tracks, and player status
+- **Event-Driven Architecture**: Real-time updates via WebSocket events with sequence-based ordering
+- **Hardware Abstraction**: Clean separation between business logic and hardware modules (NFC, audio, controls)
+- **API Contract v2.0**: Unified HTTP+WebSocket interface with client operation tracking
+
+### Key Architectural Components
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   Frontend      │    │   Backend Core   │    │   Hardware      │
+│   (Vue.js)      │◄──►│   (FastAPI)      │◄──►│   (RPi + NFC)   │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+        │                       │                       │
+        │                       │                       │
+   WebSocket Events         State Manager          NFC Service
+   HTTP API Calls          Playlist Service       Audio Player
+   Client State Sync       Route Handlers         Physical Controls
+```
+
+### State Management Flow
+
+1. **Client Operations**: Frontend sends HTTP requests with `client_op_id`
+2. **Server Processing**: Backend processes operation and updates authoritative state
+3. **Event Broadcasting**: Server broadcasts state changes via WebSocket with `server_seq`
+4. **Client Synchronization**: All connected clients receive and apply state updates
 
 ---
 
@@ -167,15 +203,106 @@ These interfaces allow you to explore and test all available API endpoints direc
 ---
 
 ## Project Structure
-- `app/` - Application source code
-  - `src/` - Main modules
-    - `config/` - App configuration
-    - `core/` - Core components
-    - `module/` - Functional modules (audio, NFC, controls)
-    - `routes/` - API routes
-    - `services/` - Business services
-- `tests/` - Unit and integration tests
-- `scripts/` - Utility scripts
+
+```
+back/
+├── app/                          # Application source code
+│   ├── src/                      # Main modules
+│   │   ├── config/               # App configuration
+│   │   ├── core/                 # Core application components
+│   │   │   ├── application.py    # Main application orchestrator
+│   │   │   ├── service_container.py # Dependency injection
+│   │   │   └── playlist_controller.py # Playlist coordination
+│   │   ├── services/             # Business services
+│   │   │   ├── state_manager.py  # Server-authoritative state management
+│   │   │   ├── nfc_service.py    # NFC tag reading and management
+│   │   │   ├── playlist_service.py # Playlist business logic
+│   │   │   └── track_management_service.py # Track operations
+│   │   ├── routes/               # API routes
+│   │   │   ├── playlist_routes_state.py # Playlist HTTP endpoints
+│   │   │   ├── websocket_handlers_state.py # WebSocket event handlers
+│   │   │   └── player_routes.py  # Audio player endpoints
+│   │   ├── module/               # Hardware integration modules
+│   │   │   ├── audio_player/     # Audio playback system
+│   │   │   ├── nfc/              # NFC hardware interface
+│   │   │   └── controles/        # Physical controls (buttons, encoder)
+│   │   ├── controllers/          # Request controllers
+│   │   ├── interfaces/           # Abstract interfaces
+│   │   ├── model/                # Data models
+│   │   └── utils/                # Utility functions
+│   ├── data/                     # User data (playlists, audio files)
+│   └── static/                   # Frontend build output
+├── tests/                        # Unit and integration tests
+├── requirements/                 # Python dependencies
+└── scripts/                      # Utility scripts
+```
+
+### Key Components Explained
+
+- **`core/application.py`**: Main application class that orchestrates all services
+- **`services/state_manager.py`**: Implements server-authoritative state pattern
+- **`services/nfc_service.py`**: Handles NFC tag reading and playlist associations
+- **`module/audio_player/`**: Hardware-abstracted audio playback system
+- **`routes/websocket_handlers_state.py`**: Real-time event broadcasting
+- **`routes/playlist_routes_state.py`**: HTTP API for playlist operations
+
+---
+
+## State Management
+
+The backend implements a sophisticated state management system designed for reliability and real-time synchronization.
+
+### Server-Authoritative Pattern
+
+**Core Principle**: The server is the single source of truth for all application state.
+
+```python
+# Example: Client requests playlist creation
+POST /api/playlists
+{
+  "client_op_id": "uuid-123",
+  "name": "My Playlist"
+}
+
+# Server processes and broadcasts state change
+WebSocket Event: {
+  "event_type": "state:playlists",
+  "server_seq": 42,
+  "data": { /* updated playlists */ }
+}
+```
+
+### State Event Types
+
+- **`state:playlists`**: Complete playlists snapshot
+- **`state:playlist`**: Individual playlist updates
+- **`state:player`**: Audio player state changes
+- **`state:track_progress`**: Playback progress updates
+- **`state:volume_changed`**: System volume changes
+- **`state:nfc_state`**: NFC reader status
+
+### Event Sequencing
+
+All state events include a `server_seq` number to ensure proper ordering and prevent race conditions:
+
+```python
+@dataclass
+class StateEvent:
+    event_type: StateEventType
+    server_seq: int
+    playlist_id: Optional[str] = None
+    data: Dict[str, Any] = field(default_factory=dict)
+    timestamp: float = field(default_factory=time.time)
+```
+
+### Client Operation Tracking
+
+HTTP requests include `client_op_id` for operation acknowledgment:
+
+- Client sends operation with unique ID
+- Server processes and responds with success/error
+- Server broadcasts resulting state changes
+- Clients can correlate their operations with state updates
 
 ---
 
