@@ -30,6 +30,42 @@ echo -e "${GREEN}Enabling I2C interface...${NC}"
 sudo raspi-config nonint do_i2c 0
 echo "I2C interface enabled"
 
+# 1.5. Configure audio system for WM8960
+echo -e "${GREEN}Configuring audio system for WM8960...${NC}"
+# Add user to audio group
+sudo usermod -a -G audio $SUDO_USER
+
+# Configure ALSA for WM8960
+cat << 'EOF' | sudo tee /etc/asound.conf > /dev/null
+pcm.!default {
+    type plug
+    slave {
+        pcm "hw:0,0"
+        format S16_LE
+        rate 44100
+    }
+}
+
+ctl.!default {
+    type hw
+    card 0
+}
+
+pcm.wm8960 {
+    type hw
+    card wm8960soundcard
+    device 0
+}
+
+ctl.wm8960 {
+    type hw
+    card wm8960soundcard
+}
+EOF
+
+sudo cp /tmp/asound.conf /etc/asound.conf
+echo "Audio system configured for WM8960"
+
 # 2. Créer un environnement virtuel Python et installer les dépendances dans le venv
 # Correct the virtual environment path with absolute path logic
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -47,6 +83,14 @@ pip install --upgrade pip
 echo -e "${GREEN}Installing Python dependencies from requirements.txt into venv...${NC}"
 pip install -r "$SCRIPT_DIR/requirements.txt"
 deactivate
+
+# 3.5. Initialize audio system
+echo -e "${GREEN}Initializing audio system...${NC}"
+sudo alsactl init || true
+sudo alsa force-reload || true
+
+# Set audio device permissions
+sudo chmod 666 /dev/snd/* 2>/dev/null || true
 
 # 4. Déploiement du service systemd
 # Ensure app.service exists before enabling
