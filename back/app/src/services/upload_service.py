@@ -16,7 +16,7 @@ from mutagen import File as MutagenFile
 from mutagen.easyid3 import EasyID3
 from werkzeug.utils import secure_filename
 
-from app.src.helpers.exceptions import InvalidFileError
+from app.src.domain.error_handling.unified_error_handler import InvalidFileError
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_service_errors
