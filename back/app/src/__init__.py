@@ -9,6 +9,6 @@ __app_name__ = "TheOpenMusicBox"
 __author__ = "Jonathan Piette"
 
 
-from .helpers.exceptions import AppError
+from .helpers import AppError
 
 __all__ = ["AppError", "__version__", "__app_name__", "__author__"]

@@ -9,8 +9,22 @@ and exception management. Provides a centralized collection of helper
 functionality used across the application.
 """
 
-from .exceptions import AppError, ErrorCategory, ErrorContext, ErrorSeverity
+# This module is deprecated - all functionality has been migrated to domain layer
+# Keeping only for backwards compatibility during transition period
+
 from .system_dependency_checker import SystemDependencyChecker
+
+# Import exceptions from domain layer for backwards compatibility
+from app.src.domain.error_handling.unified_error_handler import (
+    ErrorCategory,
+    ErrorContext,
+    ErrorSeverity
+)
+
+# AppError is now replaced by the domain unified error handler
+class AppError(Exception):
+    """Deprecated - use domain error handling instead."""
+    pass
 
 __all__ = [
     "AppError",
