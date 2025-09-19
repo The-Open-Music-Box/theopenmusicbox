@@ -483,5 +483,16 @@ def bad_request_error(detail: str) -> StandardHTTPException:
     return StandardHTTPException(400, detail)
 
 
+# Legacy exception classes for compatibility
+class InvalidFileError(Exception):
+    """Exception raised when a file is invalid."""
+    pass
+
+
+class ProcessingError(Exception):
+    """Exception raised during processing operations."""
+    pass
+
+
 # Global instance
 unified_error_handler = UnifiedErrorHandler()
