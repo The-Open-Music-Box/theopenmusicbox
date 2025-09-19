@@ -7,11 +7,11 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useUnifiedUpload, type UploadFile, type UploadStats, type UploadConfig } from '../components/upload/composables/useUnifiedUpload'
+import { useUpload, type UploadFile, type UploadConfig } from '@/composables/useUpload'
 
 export const useUploadStore = defineStore('upload', () => {
   // Upload composable instance
-  const uploadComposable = useUnifiedUpload()
+  const uploadComposable = useUpload()
 
   // Modal state
   const isModalOpen = ref(false)
@@ -116,7 +116,13 @@ export const useUploadStore = defineStore('upload', () => {
       globalUploadQueue.value.delete(playlistId)
       
     } catch (error) {
-      console.error('[UploadStore] Upload failed:', error)
+      // Add to history with error state
+      uploadHistory.value.unshift({
+        timestamp: Date.now(),
+        playlistId,
+        files: [...uploadComposable.uploadFiles.value],
+        success: false
+      })
       throw error
     }
   }
