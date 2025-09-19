@@ -8,7 +8,7 @@ TheOpenMusicBox is a full-stack application with:
 - A **Backend** built with FastAPI and SQLite
 - A **Frontend** built with Vue.js and TypeScript
 
-The deployment process involves building both components and deploying them to a Raspberry Pi.
+The deployment process uses automated scripts to build, package, and deploy components to a Raspberry Pi.
 
 ## Directory Structure
 
@@ -24,80 +24,85 @@ tomb-rpi/
 │   ├── src/                   # Vue.js source code
 │   ├── dist/                  # Built frontend (after npm run build)
 │   └── ...
-├── public_release/            # Staging area for deployment
-│   └── tomb-rpi/              # Combined backend and frontend
+├── public_release/            # Public release staging area
+│   └── tomb-rpi/              # Combined backend and frontend for public distribution
 │       ├── app/               # Backend code
 │       │   ├── static/        # Frontend static files
 │       │   └── ...
 │       └── ...
-└── sync_to_tmbdev.sh          # Master deployment script
+├── release_dev/               # Development build staging area (excluded from git)
+│   └── tomb-rpi/              # Combined backend and frontend for development deployment
+├── build_public_release.sh    # Script to create public release package
+├── sync_tmbdev.sh            # Script to build and sync to development server
+├── sync_tmbdev.config        # Configuration file for deployment scripts
+└── tomb-rpi-release-YYYYMMDD.tar.gz  # Generated release archive
 ```
 
-## Deployment Process
+## Deployment Methods
 
-The deployment process consists of three main steps:
+There are two main deployment workflows:
 
-1. Build the frontend
-2. Package the backend and include the frontend
-3. Synchronize the complete package to the Raspberry Pi
+### 1. Development Deployment (sync_tmbdev.sh)
 
-### Step 1: Build the Frontend
-
-The frontend build process compiles the Vue.js application into static files that will be served by the backend.
+For development and testing, use the sync script to build and upload directly to your Raspberry Pi:
 
 ```bash
-cd /path/to/tomb-rpi/front
-npm run build
+cd /path/to/tomb-rpi
+./sync_tmbdev.sh
 ```
 
-This command:
-- Compiles and minifies the frontend code
-- Creates optimized production assets in the `dist` directory
-- Prepares all static assets (JS, CSS, images) for deployment
+This script:
+1. Creates a development build in the `release_dev/` directory (excluded from git)
+2. Exports the backend package using `export_public_package.sh`
+3. Builds the frontend with `npm run build`
+4. Combines backend and frontend in `release_dev/tomb-rpi/`
+5. Uses `rsync` over SSH to synchronize files to the Raspberry Pi
+6. Sets proper permissions on the remote files
 
-Build configuration is controlled by:
-- `vue.config.js` - Vue CLI configuration
-- `.env` files - Environment variables
+### 2. Public Release (build_public_release.sh)
 
-#### Environment Variables
+For creating distributable packages for end users:
 
-The frontend relies on several environment variables, most importantly:
+```bash
+cd /path/to/tomb-rpi
+./build_public_release.sh
+```
+
+This script:
+1. Creates a clean build in the `public_release/` directory
+2. Exports the backend package
+3. Builds the frontend
+4. Combines backend and frontend
+5. Creates a timestamped tar.gz archive (e.g., `tomb-rpi-release-20240821.tar.gz`)
+6. Sets up an empty data directory structure for users
+
+## Configuration
+
+### Deployment Configuration (sync_tmbdev.config)
+
+The `sync_tmbdev.config` file contains all deployment settings:
+
+```bash
+# SSH connection settings
+SSH_DEST="tomb"                                      # SSH alias or user@host
+SSH_KEY="~/.ssh/musicbox_key"                        # Path to SSH private key
+SSH_OPTS="-o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes"
+
+# Remote server settings
+REMOTE_DIR="/home/admin/tomb"                        # Remote directory on the Pi
+
+# Build directories
+RELEASE_DEV_DIR="release_dev"                        # Development release directory
+PUBLIC_RELEASE_DIR="public_release/tomb-rpi"         # Public release directory
+```
+
+### Environment Variables
+
+The frontend relies on several environment variables:
 
 - `VUE_APP_API_URL`: The URL where the backend API is accessible
 - `VUE_APP_PUBLIC_PATH`: The public path for static assets
 - `VUE_APP_ASSETS_DIR`: The directory for assets within the public path
-
-### Step 2: Package the Backend and Include the Frontend
-
-After building the frontend, the backend is prepared for deployment.
-
-```bash
-cd /path/to/tomb-rpi/back
-./export_public_package.sh
-```
-
-This script:
-- Creates a clean export of the backend code
-- Copies it to the `public_release/tomb-rpi` directory
-- Ensures all necessary dependencies are included
-
-The frontend build is then integrated into the backend by copying the contents of the `front/dist` directory to `public_release/tomb-rpi/app/static`.
-
-### Step 3: Synchronize to the Raspberry Pi
-
-The final step is to transfer the complete package to the Raspberry Pi.
-
-```bash
-cd /path/to/tomb-rpi
-./sync_to_tmbdev.sh
-```
-
-This master script:
-1. Builds the frontend (calls `npm run build` in the front directory)
-2. Exports the backend (calls `export_public_package.sh` in the back directory)
-3. Integrates the frontend static files into the backend
-4. Uses `rsync` to transfer all files to `/home/admin/tomb/` on the Raspberry Pi
-5. Sets proper permissions on the remote files
 
 ## Networking Configuration
 
@@ -155,15 +160,79 @@ If you see Socket.IO polling errors:
 3. Confirm that WebSocket connections are not blocked by any network equipment
 4. Try accessing the application using different URLs to identify any hostname resolution issues
 
+## SSH Configuration
+
+### Setting up SSH Access
+
+Before using the sync script, ensure SSH access is properly configured:
+
+1. **SSH Key**: Generate or use an existing SSH key pair
+2. **SSH Config**: Add an entry to `~/.ssh/config`:
+   ```
+   Host tomb
+       HostName theopenmusicbox.local
+       User admin
+       IdentityFile ~/.ssh/musicbox_key
+       StrictHostKeyChecking accept-new
+   ```
+3. **Key Path**: Update the `SSH_KEY` path in `sync_tmbdev.config` if needed
+
+### SSH Connection Override
+
+You can override the SSH destination from the command line:
+
+```bash
+./sync_tmbdev.sh user@hostname
+```
+
+## File Exclusions
+
+The sync process automatically excludes development files and directories:
+
+- Python cache files (`__pycache__/`, `*.pyc`, `*.pyo`)
+- Virtual environments (`venv/`, `.venv`, `ENV/`)
+- IDE files (`.idea/`, `.vscode/`)
+- Build artifacts (`dist/`, `build/`, `*.egg-info/`)
+- System files (`.DS_Store`)
+- Application data (`app/data/` - to preserve existing data on the Pi)
+- Log files (`*.log`, `logs/`)
+
+## End User Deployment
+
+### For End Users (Public Release)
+
+End users receive a `tomb-rpi-release-YYYYMMDD.tar.gz` file containing:
+
+1. **Extract the archive**:
+   ```bash
+   tar -xzf tomb-rpi-release-YYYYMMDD.tar.gz
+   ```
+
+2. **Copy to Raspberry Pi**:
+   ```bash
+   scp -r tomb-rpi/ admin@theopenmusicbox.local:/home/admin/tomb/
+   ```
+
+3. **Set permissions**:
+   ```bash
+   ssh admin@theopenmusicbox.local "sudo chown -R admin:admin /home/admin/tomb"
+   ```
+
+The public release includes an empty data directory structure but excludes any existing database or user data.
+
 ## Maintenance
 
 ### Updating the Application
 
-To update the application:
+**For Development:**
+```bash
+./sync_tmbdev.sh
+```
 
-1. Make code changes to the frontend or backend
-2. Follow the deployment steps above to rebuild and redeploy
-3. The `sync_to_tmbdev.sh` script handles the complete deployment process
+**For Public Release:**
+```bash
+./build_public_release.sh
+```
 
 ### Backup
 

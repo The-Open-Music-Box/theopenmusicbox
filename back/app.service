@@ -22,7 +22,7 @@ Environment=FORCE_COLOR=1
 Environment=COLORTERM=truecolor
 
 # Main application startup command
-ExecStart=/home/admin/venv/bin/python start_app.py
+ExecStart=/home/admin/tomb/venv/bin/python start_app.py
 
 # Restart settings in case of failure
 Restart=on-failure

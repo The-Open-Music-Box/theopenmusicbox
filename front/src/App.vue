@@ -45,6 +45,16 @@ const setupSocketListeners = () => {
     logger.error('Socket connection error', { error }, 'App')
     socketError.value = true
   })
+
+  proxy.$socketService.on('connect', () => {
+    logger.info('Socket connected successfully', {}, 'App')
+    socketError.value = false
+  })
+
+  proxy.$socketService.on('disconnect', (reason) => {
+    logger.warn('Socket disconnected', { reason }, 'App')
+    socketError.value = true
+  })
 }
 
 // Component lifecycle hooks

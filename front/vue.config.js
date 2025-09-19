@@ -124,7 +124,7 @@ module.exports = defineConfig({
             },
           ]);
       } catch (error) {
-        console.warn('⚠️  compression-webpack-plugin not found, skipping gzip compression');
+        console.warn('⚠️️  compression-webpack-plugin not found, skipping gzip compression');
       }
     }
 

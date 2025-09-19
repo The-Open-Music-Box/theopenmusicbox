@@ -112,6 +112,7 @@ export default {
     lastPlayed: 'Last played',
     errorLoading: 'Error loading playlists',
     errorDeleting: 'Error deleting track',
+    errorStartingPlaylist: 'Error starting playlist',
     playlists: 'Playlists',
     newPlaylist: 'New Playlist',
     playlistTitle: 'Playlist Title',

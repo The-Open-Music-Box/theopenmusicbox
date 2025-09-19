@@ -8,14 +8,14 @@ This module provides a mock implementation of the physical controls manager
 for testing purposes without requiring actual hardware components.
 """
 
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List
 
 from app.src.enums.control_event_type import ControlEventType
 
 
 class MockControlsManager:
     """Mock physical controls manager implementation for testing.
-    
+
     Simulates physical control events without actual hardware dependencies,
     enabling comprehensive testing of control-related functionality.
     """
@@ -28,7 +28,7 @@ class MockControlsManager:
 
     def initialize(self) -> bool:
         """Initialize the controls manager.
-        
+
         Returns:
             True if initialization was successful, False otherwise
         """
@@ -37,7 +37,7 @@ class MockControlsManager:
 
     def subscribe_to_event(self, event_type: ControlEventType, handler: Callable):
         """Subscribe to a control event type.
-        
+
         Args:
             event_type: Type of control event to subscribe to
             handler: Callback function to handle the event
@@ -48,7 +48,7 @@ class MockControlsManager:
 
     def unsubscribe_from_event(self, event_type: ControlEventType, handler: Callable):
         """Unsubscribe from a control event type.
-        
+
         Args:
             event_type: Type of control event to unsubscribe from
             handler: Callback function to remove
@@ -61,7 +61,7 @@ class MockControlsManager:
 
     def is_initialized(self) -> bool:
         """Check if the controls manager is initialized.
-        
+
         Returns:
             True if initialized, False otherwise
         """
@@ -76,12 +76,12 @@ class MockControlsManager:
     # Mock-specific methods for testing
     def simulate_event(self, event_type: ControlEventType):
         """Simulate a control event for testing.
-        
+
         Args:
             event_type: Type of control event to simulate
         """
         self._simulated_events.append(event_type)
-        
+
         # Trigger registered handlers
         if event_type in self._event_handlers:
             for handler in self._event_handlers[event_type]:
@@ -112,7 +112,7 @@ class MockControlsManager:
 
     def get_simulated_events(self) -> List[ControlEventType]:
         """Get the list of simulated events.
-        
+
         Returns:
             List of simulated control events
         """
@@ -124,10 +124,10 @@ class MockControlsManager:
 
     def get_event_handler_count(self, event_type: ControlEventType) -> int:
         """Get the number of handlers for an event type.
-        
+
         Args:
             event_type: Type of control event
-            
+
         Returns:
             Number of registered handlers
         """
@@ -135,7 +135,7 @@ class MockControlsManager:
 
     def has_handlers(self) -> bool:
         """Check if any event handlers are registered.
-        
+
         Returns:
             True if handlers are registered, False otherwise
         """

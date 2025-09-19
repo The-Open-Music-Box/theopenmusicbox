@@ -98,6 +98,7 @@ export default {
     lastPlayed: 'Dernière lecture',
     errorLoading: 'Erreur lors du chargement des playlists',
     errorDeleting: 'Erreur lors de la suppression du morceau',
+    errorStartingPlaylist: 'Erreur lors du lancement de la playlist',
     playlists: 'Playlists',
     newPlaylist: 'Nouvelle Playlist',
     playlistTitle: 'Titre de la playlist',

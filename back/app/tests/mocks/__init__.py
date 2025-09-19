@@ -14,6 +14,6 @@ from .mock_nfc_service import MockNfcService
 
 __all__ = [
     "MockAudioService",
-    "MockControlsManager", 
+    "MockControlsManager",
     "MockNfcService",
 ]

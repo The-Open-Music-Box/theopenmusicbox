@@ -35,10 +35,29 @@ show_header() {
     echo ""
 }
 
+# Function to show usage
+show_usage() {
+    echo "${BOLD}Usage:${NORMAL}"
+    echo "  $SCRIPT_NAME [OPTIONS]"
+    echo ""
+    echo "${BOLD}Options:${NORMAL}"
+    echo "  -f, --force-override   Automatically remove conflicting SSH host keys"
+    echo "  -h, --help            Show this help message"
+    echo ""
+    echo "${BOLD}Examples:${NORMAL}"
+    echo "  $SCRIPT_NAME               # Interactive mode with prompts"
+    echo "  $SCRIPT_NAME -f            # Force override conflicting host keys"
+    echo ""
+    echo "${BOLD}Note:${NORMAL}"
+    echo "  Use -f when you know the Raspberry Pi has been reinstalled"
+    echo "  or when you get 'REMOTE HOST IDENTIFICATION HAS CHANGED' errors"
+    echo ""
+}
+
 # Function to log messages
 log_info() { echo "${CYAN}ℹ️  $1${NORMAL}"; }
 log_success() { echo "${GREEN}✅ $1${NORMAL}"; }
-log_warning() { echo "${YELLOW}⚠️  $1${NORMAL}"; }
+log_warning() { echo "${YELLOW}⚠️️  $1${NORMAL}"; }
 log_error() { echo "${RED}❌ $1${NORMAL}"; }
 
 # Function to ask yes/no questions
@@ -296,6 +315,40 @@ get_ssh_alias() {
     done
 }
 
+# Function to handle host key conflicts
+handle_host_key_conflict() {
+    local host="$1"
+
+    log_warning "Detected possible host key conflict for $host"
+
+    # Check if there's an existing key in known_hosts
+    if ssh-keygen -F "$host" >/dev/null 2>&1; then
+        log_info "Found existing host key for $host in known_hosts"
+
+        if ask_yes_no "Do you want to remove the old host key and accept the new one?" "y"; then
+            # Remove all existing keys for this host
+            ssh-keygen -R "$host" >/dev/null 2>&1
+
+            # Also remove by IP if hostname was used
+            if [[ "$host" =~ \.local$ ]] || [[ "$host" =~ ^[a-zA-Z] ]]; then
+                # Try to get IP and remove it too
+                local ip=$(ping -c 1 -W 1 "$host" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+                if [[ -n "$ip" ]]; then
+                    ssh-keygen -R "$ip" >/dev/null 2>&1
+                fi
+            fi
+
+            log_success "Removed old host key(s) for $host"
+            return 0
+        else
+            log_error "Cannot proceed without resolving host key conflict"
+            return 1
+        fi
+    fi
+
+    return 0
+}
+
 # Function to copy public key to remote host
 copy_public_key() {
     log_info "Copying public key to $RPI_HOST..."
@@ -306,15 +359,61 @@ copy_public_key() {
         exit 1
     fi
 
+    # Check for host key conflicts first (non-interactive test)
+    local test_output
+    test_output=$(ssh -o BatchMode=yes -o ConnectTimeout=5 -o StrictHostKeyChecking=no -o PasswordAuthentication=no "$RPI_USER@$RPI_HOST" "echo test" 2>&1 || true)
+
+    # Check for host key verification failed
+    if echo "$test_output" | grep -q "REMOTE HOST IDENTIFICATION HAS CHANGED"; then
+        if ! handle_host_key_conflict "$RPI_HOST"; then
+            exit 1
+        fi
+    fi
+
     # Create the command to set up authorized_keys and fix permissions
     local setup_cmd="mkdir -p ~/.ssh && chmod 700 ~/.ssh && echo '$pub_key_content' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && sort ~/.ssh/authorized_keys | uniq > ~/.ssh/authorized_keys.tmp && mv ~/.ssh/authorized_keys.tmp ~/.ssh/authorized_keys && echo 'Public key setup completed'"
 
-    if ssh -o BatchMode=no -o ConnectTimeout=10 -o StrictHostKeyChecking=no "$RPI_USER@$RPI_HOST" "$setup_cmd"; then
-        log_success "Public key copied and configured successfully"
+    log_info "You will be prompted for your password..."
+
+    # Use ssh-copy-id if available (more reliable)
+    if command -v ssh-copy-id >/dev/null 2>&1; then
+        log_info "Using ssh-copy-id to copy the key..."
+        if ssh-copy-id -o StrictHostKeyChecking=accept-new -i "${KEY_PATH}" "$RPI_USER@$RPI_HOST"; then
+            log_success "Public key copied successfully using ssh-copy-id"
+        else
+            # Fallback to manual method
+            log_warning "ssh-copy-id failed, trying manual method..."
+            if ssh -o StrictHostKeyChecking=accept-new "$RPI_USER@$RPI_HOST" "$setup_cmd"; then
+                log_success "Public key copied and configured successfully"
+            else
+                log_error "Failed to copy public key"
+                exit 1
+            fi
+        fi
     else
-        log_error "Failed to copy public key"
-        log_info "You may need to manually copy the key or check SSH server configuration"
-        exit 1
+        # Manual method if ssh-copy-id not available
+        if ssh -o StrictHostKeyChecking=accept-new "$RPI_USER@$RPI_HOST" "$setup_cmd"; then
+            log_success "Public key copied and configured successfully"
+        else
+            log_error "Failed to copy public key"
+            log_info "You may need to manually copy the key or check SSH server configuration"
+
+            # Provide manual copy instructions
+            echo ""
+            log_info "Manual copy instructions:"
+            echo "${CYAN}1. Copy this public key:${NORMAL}"
+            echo ""
+            cat "${KEY_PATH}.pub"
+            echo ""
+            echo "${CYAN}2. SSH into your Pi manually:${NORMAL}"
+            echo "   ssh $RPI_USER@$RPI_HOST"
+            echo ""
+            echo "${CYAN}3. Add the key to authorized_keys:${NORMAL}"
+            echo "   echo 'PASTE_KEY_HERE' >> ~/.ssh/authorized_keys"
+            echo ""
+
+            exit 1
+        fi
     fi
 }
 
@@ -459,6 +558,27 @@ main() {
     # Set trap for cleanup
     trap cleanup EXIT
 
+    # Parse command line arguments
+    local force_override=false
+    for arg in "$@"; do
+        case "$arg" in
+            -h|--help)
+                show_usage
+                exit 0
+                ;;
+            -f|--force-override)
+                force_override=true
+                ;;
+            *)
+                if [[ -n "$arg" ]]; then
+                    log_error "Unknown option: $arg"
+                    show_usage
+                    exit 1
+                fi
+                ;;
+        esac
+    done
+
     # Check if running on macOS
     if [[ "$(uname)" != "Darwin" ]]; then
         log_warning "This script is designed for macOS but may work on other Unix systems"
@@ -466,6 +586,10 @@ main() {
 
     # Display header
     show_header
+
+    if [[ "$force_override" == true ]]; then
+        log_info "🔧 Force override mode enabled - will automatically remove conflicting host keys"
+    fi
 
     # Setup SSH directory
     setup_ssh_directory
@@ -475,6 +599,20 @@ main() {
 
     # Get connection details
     get_connection_details
+
+    # If force override, pre-emptively remove host keys
+    if [[ "$force_override" == true ]]; then
+        log_info "Removing any existing host keys for $RPI_HOST..."
+        ssh-keygen -R "$RPI_HOST" >/dev/null 2>&1
+
+        # Also try to remove by IP
+        local ip=$(ping -c 1 -W 1 "$RPI_HOST" 2>/dev/null | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+        if [[ -n "$ip" ]]; then
+            ssh-keygen -R "$ip" >/dev/null 2>&1
+        fi
+
+        log_success "Host keys cleared"
+    fi
 
     # Test connectivity
     test_host_connectivity
