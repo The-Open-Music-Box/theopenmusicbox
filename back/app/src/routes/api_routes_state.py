@@ -33,7 +33,7 @@ class APIRoutesState:
     state management system across all route handlers.
     """
 
-    @handle_errors("api_routes_state_init")
+    @handle_errors("api_routes_state_init", return_response=False)
     def __init__(self, app: FastAPI, socketio, config=None):
         """Initialize API routes with domain architecture.
 
