@@ -113,6 +113,8 @@ Thumbs.db
 *.prod
 *.pem
 *.db
+*.db-shm
+*.db-wal
 uploads/
 pydocstyle_report.txt
 isort_report.txt
