@@ -2,9 +2,14 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""Services module initialization for TheOpenMusicBox backend.
+
+Exposes core service classes for notification handling and YouTube integration.
+Provides a centralized import point for external service functionality
+throughout the application.
+"""
+
 from .notification_service import DownloadNotifier
-from .playlist_service import PlaylistService
-from .upload_service import UploadService
 from .youtube.service import YouTubeService
 
-__all__ = ["YouTubeService", "DownloadNotifier", "PlaylistService", "UploadService"]
+__all__ = ["YouTubeService", "DownloadNotifier"]

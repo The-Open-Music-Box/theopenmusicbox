@@ -2,6 +2,12 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""Base log formatter for the monitoring system.
+
+Provides base functionality for formatting log records with component name
+extraction, extra context handling, and color support for enhanced log output.
+"""
+
 import re
 from typing import Any, Dict
 
@@ -10,6 +16,7 @@ from colorama import Fore, Style
 
 class BaseLogFormatter:
     """Base formatter for log records with extra context and color support."""
+
     def __init__(self):
         self._last_component = None
         self._startup_phase = None
@@ -27,9 +34,7 @@ class BaseLogFormatter:
             return ""
 
         relevant_info = {
-            k: v
-            for k, v in extra.items()
-            if k not in ["component", "operation"] or "error" in k
+            k: v for k, v in extra.items() if k not in ["component", "operation"] or "error" in k
         }
 
         if not relevant_info:

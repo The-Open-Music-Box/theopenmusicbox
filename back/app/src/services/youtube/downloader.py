@@ -2,25 +2,32 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""YouTube downloader service using yt-dlp for video/audio downloads.
+
+Provides asynchronous YouTube video download functionality with real-time
+progress tracking, chapter processing, and file organization. Handles both
+single videos and playlists with proper error handling and notifications.
+"""
+
 import asyncio
 from pathlib import Path
 from typing import Any, Callable, Dict
 
 import yt_dlp
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
 
-logger = ImprovedLogger(__name__)
+logger = get_logger(__name__)
 
 
 class YouTubeDownloader:
     """Downloader service for handling YouTube video/audio downloads using yt-dlp."""
+
     def __init__(self, upload_folder: str, progress_callback: Callable = None):
         self.upload_folder = Path(upload_folder)
         self.progress_callback = progress_callback
-        self._last_reported_percentage = (
-            -1
-        )  # Renamed and initialized for better tracking
+        self._last_reported_percentage = -1  # Renamed and initialized for better tracking
         self.main_loop = None  # Will store the main asyncio event loop
 
     # MARK: - Progress Handling
@@ -85,11 +92,7 @@ class YouTubeDownloader:
         if (
             percentage > self._last_reported_percentage
             or (percentage == 100 and self._last_reported_percentage < 100)
-            or (
-                percentage == 0
-                and self._last_reported_percentage < 0
-                and downloaded_bytes == 0
-            )
+            or (percentage == 0 and self._last_reported_percentage < 0 and downloaded_bytes == 0)
         ):
 
             # If yt-dlp reports 'finished' for the download part, ensure we send 100%
@@ -147,10 +150,7 @@ class YouTubeDownloader:
                 message = f"Error during post-processing ({postprocessor_name}): {pp_info.get('msg', 'Unknown error')}"
 
             # Ensure 100% download message is sent before post-processing starts
-            if (
-                event_status == "post_processing_started"
-                and self._last_reported_percentage < 100
-            ):
+            if event_status == "post_processing_started" and self._last_reported_percentage < 100:
                 logger.log(
                     LogLevel.DEBUG,
                     "Ensuring 100% download notification before post-processing starts.",
@@ -188,14 +188,10 @@ class YouTubeDownloader:
                     f"Sent post-processing notification: {event_status} for {postprocessor_name}",
                 )
             except Exception as e:
-                logger.log(
-                    LogLevel.ERROR, f"Error sending post-processing notification: {e}"
-                )
+                logger.log(LogLevel.ERROR, f"Error sending post-processing notification: {e}")
 
     # MARK: - Download Core Logic
-    def _perform_download_blocking(
-        self, url: str, playlist_folder: Path
-    ) -> Dict[str, Any]:
+    def _perform_download_blocking(self, url: str, playlist_folder: Path) -> Dict[str, Any]:
         """Perform the actual blocking download operation.
 
         This method is intended to be run in a separate thread.
@@ -218,10 +214,7 @@ class YouTubeDownloader:
 
             # Create safe folder name from title
             safe_title = "".join(
-                [
-                    c if c.isalnum() or c in " -_" else "_"
-                    for c in info.get("title", "Unknown")
-                ]
+                [c if c.isalnum() or c in " -_" else "_" for c in info.get("title", "Unknown")]
             )
 
             # Define the folder where individual files will be stored
@@ -321,11 +314,7 @@ class YouTubeDownloader:
                         entry_title = entry.get("title", f"Track {idx}")
                         # Try to find a matching file
                         matching_file = next(
-                            (
-                                f
-                                for f in mp3_files
-                                if entry_title.lower() in f.stem.lower()
-                            ),
+                            (f for f in mp3_files if entry_title.lower() in f.stem.lower()),
                             None,
                         )
 
@@ -351,9 +340,7 @@ class YouTubeDownloader:
                                     "start_time": 0,
                                     "end_time": entry.get("duration", 0),
                                     # Add 'files/' prefix
-                                    "filename": str(
-                                        Path("files") / f"{entry_title}.mp3"
-                                    ),
+                                    "filename": str(Path("files") / f"{entry_title}.mp3"),
                                 }
                             )
                 else:
@@ -420,9 +407,7 @@ class YouTubeDownloader:
             else:
                 # No chapters and no files found - this shouldn't happen but handle it
                 # anyway
-                logger.log(
-                    LogLevel.WARNING, f"No chapters or MP3 files found for {url}"
-                )
+                logger.log(LogLevel.WARNING, f"No chapters or MP3 files found for {url}")
                 processed_files_info = []
 
             # If we still have no processed files but have MP3 files, create entries
@@ -498,10 +483,7 @@ class YouTubeDownloader:
 
             # Create a safe folder name from the title
             safe_title = "".join(
-                [
-                    c if c.isalnum() or c in " -_" else "_"
-                    for c in info.get("title", "Unknown")
-                ]
+                [c if c.isalnum() or c in " -_" else "_" for c in info.get("title", "Unknown")]
             )
             playlist_folder = self.upload_folder / safe_title
 

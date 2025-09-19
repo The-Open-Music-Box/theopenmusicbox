@@ -2,17 +2,26 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""YouTube service for handling video downloads and playlist creation.
+
+Provides high-level service interface for YouTube video downloads, chapter
+processing, playlist database integration, and real-time progress notifications
+via Socket.IO. Coordinates between downloader and playlist services.
+"""
+
 from pathlib import Path
 from typing import Dict
 from uuid import uuid4
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.notification_service import DownloadNotifier
-from app.src.services.playlist_service import PlaylistService
+
+# Deferred import to avoid circular dependency
 
 from .downloader import YouTubeDownloader
 
-logger = ImprovedLogger(__name__)
+logger = get_logger(__name__)
 
 
 class YouTubeService:
@@ -21,7 +30,17 @@ class YouTubeService:
     def __init__(self, socketio=None, config=None):
         self.socketio = socketio
         self.config = config
-        self.playlist_service = PlaylistService(config)
+        self.playlist_service = None  # Will be set on first use
+
+    def _get_playlist_service(self):
+        """Get playlist service with deferred import to avoid circular dependency."""
+        if self.playlist_service is None:
+            from app.src.application.services.playlist_application_service import (
+                playlist_app_service,
+            )
+
+            self.playlist_service = playlist_app_service
+        return self.playlist_service
 
     async def process_download(self, url: str) -> Dict:
         """Process a YouTube download request asynchronously.
@@ -70,7 +89,7 @@ class YouTubeService:
             }
 
             # Add to database
-            playlist_id = self.playlist_service.add_playlist(playlist_data)
+            playlist_id = self._get_playlist_service().add_playlist(playlist_data)
 
             # Send completion notification
             await notifier.notify(

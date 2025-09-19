@@ -2,11 +2,18 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""Log message filtering and cleanup utilities.
+
+Provides filtering capabilities to ignore irrelevant log patterns and message
+cleanup functions to normalize log output formatting for better readability.
+"""
+
 import re
 
 
 class LogFilter:
     """Filter for log messages, ignoring known irrelevant patterns."""
+
     IGNORED_PATTERNS = [
         "pygame.*Hello from the pygame community.*",
         "Restarting with stat",

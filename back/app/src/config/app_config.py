@@ -1,6 +1,7 @@
 # Copyright (c) 2025 Jonathan Piette
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
+
 """
 Unified configuration system for TheOpenMusicBox application.
 
@@ -26,51 +27,50 @@ class AppConfig:
     """
     Unified configuration class for TheOpenMusicBox application.
 
-    This class handles all configuration settings, loading them from: 1. Default values
-    2. Environment variables / .env file
+    This class loads ALL configuration from .env file - no default values.
+    The .env file is the single source of truth for all configuration.
 
-    Usage:     from app.src.config import config     db_path = config.db_file
+    Usage:
+        from app.src.config import config
+        db_path = config.db_file
     """
 
-    # mDNS/zeroconf configuration keys:
-    #   - mdns_service_type: Service type (e.g., _http._tcp.local.)
-    #   - mdns_service_name: Service name (e.g., TheOpenMusicBox._http._tcp.local)
-    #   - mdns_service_hostname: Hostname for the service (e.g., tmbdev.local.)
-    #   - mdns_service_path: Path property for service (e.g., /api)
-    #   - mdns_service_version: Version property (e.g., 1.0)
-    #   - mdns_service_friendly_name: Human-friendly name (e.g., The Open Music Box)
-
-    # Default configuration values
-    DEFAULTS = {
-        "debug": True,
-        "use_reloader": False,
-        "socketio_host": "0.0.0.0",
-        "socketio_port": 5004,
-        "upload_folder": "data/uploads",
-        "db_file": "data/app.db",
-        "cors_allowed_origins": "http://localhost:8080;http://localhost:8081;http://theopenmusicbox.local:5004;*",
-        "log_level": "INFO",
-        "log_format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-        "log_file": "logs/app.log",
-        "use_mock_hardware": False,
-        "app_module": "app.main:app_sio",
-        "uvicorn_reload": False,
-        "upload_allowed_extensions": "mp3;wav;flac;ogg;m4a",
-        "upload_max_size": 50 * 1024 * 1024,
-        # mDNS/zeroconf service defaults
-        "mdns_service_type": "_http._tcp.local.",
-        "mdns_service_path": "/api",
-        "mdns_service_version": "1.0",
-        "mdns_service_friendly_name": "The Open Music Box",
-    }
+    # Required configuration keys that must be present in .env
+    REQUIRED_KEYS = [
+        "debug",
+        "use_reloader",
+        "socketio_host",
+        "socketio_port",
+        "upload_folder",
+        "db_file",
+        "cors_allowed_origins",
+        "log_level",
+        "log_format",
+        "log_file",
+        "use_mock_hardware",
+        "app_module",
+        "uvicorn_reload",
+        "upload_allowed_extensions",
+        "upload_max_size",
+        "mdns_service_type",
+        "mdns_service_path",
+        "mdns_service_version",
+        "mdns_service_friendly_name",
+        "feature_legacy_playlists_snapshot",
+        "enable_event_monitoring",
+        "enable_performance_monitoring",
+        "monitoring_trace_history_size",
+        "monitoring_file_logging",
+    ]
 
     def __init__(self):
         """
-        Initialize the configuration with values from environment.
+        Initialize the configuration with values from .env file only.
+        No default values - .env must contain all required settings.
         """
         self._values = {}
-        self._load_defaults()
         self._load_environment()
+        self._validate_required_keys()
         self._validate_directories()
 
         # Initialize sub-configurations
@@ -84,31 +84,58 @@ class AppConfig:
         # Validate all configurations
         self._validate_configs()
 
-    def _load_defaults(self) -> None:
+    def _validate_required_keys(self) -> None:
         """
-        Load default configuration values.
+        Validate that all required configuration keys are present.
         """
-        self._values.update(self.DEFAULTS)
+        missing_keys = []
+        for key in self.REQUIRED_KEYS:
+            if key not in self._values or self._values[key] is None:
+                missing_keys.append(key)
+
+        if missing_keys:
+            raise ValueError(
+                f"Missing required configuration keys in .env file: {', '.join(missing_keys)}"
+            )
 
     def _load_environment(self) -> None:
         """
-        Load configuration from environment variables and .env file.
+        Load configuration from .env file and environment variables.
+        The .env file is mandatory - no default values are provided.
         """
-        # Try to load from .env file
-        env_path = Path(__file__).parent.parent.parent / ".env"
-        if env_path.exists():
-            load_dotenv(env_path)
-            logger.info("Loaded configuration from %s", env_path)
-        else:
-            logger.warning("No .env file found at %s, using defaults", env_path)
+        # Try multiple possible locations for .env file
+        possible_paths = [
+            # Development: /back/.env (when running from /back/)
+            Path(__file__).parent.parent.parent.parent / ".env",
+            # Production: /.env (when running from project root)
+            Path(__file__).parent.parent.parent / ".env",
+            # Fallback: current working directory
+            Path.cwd() / ".env",
+        ]
 
-        # Override with environment variables
-        for key in self.DEFAULTS.keys():
+        env_path = None
+        for path in possible_paths:
+            if path.exists():
+                env_path = path
+                break
+
+        if not env_path:
+            paths_checked = "\n".join([f"  - {p}" for p in possible_paths])
+            raise FileNotFoundError(
+                f"Configuration file not found in any of these locations:\n{paths_checked}\n"
+                f"The .env file is required as the single source of truth for configuration."
+            )
+
+        load_dotenv(env_path)
+        logger.info("Loaded configuration from %s", env_path)
+
+        # Load all configuration values from environment variables
+        for key in self.REQUIRED_KEYS:
             env_key = key.upper()
             if env_key in os.environ:
-                self._values[key] = self._convert_env_value(
-                    os.environ[env_key], type(self.DEFAULTS[key])
-                )
+                # Detect type from environment value
+                env_value = os.environ[env_key]
+                self._values[key] = self._convert_env_value(env_value)
                 logger.debug("Loaded %s=%s from environment", key, self._values[key])
 
     def _validate_directories(self) -> None:
@@ -143,39 +170,49 @@ class AppConfig:
         log_dir = log_path.parent
         log_dir.mkdir(parents=True, exist_ok=True)
 
-    def _convert_env_value(self, value: str, target_type: type) -> Any:
+    def _convert_env_value(self, value: str) -> Any:
         """
         Convert string environment variable to the appropriate type.
+        Auto-detects type based on common patterns.
 
-        Args:     value: String value from environment     target_type: Target type to
-        convert to
+        Args:
+            value: String value from environment
 
-        Returns:     Converted value
+        Returns:
+            Converted value with auto-detected type
         """
+        if not isinstance(value, str):
+            return value
+
+        # Remove quotes if present
+        value = value.strip("'\"")
+
         try:
-            if target_type == bool:
-                return str(value).lower() in ("true", "1", "t", "yes")
-            elif target_type == int:
+            # Boolean detection
+            if value.lower() in ("true", "false", "t", "f", "yes", "no", "1", "0"):
+                return value.lower() in ("true", "t", "yes", "1")
+
+            # Integer detection
+            if value.isdigit() or (value.startswith("-") and value[1:].isdigit()):
                 return int(value)
-            elif target_type == float:
-                return float(value)
-            elif target_type == list:
+
+            # Float detection
+            if "." in value:
+                try:
+                    return float(value)
+                except ValueError:
+                    pass
+
+            # List detection (semicolon separated)
+            if ";" in value:
                 return value.split(";")
-            else:
-                return value
+
+            # Default: return as string
+            return value
+
         except (ValueError, TypeError) as e:
-            logger.error("Error converting value '%s' to %s: %s", value, target_type, e)
-            # Fallback: return the default for the requested type if possible
-            if target_type == bool:
-                return False
-            elif target_type == int:
-                return 0
-            elif target_type == float:
-                return 0.0
-            elif target_type == list:
-                return []
-            else:
-                return None
+            logger.error("Error converting value '%s': %s", value, e)
+            return value
 
     def get(self, key: str, default: Any = None) -> Any:
         """
@@ -197,6 +234,9 @@ class AppConfig:
 
         Raises:     AttributeError: If configuration key doesn't exist
         """
+        # Support both hardware and hardware_config for compatibility
+        if name == "hardware_config":
+            return self.hardware
         if name in self._values:
             return self._values[name]
         raise AttributeError(f"Configuration has no attribute '{name}'")
@@ -418,6 +458,57 @@ class AppConfig:
         """
         return self._values.get("mdns_service_friendly_name", "The Open Music Box")
 
+    # Feature flags for paginated playlists optimization
+    # Clean architecture - paginated index removed for simplicity
+
+    @property
+    def FEATURE_LEGACY_PLAYLISTS_SNAPSHOT(self) -> bool:
+        """
+        Whether to emit legacy full playlists snapshots over Socket.IO.
+
+        When True, continues to emit state:playlists with full playlist data.
+        When False, only emits state:playlists_index_update for optimization.
+        """
+        return self._values.get("FEATURE_LEGACY_PLAYLISTS_SNAPSHOT", False)
+
+    # === Monitoring Configuration ===
+
+    @property
+    def enable_event_monitoring(self) -> bool:
+        """
+        Whether to enable detailed event monitoring (debug only).
+
+        This setting is automatically disabled if debug mode is off.
+        """
+        if not self.debug:
+            return False
+        return self._values.get("enable_event_monitoring", True)
+
+    @property
+    def enable_performance_monitoring(self) -> bool:
+        """
+        Whether to enable performance monitoring.
+
+        This setting is automatically disabled if debug mode is off.
+        """
+        if not self.debug:
+            return False
+        return self._values.get("enable_performance_monitoring", True)
+
+    @property
+    def monitoring_trace_history_size(self) -> int:
+        """
+        Maximum events to keep in trace history.
+        """
+        return self._values.get("monitoring_trace_history_size", 1000)
+
+    @property
+    def monitoring_file_logging(self) -> bool:
+        """
+        Whether to enable monitoring-specific file logging.
+        """
+        return self._values.get("monitoring_file_logging", False)
+
     def _load_subconfig_overrides(self) -> None:
         """
         Load environment overrides for sub-configurations.
@@ -429,8 +520,8 @@ class AppConfig:
             self.audio.volume_step = int(os.environ["AUDIO_VOLUME_STEP"])
 
         # Hardware config overrides
-        if "HARDWARE_MOCK" in os.environ:
-            self.hardware.mock_hardware = os.environ["HARDWARE_MOCK"].lower() in (
+        if "USE_MOCK_HARDWARE" in os.environ:
+            self.hardware.mock_hardware = os.environ["USE_MOCK_HARDWARE"].lower() in (
                 "true",
                 "1",
                 "yes",
@@ -438,9 +529,7 @@ class AppConfig:
         if "GPIO_NEXT_BUTTON" in os.environ:
             self.hardware.gpio_next_track_button = int(os.environ["GPIO_NEXT_BUTTON"])
         if "GPIO_PREV_BUTTON" in os.environ:
-            self.hardware.gpio_previous_track_button = int(
-                os.environ["GPIO_PREV_BUTTON"]
-            )
+            self.hardware.gpio_previous_track_button = int(os.environ["GPIO_PREV_BUTTON"])
         if "GPIO_VOLUME_CLK" in os.environ:
             self.hardware.gpio_volume_encoder_clk = int(os.environ["GPIO_VOLUME_CLK"])
         if "GPIO_VOLUME_DT" in os.environ:

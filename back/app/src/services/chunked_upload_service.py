@@ -2,17 +2,26 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""Chunked upload service for handling large file uploads.
+
+Provides session management for chunked file uploads, allowing large audio files
+to be uploaded in smaller pieces and reassembled on the server. Handles session
+creation, chunk processing, file validation, and cleanup operations.
+"""
+
 import shutil
 import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-from app.src.helpers.exceptions import InvalidFileError, ProcessingError
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.helpers.exceptions import InvalidFileError
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.upload_service import UploadService
+from app.src.services.error.unified_error_decorator import handle_service_errors
 
-logger = ImprovedLogger(__name__)
+logger = get_logger(__name__)
 
 
 class ChunkedUploadService:
@@ -43,10 +52,7 @@ class ChunkedUploadService:
         """
         Return True if the filename is an allowed audio type.
         """
-        return (
-            "." in filename
-            and filename.rsplit(".", 1)[1].lower() in self.allowed_extensions
-        )
+        return "." in filename and filename.rsplit(".", 1)[1].lower() in self.allowed_extensions
 
     def _check_file_size(self, current_size: int, chunk_size: int) -> bool:
         """
@@ -54,7 +60,9 @@ class ChunkedUploadService:
         """
         return (current_size + chunk_size) <= self.max_file_size
 
-    def create_session(self, filename: str, total_chunks: int, total_size: int, playlist_id: str) -> str:
+    def create_session(
+        self, filename: str, total_chunks: int, total_size: int, playlist_id: str
+    ) -> str:
         """
         Create a new upload session for a file.
 
@@ -96,11 +104,10 @@ class ChunkedUploadService:
             "created_at": datetime.now(),
         }
 
-        logger.log(
-            LogLevel.INFO, f"Created upload session {session_id} for file {filename}"
-        )
+        logger.log(LogLevel.INFO, f"Created upload session {session_id} for file {filename}")
         return session_id
 
+    @handle_service_errors("chunked_upload")
     async def process_chunk(
         self, session_id: str, chunk_index: int, chunk_data, chunk_size: int
     ) -> Dict:
@@ -127,9 +134,7 @@ class ChunkedUploadService:
             return {
                 "status": "duplicate",
                 "message": f"Chunk {chunk_index} already received",
-                "progress": len(session["received_chunks"])
-                / session["total_chunks"]
-                * 100,
+                "progress": len(session["received_chunks"]) / session["total_chunks"] * 100,
             }
 
         # Check if adding this chunk would exceed max file size
@@ -138,41 +143,28 @@ class ChunkedUploadService:
                 f"File too large. Maximum size: {self.max_file_size/1024/1024}MB"
             )
 
-        try:
-            # Save the chunk to the session directory
-            chunk_path = session["session_dir"] / f"chunk_{chunk_index}"
-            with open(chunk_path, "wb") as f:
-                f.write(chunk_data)
+        # Save the chunk to the session directory
+        chunk_path = session["session_dir"] / f"chunk_{chunk_index}"
+        with open(chunk_path, "wb") as f:
+            f.write(chunk_data)
+        # Update session tracking
+        session["received_chunks"].add(chunk_index)
+        session["current_size"] += chunk_size
+        # Calculate progress
+        progress = len(session["received_chunks"]) / session["total_chunks"] * 100
+        # Check if upload is complete
+        is_complete = len(session["received_chunks"]) == session["total_chunks"]
+        session["complete"] = is_complete
+        return {
+            "status": "success",
+            "message": "Chunk received",
+            "chunk_index": chunk_index,
+            "progress": progress,
+            "complete": is_complete,
+        }
 
-            # Update session tracking
-            session["received_chunks"].add(chunk_index)
-            session["current_size"] += chunk_size
-
-            # Calculate progress
-            progress = len(session["received_chunks"]) / session["total_chunks"] * 100
-
-            # Check if upload is complete
-            is_complete = len(session["received_chunks"]) == session["total_chunks"]
-            session["complete"] = is_complete
-
-            return {
-                "status": "success",
-                "message": "Chunk received",
-                "chunk_index": chunk_index,
-                "progress": progress,
-                "complete": is_complete,
-            }
-
-        except (ValueError, KeyError, IOError, OSError) as e:
-            logger.log(
-                LogLevel.ERROR,
-                f"Error processing chunk {chunk_index} for session {session_id}: {str(e)}",
-            )
-            raise ProcessingError(f"Error processing chunk: {str(e)}") from e
-
-    async def finalize_upload(
-        self, session_id: str, playlist_path: str
-    ) -> Tuple[str, Dict]:
+    @handle_service_errors("chunked_upload")
+    async def finalize_upload(self, session_id: str, playlist_path: str) -> Tuple[str, Dict]:
         """
         Finalize an upload by assembling all chunks and processing the complete file.
 
@@ -197,41 +189,27 @@ class ChunkedUploadService:
             missing = set(range(session["total_chunks"])) - session["received_chunks"]
             raise InvalidFileError(f"Upload incomplete. Missing chunks: {missing}")
 
-        try:
-            # Create the destination directory
-            upload_path = Path(self.upload_service.upload_folder) / playlist_path
-            upload_path.mkdir(parents=True, exist_ok=True)
-
-            # Assemble the file from chunks
-            filename = session["filename"]
-            assembled_file_path = upload_path / filename
-
-            with open(assembled_file_path, "wb") as output_file:
-                # Write chunks in order
-                for i in range(session["total_chunks"]):
-                    chunk_path = session["session_dir"] / f"chunk_{i}"
-                    with open(chunk_path, "rb") as chunk_file:
-                        output_file.write(chunk_file.read())
-
-            # Extract metadata
-            metadata = self.upload_service.extract_metadata(assembled_file_path)
-
-            # Clean up the temporary files
-            self._cleanup_session(session_id)
-
-            logger.log(
-                LogLevel.INFO,
-                f"Successfully assembled file {filename} from {session['total_chunks']} chunks",
-            )
-            return filename, metadata
-
-        except Exception as e:
-            logger.log(
-                LogLevel.ERROR,
-                f"Error finalizing upload for session {session_id}: {str(e)}",
-            )
-            self._cleanup_session(session_id)
-            raise ProcessingError(f"Error finalizing upload: {str(e)}") from e
+        # Create the destination directory
+        upload_path = Path(self.upload_service.upload_folder) / playlist_path
+        upload_path.mkdir(parents=True, exist_ok=True)
+        # Assemble the file from chunks
+        filename = session["filename"]
+        assembled_file_path = upload_path / filename
+        with open(assembled_file_path, "wb") as output_file:
+            # Write chunks in order
+            for i in range(session["total_chunks"]):
+                chunk_path = session["session_dir"] / f"chunk_{i}"
+                with open(chunk_path, "rb") as chunk_file:
+                    output_file.write(chunk_file.read())
+        # Extract metadata
+        metadata = self.upload_service.extract_metadata(assembled_file_path)
+        # Clean up the temporary files
+        self._cleanup_session(session_id)
+        logger.log(
+            LogLevel.INFO,
+            f"Successfully assembled file {filename} from {session['total_chunks']} chunks",
+        )
+        return filename, metadata
 
     def get_session_status(self, session_id: str) -> Dict:
         """
@@ -257,6 +235,7 @@ class ChunkedUploadService:
             "complete": session["complete"],
         }
 
+    @handle_service_errors("chunked_upload")
     def _cleanup_session(self, session_id: str):
         """
         Clean up temporary files for a session.
@@ -264,24 +243,11 @@ class ChunkedUploadService:
         Args:     session_id: Upload session identifier
         """
         if session_id in self.active_uploads:
-            try:
-                session_dir = self.active_uploads[session_id]["session_dir"]
-                if session_dir.exists():
-                    shutil.rmtree(session_dir)
-                del self.active_uploads[session_id]
-                logger.log(LogLevel.INFO, f"Cleaned up session {session_id}")
-            except (OSError, shutil.Error) as e:
-                logger.log(
-                    LogLevel.ERROR, f"Error removing session directory {session_id}: {str(e)}"
-                )
-            except KeyError as e:
-                logger.log(
-                    LogLevel.ERROR, f"Session key error for {session_id}: {str(e)}"
-                )
-            except (FileNotFoundError, PermissionError) as e:
-                logger.log(
-                    LogLevel.ERROR, f"File access error for session {session_id}: {str(e)}"
-                )
+            session_dir = self.active_uploads[session_id]["session_dir"]
+            if session_dir.exists():
+                shutil.rmtree(session_dir)
+            del self.active_uploads[session_id]
+            logger.log(LogLevel.INFO, f"Cleaned up session {session_id}")
 
     def cleanup_expired_sessions(self, max_age_hours: int = 24):
         """
@@ -291,15 +257,15 @@ class ChunkedUploadService:
         """
         current_time = datetime.now()
         sessions_to_remove = []
-        
+
         for session_id, session_data in self.active_uploads.items():
             if "created_at" in session_data:
                 session_age = current_time - session_data["created_at"]
                 if session_age.total_seconds() > max_age_hours * 3600:
                     sessions_to_remove.append(session_id)
-        
+
         for session_id in sessions_to_remove:
             self._cleanup_session(session_id)
             logger.log(LogLevel.INFO, f"Removed expired session {session_id}")
-        
+
         return len(sessions_to_remove)

@@ -8,11 +8,11 @@ Provides compatibility between the old logger interface and the new
 ImprovedLogger implementation.
 """
 
-from ..monitoring.improved_logger import ImprovedLogger
+from ..monitoring import get_logger
 from ..monitoring.logging.log_level import LogLevel
 
 # Create a default logger instance
-logger = ImprovedLogger(__name__)
+logger = get_logger(__name__)
 
 # Export LogLevel for backward compatibility
 # This allows imports like: from app.src.utils.logger import LogLevel, logger

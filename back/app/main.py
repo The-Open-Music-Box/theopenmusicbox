@@ -2,7 +2,21 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-import traceback
+"""
+FastAPI Application Entry Point for TheOpenMusicBox
+
+This module provides the main FastAPI application with Socket.IO integration
+for the TheOpenMusicBox music management system. It handles application
+lifecycle, domain bootstrap initialization, and proper resource cleanup.
+
+Key Components:
+- FastAPI application with CORS middleware
+- Socket.IO server for real-time communication
+- Domain-driven architecture initialization
+- Physical controls integration
+- Graceful startup and shutdown procedures
+"""
+
 from contextlib import asynccontextmanager
 
 import socketio
@@ -11,32 +25,139 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.src.config import config
 from app.src.core.application import Application
-from app.src.core.container_async import ContainerAsync
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.routes.api_routes import init_api_routes
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
+from app.src.routes.api_routes_state import init_api_routes_state
+from app.src.domain.bootstrap import domain_bootstrap
+from app.src.domain.error_handling.unified_error_handler import (
+    UnifiedErrorHandler,
+    ErrorCategory,
+    ErrorSeverity,
+    ErrorContext,
+)
+from app.src.services.error.unified_error_decorator import handle_errors
 
-logger = ImprovedLogger(__name__)
+logger = get_logger(__name__)
+error_handler = UnifiedErrorHandler()
 
-# Load config
 env_config = config
 
-# Dependency injection container
-container = ContainerAsync(env_config)
-
-# CORS
-# Read CORS origins from the config (.env)
-# Handle both string and list types for cors_allowed_origins
 if isinstance(env_config.cors_allowed_origins, str):
     cors_origins = [
-        origin.strip()
-        for origin in env_config.cors_allowed_origins.split(";")
-        if origin.strip()
+        origin.strip() for origin in env_config.cors_allowed_origins.split(";") if origin.strip()
     ]
 else:
     cors_origins = env_config.cors_allowed_origins
+if "*" in cors_origins:
+    sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins="*")
+else:
+    sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=cors_origins)
 
-# Socket.IO AsyncServer - use the same origins list as for CORS
-sio = socketio.AsyncServer(async_mode="asgi", cors_allowed_origins=cors_origins)
+
+@handle_errors(operation_name="initialize_application", component="main.startup")
+async def _initialize_application(fastapi_app):
+    """Initialize the application instance."""
+    # Initialize database first to ensure tables exist
+    from app.src.data.database_manager import get_database_manager
+    logger.log(LogLevel.INFO, "🔧 Ensuring database is initialized...")
+    try:
+        db_manager = get_database_manager()
+        health_info = db_manager.get_health_info()
+        if health_info["status"] == "healthy":
+            logger.log(LogLevel.INFO, f"✅ Database ready with {health_info['tables_count']} tables")
+        else:
+            logger.log(LogLevel.ERROR, f"❌ Database health check failed: {health_info}")
+            raise RuntimeError(f"Database initialization failed: {health_info.get('error', 'Unknown error')}")
+    except Exception as e:
+        logger.log(LogLevel.ERROR, f"❌ Critical database initialization error: {e}")
+        raise
+
+    # Now initialize the application
+    app_instance = Application(env_config)
+    fastapi_app.application = await app_instance.initialize_async()
+    return app_instance
+
+
+@handle_errors(operation_name="start_domain_bootstrap", component="main.startup")
+async def _start_domain_bootstrap():
+    """Start the domain bootstrap."""
+    if domain_bootstrap.is_initialized:
+        await domain_bootstrap.start()
+    else:
+        context = ErrorContext(
+            component="main.startup",
+            operation="start_domain_bootstrap",
+            category=ErrorCategory.GENERAL,
+            severity=ErrorSeverity.MEDIUM,
+        )
+        error_handler.handle_error(RuntimeError("Domain bootstrap not initialized"), context)
+
+
+@handle_errors(operation_name="setup_physical_controls", component="main.startup")
+async def _setup_physical_controls(playlist_routes):
+    """Setup physical controls integration with GPIO."""
+    if not playlist_routes:
+        context = ErrorContext(
+            component="main.startup",
+            operation="setup_physical_controls",
+            category=ErrorCategory.HARDWARE,
+            severity=ErrorSeverity.HIGH,
+        )
+        error_handler.handle_error(
+            RuntimeError("No playlist_routes instance found, physical controls not initialized"),
+            context,
+        )
+        return
+
+    if hasattr(playlist_routes, "setup_controls_integration"):
+        await playlist_routes.setup_controls_integration()
+        logger.log(LogLevel.INFO, "✅ Physical controls integration setup completed")
+    else:
+        context = ErrorContext(
+            component="main.startup",
+            operation="setup_physical_controls",
+            category=ErrorCategory.HARDWARE,
+            severity=ErrorSeverity.MEDIUM,
+        )
+        error_handler.handle_error(
+            AttributeError("Could not find setup_controls_integration method on playlist_routes"),
+            context,
+        )
+
+
+@handle_errors(operation_name="cleanup_playlist_routes", component="main.shutdown")
+async def _cleanup_playlist_routes(playlist_routes):
+    """Cleanup playlist routes resources."""
+    if not playlist_routes:
+        return
+
+    # Stop background tasks first
+    if hasattr(playlist_routes, "cleanup_background_tasks"):
+        await playlist_routes.cleanup_background_tasks()
+        logger.log(LogLevel.INFO, "main.py: Background tasks cleaned up successfully.")
+
+    # Then cleanup physical controls
+    if hasattr(playlist_routes, "cleanup_controls"):
+        await playlist_routes.cleanup_controls()
+        logger.log(LogLevel.INFO, "main.py: Physical controls cleaned up successfully.")
+
+
+@handle_errors(operation_name="cleanup_application", component="main.shutdown")
+async def _cleanup_application(fastapi_app):
+    """Cleanup application instance."""
+    app_instance = getattr(fastapi_app, "application", None)
+    if app_instance and hasattr(app_instance, "cleanup"):
+        await app_instance.cleanup()
+        logger.log(LogLevel.INFO, "main.py: Application instance cleaned up successfully.")
+
+
+@handle_errors(operation_name="cleanup_domain", component="main.shutdown")
+async def _cleanup_domain():
+    """Cleanup domain architecture."""
+    if domain_bootstrap.is_initialized:
+        await domain_bootstrap.stop()
+        domain_bootstrap.cleanup()
+        logger.log(LogLevel.INFO, "✅ Domain architecture cleaned up")
 
 
 @asynccontextmanager
@@ -49,109 +170,48 @@ async def lifespan(fastapi_app):
     Yields:
         None: Control during application runtime.
     """
+    routes_organizer = None
     try:
-        # Async resource initialization
-        await container.initialize_async()
-        fastapi_app.container = container  # Assign container to app
+        await _initialize_application(fastapi_app)
+        await _start_domain_bootstrap()
 
-        # Create and initialize the application asynchronously
-        app_instance = Application(container.config)
-        fastapi_app.application = await app_instance.initialize_async()
+        routes_organizer = init_api_routes_state(fastapi_app, sio, env_config)
+        playlist_routes = getattr(routes_organizer, "playlist_routes", None)
+        await _setup_physical_controls(playlist_routes)
 
-        # Centralized route initialization using APIRoutes
-        # Ensure sio is available in this scope for APIRoutes
-        # The original sio is defined later, so we need to ensure it's passed correctly.
-        # For now, assuming sio is accessible or passed appropriately.
-        # If container.nfc is None, APIRoutes will handle not registering
-        # NFC-dependent routes.
-
-        # Pass sio to the container if NFC is available, as APIRoutes might need
-        # it for NFCService setup via container
-        if container.nfc:
-            # Ensure socketio is set in container for NFCService
-            container.set_socketio(sio)
-
-            # Set up NFC tag event subscription using the Application's public method
-            # This logic should remain here as it's specific to the application's core behavior
-            # and not just route registration.
-            async def on_tag(tag_data):
-                await fastapi_app.application.handle_nfc_event(tag_data)
-
-            container.nfc.tag_subject.subscribe(on_tag)
-            logger.log(
-                LogLevel.INFO, "main.py: NFC tag event subscription setup complete."
-            )
-
-        # Initialize all API routes via the centralized APIRoutes
-        init_api_routes(fastapi_app, sio, container)
-        logger.log(
-            LogLevel.INFO, "main.py: All API routes initialized via init_api_routes."
-        )
-
-        # Initialize physical controls after audio player is fully available
-        # This happens after route initialization to ensure PlaylistRoutes has set
-        # up its audio player reference
-        playlist_routes = getattr(fastapi_app, "playlist_routes", None)
-        if playlist_routes:
-            # Setup controls integration with proper error handling
-            try:
-                # Call the controls setup method
-                if hasattr(playlist_routes, "_setup_controls_integration"):
-                    playlist_routes._setup_controls_integration()
-                    logger.log(
-                        LogLevel.INFO,
-                        "main.py: Physical controls initialized successfully.",
-                    )
-                else:
-                    logger.log(
-                        LogLevel.WARNING,
-                        "main.py: Could not find _setup_controls_integration "
-                        "method on playlist_routes",
-                    )
-            except Exception as e:
-                logger.log(
-                    LogLevel.ERROR,
-                    f"main.py: Failed to initialize physical controls: "
-                    f"{str(e)}\n{traceback.format_exc()}",
-                )
-        else:
-            logger.log(
-                LogLevel.WARNING,
-                "main.py: No playlist_routes instance found, "
-                "physical controls not initialized.",
-            )
-
+        logger.log(LogLevel.INFO, "🟢 Application startup completed successfully")
         yield
+        logger.log(LogLevel.INFO, "🟡 Application shutdown sequence starting...")
+    except (RuntimeError, OSError, ImportError, AttributeError) as e:
+        context = ErrorContext(
+            component="main.lifespan",
+            operation="startup",
+            category=ErrorCategory.GENERAL,
+            severity=ErrorSeverity.CRITICAL,
+        )
+        error_handler.handle_error(e, context)
+        raise
     except Exception as e:
-        # import traceback # Already imported at the top
-        print(f"Error during startup: {e}\n{traceback.format_exc()}")
+        context = ErrorContext(
+            component="main.lifespan",
+            operation="startup",
+            category=ErrorCategory.GENERAL,
+            severity=ErrorSeverity.CRITICAL,
+        )
+        error_handler.handle_error(e, context)
         raise
     finally:
-        # Cleanup when application stops
-        # First shut down any physical controls
-        playlist_routes = getattr(fastapi_app, "playlist_routes", None)
-        if playlist_routes and hasattr(playlist_routes, "_cleanup_controls"):
-            try:
-                playlist_routes._cleanup_controls()
-                logger.log(
-                    LogLevel.INFO,
-                    "main.py: Physical controls cleaned up successfully."
-                )
-            except Exception as e:
-                logger.log(
-                    LogLevel.ERROR,
-                    f"main.py: Error while cleaning up physical controls: "
-                    f"{str(e)}",
-                )
+        playlist_routes = (
+            getattr(routes_organizer, "playlist_routes", None) if routes_organizer else None
+        )
+        await _cleanup_playlist_routes(playlist_routes)
+        await _cleanup_application(fastapi_app)
+        await _cleanup_domain()
 
-        # Then proceed with normal container cleanup
-        await container.cleanup_async()
+        logger.log(LogLevel.INFO, "✅ Application shutdown completed")
 
 
-# FastAPI app
 app = FastAPI(lifespan=lifespan)
-
-# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -160,5 +220,4 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create the ASGI app with Socket.IO
 app_sio = socketio.ASGIApp(sio, other_asgi_app=app)

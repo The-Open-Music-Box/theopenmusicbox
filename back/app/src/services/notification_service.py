@@ -2,14 +2,20 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-import asyncio
-import threading
-import time
+"""Notification service for Socket.IO event broadcasting.
+
+Provides notification classes for download progress events, playback status
+updates, and track progress monitoring. Includes singleton pattern implementation
+for centralized event management and Socket.IO integration.
+"""
+
 from typing import Any, Dict
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
+from app.src.services.error.unified_error_decorator import handle_service_errors
 
-logger = ImprovedLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DownloadNotifier:
@@ -19,12 +25,29 @@ class DownloadNotifier:
         self.socketio = socketio
         self.download_id = download_id
 
+    @handle_service_errors("notification")
     async def notify(self, status: str, **data):
-        """Emit a download progress event with the given status and data."""
-        await self.socketio.emit(
-            "download_progress",
-            {"download_id": self.download_id, "status": status, **data},
-        )
+        """Emit canonical YouTube download events.
+
+        Events: `youtube:progress` during lifecycle, `youtube:complete` on success,
+        `youtube:error` on failure. Always includes `task_id`.
+        """
+        canonical = {"task_id": self.download_id, "status": status, **data}
+        if not self.socketio:
+            return
+        if status.lower() in ("pending", "downloading", "processing", "saving_playlist"):
+            await self.socketio.emit("youtube:progress", canonical)
+        elif status.lower() == "complete":
+            # Emit complete event with playlist info when available
+            await self.socketio.emit("youtube:complete", canonical)
+        elif status.lower() == "error":
+            message = data.get("message") or data.get("error") or "Download error"
+            await self.socketio.emit(
+                "youtube:error", {"task_id": self.download_id, "message": message}
+            )
+        else:
+            # Default to progress for unrecognized statuses
+            await self.socketio.emit("youtube:progress", canonical)
 
 
 class PlaybackEvent:
@@ -40,9 +63,9 @@ class PlaybackSubject:
 
     Implements a singleton pattern for managing playback status and progress events.
     """
+
     # Global static instance for direct reference
     _instance = None
-    _lock = threading.RLock()
     _socketio = None
 
     @classmethod
@@ -53,64 +76,46 @@ class PlaybackSubject:
     @classmethod
     def get_instance(cls):
         """Return the singleton instance of PlaybackSubject."""
-        with cls._lock:
-            if cls._instance is None:
-                cls._instance = PlaybackSubject()
-            return cls._instance
+        if cls._instance is None:
+            cls._instance = PlaybackSubject()
+        return cls._instance
 
     def __init__(self):
         """Initialize the PlaybackSubject singleton instance."""
         self._last_status_event = None
         self._last_progress_event = None
-        self._last_progress_emit_time = (
-            0  # Used to throttle progress event emission frequency
-        )
-        if (
-            PlaybackSubject._instance is not None
-            and PlaybackSubject._instance is not self
-        ):
+        self._last_progress_emit_time = 0  # Used to throttle progress event emission frequency
+        if PlaybackSubject._instance is not None and PlaybackSubject._instance is not self:
             raise RuntimeError(
                 "PlaybackSubject singleton instance already exists. Use get_instance()."
             )
-        with PlaybackSubject._lock:
-            if PlaybackSubject._instance is None:
-                PlaybackSubject._instance = self
+        if PlaybackSubject._instance is None:
+            PlaybackSubject._instance = self
 
+    @handle_service_errors("notification")
     def notify_playback_status(
         self, status: str, playlist_info: Dict = None, track_info: Dict = None
     ):
-        """Emit a playback status event.
+        """Store playback status event for internal use only.
+
+        Socket.IO emission now handled exclusively by StateManager.
 
         Args:
             status: Playback status ('playing', 'paused', 'stopped').
             playlist_info: Information about the current playlist.
             track_info: Information about the current track.
         """
-        try:
-            event_data = {
-                "status": status,
-                "playlist": playlist_info,
-                "current_track": track_info,
-            }
-            event = PlaybackEvent("status", event_data)
-            self._last_status_event = event
+        event_data = {
+            "status": status,
+            "playlist": playlist_info,
+            "current_track": track_info,
+        }
+        event = PlaybackEvent("status", event_data)
+        self._last_status_event = event
+        # Socket.IO emission removed - StateManager handles all real-time events
+        logger.log(LogLevel.DEBUG, f"Playback status stored internally: {status}")
 
-            # Emit directly via Socket.IO
-            if PlaybackSubject._socketio:
-                try:
-                    # Emit via Socket.IO by creating an asyncio task
-                    self._emit_socketio_event("playback_status", event_data)
-                except Exception as e:
-                    logger.log(
-                        LogLevel.ERROR,
-                        f"[PlaybackSubject] Error emitting Socket.IO event: {e}",
-                    )
-        except Exception as e:
-            logger.log(
-                LogLevel.ERROR,
-                f"[PlaybackSubject] Error in notify_playback_status: {e}",
-            )
-
+    @handle_service_errors("notification")
     def notify_track_progress(
         self,
         elapsed: float,
@@ -120,7 +125,9 @@ class PlaybackSubject:
         playlist_info: dict = None,
         is_playing: bool = True,
     ):
-        """Emit a track progress event with full info for the frontend.
+        """Store track progress event for internal use only.
+
+        Socket.IO emission now handled exclusively by StateManager.
 
         Args:
             elapsed: Elapsed time in seconds.
@@ -130,31 +137,17 @@ class PlaybackSubject:
             playlist_info: Dictionary with playlist metadata (optional).
             is_playing: True if playback is active.
         """
-        try:
-            event_data = {
-                "track": track_info,
-                "playlist": playlist_info,
-                "current_time": elapsed,
-                "duration": total,
-                "is_playing": is_playing,
-            }
-            event = PlaybackEvent("progress", event_data)
-            self._last_progress_event = event
-
-            # Emit directly via Socket.IO
-            if PlaybackSubject._socketio:
-                try:
-                    # Emit via Socket.IO by creating an asyncio task
-                    self._emit_socketio_event("track_progress", event_data)
-                except Exception as e:
-                    logger.log(
-                        LogLevel.ERROR,
-                        f"[PlaybackSubject] Error emitting Socket.IO event: {e}",
-                    )
-        except Exception as e:
-            logger.log(
-                LogLevel.ERROR, f"[PlaybackSubject] Error in notify_track_progress: {e}"
-            )
+        event_data = {
+            "track": track_info,
+            "playlist": playlist_info,
+            "current_time": elapsed,
+            "duration": total,
+            "is_playing": is_playing,
+        }
+        event = PlaybackEvent("progress", event_data)
+        self._last_progress_event = event
+        # Socket.IO emission removed - StateManager handles all real-time events
+        logger.log(LogLevel.DEBUG, f"Track progress stored internally: {elapsed:.1f}s/{total:.1f}s")
 
     def get_last_status_event(self):
         """Return the last emitted playback status event."""
@@ -164,51 +157,4 @@ class PlaybackSubject:
         """Return the last emitted track progress event."""
         return self._last_progress_event
 
-    def _emit_socketio_event(self, event_name, event_data):
-        """Emit a Socket.IO event in a fully non-blocking way.
-
-        This implementation ensures we never block the main thread or
-        event loop.
-        """
-        if not PlaybackSubject._socketio:
-            return
-
-        # Throttle progress events to reduce overhead
-        if event_name == "track_progress" and "current_time" in event_data:
-            current_time = time.time()
-            last_progress_time = getattr(self, "_last_progress_emit_time", 0)
-            if current_time - last_progress_time < 0.25:  # 250ms throttle
-                return  # Ignore overly frequent updates
-            self._last_progress_emit_time = current_time
-
-        # Fire-and-forget approach: submit the task to a dedicated background thread
-        def _background_emit():
-            try:
-                # Create a new event loop for this thread if needed
-                try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-
-                    # Create and run the coroutine
-                    async def _emit_async():
-                        try:
-                            await PlaybackSubject._socketio.emit(event_name, event_data)
-                        except Exception as e:
-                            logger.log(LogLevel.ERROR, f"[Socket.IO] Emit failed: {e}")
-
-                    # Run and close the loop
-                    loop.run_until_complete(_emit_async())
-                    loop.close()
-                except Exception as e:
-                    logger.log(
-                        LogLevel.ERROR, f"[Socket.IO] Background emit error: {e}"
-                    )
-            except Exception as e:
-                logger.log(
-                    LogLevel.ERROR, f"[Socket.IO] Fatal background emit error: {e}"
-                )
-
-        # Use a daemon thread that won't block application shutdown
-        emit_thread = threading.Thread(target=_background_emit, daemon=True)
-        emit_thread.start()
-        # Don't wait for the thread to complete - immediately return
+    # Socket.IO emission method removed - StateManager handles all real-time events

@@ -2,15 +2,15 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-from .nfc_routes import NFCRoutes
+"""Routes module initialization for TheOpenMusicBox backend.
+
+Exposes the main route classes for HTTP endpoints including web routes,
+NFC management routes, and YouTube integration routes. Provides a centralized
+import point for all route handlers.
+"""
+
+from .nfc_unified_routes import UnifiedNFCRoutes as NFCRoutes
 from .web_routes import WebRoutes
 from .youtube_routes import YouTubeRoutes
 
-# WebSocketHandlers removed as it appears to be unused legacy code
-
-__all__ = [
-    "WebRoutes",
-    "NFCRoutes",
-    "YouTubeRoutes",
-    # 'WebSocketHandlers' # Removed
-]
+__all__ = ["WebRoutes", "NFCRoutes", "YouTubeRoutes"]

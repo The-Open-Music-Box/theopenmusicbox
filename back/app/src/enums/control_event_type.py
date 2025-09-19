@@ -13,11 +13,11 @@ from enum import Enum
 
 class ControlEventType(Enum):
     """Enumeration of control event types.
-    
+
     Defines the different types of control events that can be triggered
     by physical hardware controls.
     """
-    
+
     PLAY_PAUSE = "play_pause"
     NEXT_TRACK = "next_track"
     PREVIOUS_TRACK = "previous_track"

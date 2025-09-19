@@ -2,6 +2,13 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""Upload service for handling audio file uploads and metadata extraction.
+
+Provides functionality for processing single audio file uploads, validating
+file types and sizes, extracting metadata using mutagen, and managing
+upload workflows for integration with playlist systems.
+"""
+
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -9,10 +16,12 @@ from mutagen import File as MutagenFile
 from mutagen.easyid3 import EasyID3
 from werkzeug.utils import secure_filename
 
-from app.src.helpers.exceptions import InvalidFileError, ProcessingError
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.helpers.exceptions import InvalidFileError
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
+from app.src.services.error.unified_error_decorator import handle_service_errors
 
-logger = ImprovedLogger(__name__)
+logger = get_logger(__name__)
 
 
 class UploadService:
@@ -35,10 +44,7 @@ class UploadService:
         """
         Return True if the filename is an allowed audio type.
         """
-        return (
-            "." in filename
-            and filename.rsplit(".", 1)[1].lower() in self.allowed_extensions
-        )
+        return "." in filename and filename.rsplit(".", 1)[1].lower() in self.allowed_extensions
 
     async def _check_file_size(self, file) -> bool:
         """
@@ -52,6 +58,7 @@ class UploadService:
         await file.seek(0)
         return size <= self.max_file_size
 
+    @handle_service_errors("upload")
     def extract_metadata(self, file_path: Path) -> Dict:
         """
         Extract metadata from an audio file.
@@ -60,31 +67,19 @@ class UploadService:
 
         Returns:     Dictionary with metadata fields: title, artist, album, duration.
         """
-        try:
-            audio = MutagenFile(str(file_path), easy=True)
-            if audio is None:
-                audio = EasyID3(str(file_path))
+        audio = MutagenFile(str(file_path), easy=True)
+        if audio is None:
+            audio = EasyID3(str(file_path))
+        metadata = {
+            "title": audio.get("title", [Path(file_path).stem])[0],
+            "artist": audio.get("artist", ["Unknown"])[0],
+            "album": audio.get("album", ["Unknown"])[0],
+            "duration": audio.info.length if hasattr(audio.info, "length") else 0,
+        }
+        return metadata
 
-            metadata = {
-                "title": audio.get("title", [Path(file_path).stem])[0],
-                "artist": audio.get("artist", ["Unknown"])[0],
-                "album": audio.get("album", ["Unknown"])[0],
-                "duration": audio.info.length if hasattr(audio.info, "length") else 0,
-            }
-            return metadata
-
-        except Exception as e:
-            logger.log(
-                LogLevel.WARNING,
-                f"Could not extract metadata from {file_path}: {str(e)}",
-            )
-            return {
-                "title": Path(file_path).stem,
-                "artist": "Unknown",
-                "album": "Unknown",
-                "duration": 0,
-            }
-
+    @handle_service_errors("upload")
+    @handle_service_errors("upload")
     async def process_upload(self, file, playlist_path: str) -> Tuple[str, Dict]:
         """
         Process an uploaded file and extract its metadata.
@@ -117,32 +112,18 @@ class UploadService:
         filename = secure_filename(file.filename)
 
         # Create the playlist folder if necessary
-        upload_path = self.upload_folder / playlist_path
-        try:
-            upload_path.mkdir(parents=True, exist_ok=True)
-        except OSError as e:
-            logger.log(
-                LogLevel.ERROR, f"Error creating directory {upload_path}: {str(e)}"
-            )
+        upload_path.mkdir(parents=True, exist_ok=True)
 
         # Save the file
         file_path = upload_path / filename
-        try:
-            logger.log(LogLevel.INFO, f"Saving file to {file_path}")
-            await file.seek(0)
-            content = await file.read()
-            with open(str(file_path), "wb") as f:
-                f.write(content)
-
-            logger.log(LogLevel.INFO, f"File saved successfully: {file_path}")
-            metadata = self.extract_metadata(file_path)
-
-            return filename, metadata
-
-        except Exception as e:
-            if file_path.exists():
-                file_path.unlink()
-            raise ProcessingError(f"Error processing file: {str(e)}") from e
+        logger.log(LogLevel.INFO, f"Saving file to {file_path}")
+        await file.seek(0)
+        content = await file.read()
+        with open(str(file_path), "wb") as f:
+            f.write(content)
+        logger.log(LogLevel.INFO, f"File saved successfully: {file_path}")
+        metadata = self.extract_metadata(file_path)
+        return filename, metadata
 
     def cleanup_failed_upload(self, playlist_path: str, filename: str):
         """

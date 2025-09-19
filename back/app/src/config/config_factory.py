@@ -1,6 +1,7 @@
 # Copyright (c) 2025 Jonathan Piette
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
+
 """Configuration factory for TheOpenMusicBox application.
 
 Provides different configuration types for different environments.
@@ -62,9 +63,7 @@ class ConfigFactory:
             # Use in-memory database for tests
             os.environ["DB_FILE"] = ":memory:"
             # Use temporary upload folder for tests
-            test_upload_dir = (
-                Path(__file__).parent.parent.parent.parent / "tests" / "uploads"
-            )
+            test_upload_dir = Path(__file__).parent.parent.parent.parent / "tests" / "uploads"
             os.environ["UPLOAD_FOLDER"] = str(test_upload_dir)
 
         # Create and return the configuration instance

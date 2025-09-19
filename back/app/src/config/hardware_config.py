@@ -1,6 +1,7 @@
 # Copyright (c) 2025 Jonathan Piette
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
+
 """
 Hardware configuration settings for TheOpenMusicBox.
 """
@@ -17,12 +18,12 @@ class HardwareConfig:
     related settings.
     """
 
-    # GPIO Pin Assignments (BCM numbering)
-    gpio_next_track_button: int = 13  # GPIO 13 for next track button
-    gpio_previous_track_button: int = 7  # GPIO 7 for previous track button
-    gpio_volume_encoder_clk: int = 20  # GPIO 20 for rotary encoder CLK
-    gpio_volume_encoder_dt: int = 16  # GPIO 16 for rotary encoder DT
-    gpio_volume_encoder_sw: int = 21  # GPIO 21 for rotary encoder switch
+    # GPIO Pin Assignments (BCM numbering) - Updated to avoid SPI conflicts
+    gpio_next_track_button: int = 16  # GPIO 16 for next track button (safe)
+    gpio_previous_track_button: int = 26  # GPIO 26 for previous track button (safe)
+    gpio_volume_encoder_clk: int = 8  # GPIO 20 for rotary encoder CLK (safe)
+    gpio_volume_encoder_dt: int = 21  # GPIO 21 for rotary encoder DT (safe)
+    gpio_volume_encoder_sw: int = 23  # GPIO 23 for rotary encoder switch (safe)
 
     # Button settings
     button_debounce_time: float = 0.3  # Debounce time in seconds
@@ -44,6 +45,9 @@ class HardwareConfig:
     spi_bus: int = 0  # SPI bus number
     spi_device: int = 0  # SPI device number
     spi_speed_hz: int = 1000000  # SPI speed in Hz
+
+    # Audio settings
+    alsa_device: str = "plughw:2,0"  # ALSA audio device for WM8960 (plughw:card,device format)
 
     # Hardware detection
     mock_hardware: bool = False  # Use mock hardware for testing

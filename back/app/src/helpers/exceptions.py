@@ -2,6 +2,13 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""Exception classes and error handling utilities.
+
+Provides a unified exception hierarchy with categorization, severity levels,
+and structured error contexts for better error handling and debugging
+throughout the TheOpenMusicBox backend application.
+"""
+
 from dataclasses import dataclass
 from enum import Enum
 from typing import Any, Dict, Optional
@@ -89,9 +96,7 @@ class AppError(Exception):
         )
 
     @classmethod
-    def timeout_error(
-        cls, component: str, operation: str, timeout_value: float, **kwargs
-    ):
+    def timeout_error(cls, component: str, operation: str, timeout_value: float, **kwargs):
         return cls(
             message=f"Operation timed out after {timeout_value}s",
             category=ErrorCategory.TIMEOUT,

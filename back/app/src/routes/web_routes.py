@@ -2,15 +2,24 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
+"""Web routes for serving static files and SPA routing.
+
+Handles static file serving, Single Page Application (SPA) routing, and
+provides proper fallback handling for client-side routing. Manages the
+delivery of the web frontend assets and ensures proper SPA behavior.
+"""
+
 from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
+from app.src.services.error.unified_error_decorator import handle_http_errors
 
-logger = ImprovedLogger(__name__)
+logger = get_logger(__name__)
 
 
 class WebRoutes:
@@ -19,25 +28,19 @@ class WebRoutes:
     This class sets up FastAPI endpoints for serving static files, SPA index, and health check
     endpoints. It ensures proper SPA routing and static asset delivery for the web client.
     """
+
     def __init__(self, app: FastAPI):
         self.app = app
         self.router = None
         # We'll set up static file serving in register()
 
+    @handle_http_errors()
     def register(self):
         """Register web routes with the FastAPI application."""
         """Register web routes with FastAPI app."""
-        try:
-            logger.log(LogLevel.INFO, "WebRoutes: Registering web routes")
-            self._init_routes()
-            logger.log(LogLevel.INFO, "WebRoutes: Web routes registered successfully")
-        except Exception as e:
-            logger.log(
-                LogLevel.ERROR,
-                f"WebRoutes: Failed to register routes: {e}",
-                exc_info=True,
-            )
-            raise
+        logger.log(LogLevel.INFO, "WebRoutes: Registering web routes")
+        self._init_routes()
+        logger.log(LogLevel.INFO, "WebRoutes: Web routes registered successfully")
 
     def _init_routes(self):
         """Initialize web routes for serving static files and SPA routing."""
@@ -48,12 +51,8 @@ class WebRoutes:
             static_dir = Path("app/static")
             if static_dir.exists() and static_dir.is_dir():
                 # Mount static files first
-                self.app.mount(
-                    "/static", StaticFiles(directory=str(static_dir)), name="static"
-                )
-                logger.log(
-                    LogLevel.INFO, f"WebRoutes: Mounted static files from {static_dir}"
-                )
+                self.app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+                logger.log(LogLevel.INFO, f"WebRoutes: Mounted static files from {static_dir}")
 
                 # Add root path handler to serve index.html
                 @self.app.get("/")

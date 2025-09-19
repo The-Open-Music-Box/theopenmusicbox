@@ -3,272 +3,249 @@
 # See the LICENSE file for details.
 
 """
-Upload controller for handling file upload business logic.
+UploadController
 
-This controller extracts upload-related business logic from route handlers
-and provides a clean interface for upload operations.
+High-level controller to orchestrate chunked uploads using UploadApplicationService,
+emitting progress/completion events and updating playlists upon finalization.
 """
 
-from typing import Any, Dict, List, Optional
+from math import ceil
+from pathlib import Path
+from typing import Dict, Optional
 
-from fastapi import UploadFile
 from socketio import AsyncServer
 
-from app.src.core.service_container import ServiceContainer
-from app.src.helpers.error_handling import ErrorHandler
-from app.src.monitoring.improved_logger import ImprovedLogger, LogLevel
-from app.src.services.upload_service import UploadService
-from app.src.services.chunked_upload_service import ChunkedUploadService
+# PURE DOMAIN ARCHITECTURE - No Legacy Services
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
+from app.src.application.services.upload_application_service import UploadApplicationService
+from app.src.application.services.playlist_application_service import playlist_app_service
+from app.src.infrastructure.upload.adapters.file_storage_adapter import LocalFileStorageAdapter
+from app.src.infrastructure.upload.adapters.metadata_extractor import MutagenMetadataExtractor
+from app.src.services.error.unified_error_decorator import handle_errors
 
-logger = ImprovedLogger(__name__)
+
+logger = get_logger(__name__)
 
 
 class UploadController:
     """
-    Controller for upload business logic.
-    
-    Handles file upload operations by coordinating between upload services
-    and providing progress tracking via Socket.IO.
+    Orchestrates upload sessions and integrates them with playlists.
     """
 
-    def __init__(self, service_container: Optional[ServiceContainer] = None, socketio: Optional[AsyncServer] = None):
-        """
-        Initialize the UploadController.
-        
+    def __init__(self, config, socketio: Optional[AsyncServer] = None):
+        """Initialize UploadController with domain architecture dependency injection.
+
         Args:
-            service_container: Optional service container for dependency injection.
-            socketio: Optional Socket.IO server for progress events.
+            config: Application configuration object
+            socketio: Socket.IO instance for real-time communication
         """
-        self.service_container = service_container or ServiceContainer()
+        self.config = config
         self.socketio = socketio
-        self.config = self.service_container.config
-        self.upload_service = UploadService(self.config)
-        self.chunked_upload_service = ChunkedUploadService(self.config, self.upload_service)
-        self.error_handler = ErrorHandler()
 
-    async def upload_files(self, playlist_id: str, files: List[UploadFile], config) -> Dict[str, Any]:
+        # PURE DOMAIN ARCHITECTURE - Initialize DDD services
+        self.file_storage = LocalFileStorageAdapter(base_temp_path=str(config.upload_folder))
+        self.metadata_extractor = MutagenMetadataExtractor()
+
+        # Initialize upload application service
+        self.upload_app_service = UploadApplicationService(
+            file_storage=self.file_storage,
+            metadata_extractor=self.metadata_extractor,
+            upload_folder=str(config.upload_folder),
+        )
+
+        # Use playlist application service
+        self.playlist_app_service = playlist_app_service
+
+    async def init_upload_session(
+        self,
+        playlist_id: str,
+        filename: str,
+        file_size: int,
+        chunk_size: int,
+        file_hash: Optional[str] = None,
+    ) -> Dict:
         """
-        Upload multiple files to a playlist.
-        
-        Args:
-            playlist_id: The playlist ID.
-            files: List of uploaded files.
-            config: Configuration object.
-            
-        Returns:
-            Upload results.
+        Initialize a chunked upload session.
+        Returns at minimum: session_id, chunk_size, total_chunks.
+        """
+        total_chunks = int(ceil(file_size / float(chunk_size)))
+
+        # Get playlist path from playlist service
+        playlist_result = await self.playlist_app_service.get_playlist_use_case(playlist_id)
+        playlist_path = None
+        if playlist_result.get("status") == "success":
+            playlist = playlist_result.get("playlist", {})
+            playlist_path = playlist.get("path", playlist_id)  # fallback to ID if no path
+
+        # Use domain application service to create session
+        result = await self.upload_app_service.create_upload_session_use_case(
+            filename=filename,
+            total_size=file_size,
+            total_chunks=total_chunks,
+            playlist_id=playlist_id,
+            playlist_path=playlist_path,
+        )
+
+        if result.get("status") != "success":
+            logger.log(LogLevel.ERROR, f"Failed to create upload session: {result.get('message')}")
+            return {"error": result.get("message", "Failed to create session")}
+
+        session = result.get("session", {})
+        session_id = session.get("session_id")
+
+        logger.log(
+            LogLevel.INFO, f"Upload session created: {session_id} for playlist {playlist_id}"
+        )
+        return {
+            "session_id": session_id,
+            "chunk_size": chunk_size,
+            "total_chunks": total_chunks,
+        }
+
+    @handle_errors("upload_chunk")
+    async def upload_chunk(
+        self, playlist_id: str, session_id: str, chunk_index: int, chunk_data: bytes
+    ) -> Dict:
+        """
+        Process a single chunk and emit upload:progress events.
+        """
+        # Use domain application service to upload chunk
+        result = await self.upload_app_service.upload_chunk_use_case(
+            session_id=session_id, chunk_index=chunk_index, chunk_data=chunk_data
+        )
+
+        if result.get("status") == "success":
+            session = result.get("session", {})
+            progress = result.get("progress", 0)
+            complete = session.get("status") == "completed"
+
+            # Emit progress event (if socket available)
+            if self.socketio:
+                await self.socketio.emit(
+                    "upload:progress",
+                    {
+                        "playlist_id": playlist_id,
+                        "session_id": session_id,
+                        "chunk_index": chunk_index,
+                        "progress": progress,
+                        "complete": complete,
+                    },
+                    room=f"playlist:{playlist_id}",
+                )
+        return result
+
+    async def get_session_status(self, session_id: str) -> Dict:
+        """
+        Return current status for the given upload session.
+        """
+        result = await self.upload_app_service.get_upload_status_use_case(session_id)
+        if result.get("status") == "success":
+            return result.get("session", {})
+        else:
+            return {"error": result.get("message", "Session not found")}
+
+    @handle_errors("finalize_upload")
+    @handle_errors("finalize_upload")
+    async def finalize_upload(
+        self,
+        playlist_id: str,
+        session_id: str,
+        file_hash: Optional[str] = None,
+        metadata_override: Optional[Dict] = None,
+    ) -> Dict:
+        """
+        Finalize the upload: assemble chunks, extract metadata, and add track to playlist.
+        Returns: { status: 'success'|'error', track?: {...}, message? }
         """
         try:
-            results = []
-            total_files = len(files)
-            
-            for i, file in enumerate(files):
-                try:
-                    # Emit progress via Socket.IO
-                    if self.socketio:
-                        await self.socketio.emit('upload_progress', {
-                            'playlist_id': playlist_id,
-                            'current': i + 1,
-                            'total': total_files,
-                            'filename': file.filename,
-                            'status': 'processing'
-                        })
-                    
-                    # Process the file
-                    result = await self.upload_service.process_uploaded_file(
-                        file, playlist_id, config
-                    )
-                    results.append(result)
-                    
-                    # Emit success for this file
-                    if self.socketio:
-                        await self.socketio.emit('upload_progress', {
-                            'playlist_id': playlist_id,
-                            'current': i + 1,
-                            'total': total_files,
-                            'filename': file.filename,
-                            'status': 'completed'
-                        })
-                        
-                except Exception as file_error:
-                    logger.log(LogLevel.ERROR, f"Error processing file {file.filename}: {str(file_error)}")
-                    
-                    # Emit error for this file
-                    if self.socketio:
-                        await self.socketio.emit('upload_error', {
-                            'playlist_id': playlist_id,
-                            'filename': file.filename,
-                            'error': str(file_error)
-                        })
-                    
-                    results.append({
-                        'filename': file.filename,
-                        'status': 'error',
-                        'error': str(file_error)
-                    })
-            
-            # Emit completion
-            if self.socketio:
-                await self.socketio.emit('upload_complete', {
-                    'playlist_id': playlist_id,
-                    'total_files': total_files,
-                    'results': results
-                })
-            
-            logger.log(LogLevel.INFO, f"Uploaded {len(files)} files to playlist {playlist_id}")
-            return {"results": results}
-            
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error uploading files to playlist {playlist_id}: {str(e)}")
-            
-            if self.socketio:
-                await self.socketio.emit('upload_error', {
-                    'playlist_id': playlist_id,
-                    'error': str(e)
-                })
-            raise
+            # Check upload completion status from application service
+            logger.log(LogLevel.INFO, f"🔍 Checking upload status for session {session_id}")
+            status_result = await self.upload_app_service.get_upload_status_use_case(session_id)
 
-    async def create_upload_session(self, playlist_id: str, filename: str, file_size: int, config) -> Dict[str, Any]:
-        """
-        Create a chunked upload session.
-        
-        Args:
-            playlist_id: The playlist ID.
-            filename: Name of the file to upload.
-            file_size: Size of the file in bytes.
-            config: Configuration object.
-            
-        Returns:
-            Session information.
-        """
-        try:
-            session = await self.chunked_upload_service.create_session(
-                playlist_id, filename, file_size, config
+            if status_result.get("status") != "success":
+                logger.log(LogLevel.ERROR, f"❌ Upload session not found: {status_result}")
+                return {"status": "error", "message": "Upload session not found"}
+
+            session = status_result.get("session", {})
+            logger.log(LogLevel.INFO, f"📋 Session status: {session.get('status')}")
+
+            if session.get("status") != "completed":
+                logger.log(
+                    LogLevel.ERROR,
+                    f"❌ Upload not completed yet. Current status: {session.get('status')}",
+                )
+                return {"status": "error", "message": "Upload not completed yet"}
+
+            # Get completion result (includes assembled file path and metadata)
+            completion_data = session.get("completion_data", {})
+            logger.log(
+                LogLevel.INFO,
+                f"📦 Completion data status: {completion_data.get('completion_status')}",
             )
-            
-            logger.log(LogLevel.INFO, f"Created upload session {session['session_id']} for {filename}")
-            return session
-            
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error creating upload session for {filename}: {str(e)}")
-            raise
 
-    async def upload_chunk(self, playlist_id: str, session_id: str, chunk_index: int, 
-                          chunk_data: bytes, config) -> Dict[str, Any]:
-        """
-        Upload a file chunk.
-        
-        Args:
-            playlist_id: The playlist ID.
-            session_id: Upload session ID.
-            chunk_index: Index of the chunk.
-            chunk_data: Binary chunk data.
-            config: Configuration object.
-            
-        Returns:
-            Upload status.
-        """
-        try:
-            result = await self.chunked_upload_service.upload_chunk(
-                session_id, chunk_index, chunk_data, config
+            if completion_data.get("completion_status") != "success":
+                logger.log(LogLevel.ERROR, f"❌ Upload completion failed: {completion_data}")
+                return {"status": "error", "message": "Upload completion failed"}
+
+            file_path = completion_data.get("file_path")
+            metadata_dict = completion_data.get("metadata", {})
+            filename = Path(file_path).name
+
+            # Resolve playlist folder path using domain service
+            playlist_result = await self.playlist_app_service.get_playlist_use_case(playlist_id)
+            if playlist_result.get("status") != "success":
+                return {"status": "error", "message": "Playlist not found"}
+
+            playlist = playlist_result.get("playlist")
+            if not playlist:
+                return {"status": "error", "message": "Playlist not found"}
+
+            # Build track entry for domain controller integration
+            current_tracks = playlist.get("tracks", [])
+            new_track_number = len(current_tracks) + 1
+            # Duration should already be in milliseconds from the domain service
+            duration_ms = metadata_dict.get("duration", 0)
+
+            track_entry = {
+                "track_number": new_track_number,
+                "title": (metadata_override or {}).get("title")
+                or metadata_dict.get("title")
+                or Path(filename).stem,
+                "filename": filename,
+                "file_path": str(file_path),
+                "duration": duration_ms,
+                "artist": (metadata_override or {}).get("artist") or metadata_dict.get("artist"),
+                "album": (metadata_override or {}).get("album") or metadata_dict.get("album"),
+                "file_size": metadata_dict.get("file_size"),
+            }
+
+            logger.log(
+                LogLevel.INFO,
+                f"✅ Upload finalized, track ready for domain integration: {track_entry.get('title')}",
             )
-            
-            # Emit progress via Socket.IO
-            if self.socketio and result.get('progress'):
-                await self.socketio.emit('chunk_progress', {
-                    'playlist_id': playlist_id,
-                    'session_id': session_id,
-                    'chunk_index': chunk_index,
-                    'progress': result['progress']
-                })
-            
-            return result
-            
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error uploading chunk {chunk_index} for session {session_id}: {str(e)}")
-            
-            if self.socketio:
-                await self.socketio.emit('chunk_error', {
-                    'playlist_id': playlist_id,
-                    'session_id': session_id,
-                    'chunk_index': chunk_index,
-                    'error': str(e)
-                })
-            raise
 
-    async def finalize_upload(self, playlist_id: str, session_id: str, config) -> Dict[str, Any]:
-        """
-        Finalize a chunked upload.
-        
-        Args:
-            playlist_id: The playlist ID.
-            session_id: Upload session ID.
-            config: Configuration object.
-            
-        Returns:
-            Finalization result.
-        """
-        try:
-            result = await self.chunked_upload_service.finalize_upload(
-                session_id, playlist_id, config
+            # Emit completion event
+            await self.socketio.emit(
+                "upload:complete",
+                {
+                    "playlist_id": playlist_id,
+                    "session_id": session_id,
+                    "filename": filename,
+                    "metadata": metadata_dict,
+                    "track": track_entry,
+                },
+                room=f"playlist:{playlist_id}",
             )
-            
-            # Emit completion via Socket.IO
-            if self.socketio:
-                await self.socketio.emit('upload_finalized', {
-                    'playlist_id': playlist_id,
-                    'session_id': session_id,
-                    'result': result
-                })
-            
-            logger.log(LogLevel.INFO, f"Finalized upload session {session_id} for playlist {playlist_id}")
-            return result
-            
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error finalizing upload session {session_id}: {str(e)}")
-            
-            if self.socketio:
-                await self.socketio.emit('upload_error', {
-                    'playlist_id': playlist_id,
-                    'session_id': session_id,
-                    'error': str(e)
-                })
-            raise
 
-    async def get_upload_session_status(self, session_id: str, config) -> Dict[str, Any]:
-        """
-        Get the status of an upload session.
-        
-        Args:
-            session_id: Upload session ID.
-            config: Configuration object.
-            
-        Returns:
-            Session status.
-        """
-        try:
-            status = await self.chunked_upload_service.get_session_status(session_id, config)
-            return status
-            
-        except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error getting status for upload session {session_id}: {str(e)}")
-            raise
+            return {"status": "success", "track": track_entry}
 
-    def cleanup_expired_sessions(self, config) -> Dict[str, Any]:
-        """
-        Clean up expired upload sessions.
-        
-        Args:
-            config: Configuration object.
-            
-        Returns:
-            Cleanup statistics.
-        """
-        try:
-            stats = self.chunked_upload_service.cleanup_expired_sessions(config)
-            logger.log(LogLevel.INFO, f"Cleaned up expired upload sessions", extra=stats)
-            return {"status": "success", "stats": stats}
-            
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error cleaning up expired sessions: {str(e)}")
-            raise
+            logger.log(LogLevel.ERROR, f"Finalize upload failed: {e}")
+            if self.socketio:
+                await self.socketio.emit(
+                    "upload:error",
+                    {"playlist_id": playlist_id, "session_id": session_id, "error": str(e)},
+                    room=f"playlist:{playlist_id}",
+                )
+            return {"status": "error", "message": str(e)}
