@@ -28,8 +28,11 @@
 
           <!-- Content -->
           <div class="px-6 py-4 max-h-[70vh] overflow-y-auto">
-            <UnifiedUploader
-              v-if="uploadStore.modalPlaylistId"
+            <div v-if="!uploadStore.modalPlaylistId" class="text-center text-gray-500 py-8">
+              No playlist selected for upload
+            </div>
+            <SimpleUploader
+              v-else
               :playlist-id="uploadStore.modalPlaylistId"
               @upload-complete="handleUploadComplete"
               @upload-error="handleUploadError"
@@ -44,20 +47,23 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 import { useUploadStore } from '@/stores/uploadStore'
-import UnifiedUploader from './UnifiedUploader.vue'
+import { useUnifiedPlaylistStore } from '@/stores/unifiedPlaylistStore'
+import { logger } from '@/utils/logger'
+import SimpleUploader from './SimpleUploader.vue'
 
 // Props
 interface Props {
   playlistId: string
 }
 
-const props = defineProps<Props>()
+defineProps<Props>()
 
 // i18n
 const { t } = useI18n()
 
-// Store
+// Stores
 const uploadStore = useUploadStore()
+const unifiedStore = useUnifiedPlaylistStore()
 
 // Methods
 function handleOverlayClick() {
@@ -70,12 +76,43 @@ function handleClose() {
   uploadStore.closeUploadModal()
 }
 
-function handleUploadComplete() {
-  // Emit event to refresh playlists or handle completion
-  window.location.reload() // Simple refresh for now
+async function handleUploadComplete() {
+  try {
+    logger.debug('Upload completed, forcing unified store sync')
+    
+    // First, force sync the unified store to refresh playlist metadata (track counts)
+    await unifiedStore.forceSync()
+    logger.debug('Unified store sync completed after upload')
+    
+    // Then, specifically reload tracks for the uploaded playlist
+    if (uploadStore.modalPlaylistId) {
+      try {
+        logger.debug('Forcing track reload for uploaded playlist', { playlistId: uploadStore.modalPlaylistId })
+        
+        // Clear existing tracks first to force a fresh reload
+        await unifiedStore.clearPlaylistTracks(uploadStore.modalPlaylistId)
+        
+        // Then reload tracks from API
+        await unifiedStore.loadPlaylistTracks(uploadStore.modalPlaylistId)
+        
+        logger.debug('Tracks successfully reloaded for uploaded playlist')
+      } catch (error) {
+        logger.warn('Failed to reload tracks for uploaded playlist', { 
+          playlistId: uploadStore.modalPlaylistId, 
+          error 
+        })
+      }
+    }
+  } catch (error) {
+    logger.error('Failed to sync unified store after upload', { error })
+  } finally {
+    // Always close the modal even if sync fails
+    uploadStore.closeUploadModal()
+  }
 }
 
 function handleUploadError(error: unknown) {
+  // Error is already logged by SimpleUploader
   console.error('Upload error:', error)
 }
 </script>

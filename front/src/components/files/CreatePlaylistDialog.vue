@@ -111,7 +111,7 @@ const titleInput = ref<HTMLInputElement | null>(null)
 // Focus the title input when the dialog opens
 watch(() => props.open, (isOpen: boolean) => {
   if (isOpen) {
-    // Reset form state
+    // Reset form state when opening
     title.value = ''
     error.value = ''
     isCreating.value = false
@@ -120,6 +120,9 @@ watch(() => props.open, (isOpen: boolean) => {
     nextTick(() => {
       titleInput.value?.focus()
     })
+  } else {
+    // Reset creating state when closing
+    isCreating.value = false
   }
 })
 
@@ -130,13 +133,19 @@ async function createPlaylist() {
     return
   }
   
+  // Prevent double-clicks
+  if (isCreating.value) {
+    return
+  }
+  
   try {
     isCreating.value = true
+    error.value = ''
     emit('create', title.value.trim())
+    // Note: Dialog will be closed by parent component after successful creation
   } catch (err) {
     logger.error('Error creating playlist', { error: err }, 'CreatePlaylistDialog')
     error.value = t('file.errorCreating')
-  } finally {
     isCreating.value = false
   }
 }

@@ -38,13 +38,35 @@ export interface BaseContent {
 
 /**
  * Represents a track in a playlist
+ * UNIFIED INTERFACE - matches contracts.ts exactly
  */
 export interface Track {
-  number: number;
+  id: string;                    // Required
   title: string;
   filename: string;
-  duration: string;
-  play_counter: number;
+  duration_ms: number;           // Unified to milliseconds everywhere
+  file_path: string;
+  file_hash?: string;
+  file_size?: number;
+  
+  // Metadata fields
+  artist?: string;
+  album?: string;
+  track_number?: number;         // Primary field name (unified)
+  
+  // Statistics
+  play_count: number;
+  
+  // Timestamps
+  created_at: string;            // ISO8601 format
+  updated_at?: string;           // ISO8601 format
+  
+  // State synchronization
+  server_seq: number;
+
+  // Legacy compatibility fields (for migration only)
+  number?: number;               // DEPRECATED: use track_number instead
+  duration?: number;             // DEPRECATED: use duration_ms instead
 }
 
 /**
@@ -56,6 +78,7 @@ export interface PlayList extends BaseContent {
   description?: string;
   last_played: number; // Unix timestamp in milliseconds
   tracks: Track[];
+  track_count?: number; // Add track_count field for unified store compatibility
   created_at?: string;
   nfc_tag_id?: string; // NFC tag association (optionnel)
 }

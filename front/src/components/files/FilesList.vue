@@ -5,6 +5,13 @@
       <h2 class="text-lg font-semibold text-onBackground">{{ t('file.playlists') }}</h2>
       <div class="flex gap-2">
         <button
+          v-if="false"
+          @click="showYoutubeModal = true"
+          class="px-3 py-1.5 rounded-md text-sm font-medium bg-red-600 text-white hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500"
+        >
+          Add from YouTube
+        </button>
+        <button
           @click="toggleEditMode"
           :class="[
             'px-3 py-1.5 rounded-md text-sm font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-focus',
@@ -37,7 +44,7 @@
     </div>
 
     <!-- Playlists list -->
-    <div v-for="playlist in playlists" :key="playlist.id" :class="['bg-surface', 'border border-border', 'rounded-lg overflow-hidden shadow-sm']">
+    <div v-for="playlist in localPlaylists" :key="playlist.id" :class="['bg-surface', 'border border-border', 'rounded-lg overflow-hidden shadow-sm']">
       <!-- Playlist header (always visible) -->
       <div
         @click="!isEditMode && togglePlaylist(playlist.id)"
@@ -56,7 +63,7 @@
           </div>
           <h3 v-else :class="['text-onBackground', 'text-sm font-semibold leading-6']">{{ playlist.title }}</h3>
           <p class="text-sm text-disabled">
-            {{ playlist.tracks.length }} tracks • Total Duration: {{ formatTotalDuration(playlist.tracks) }} • Last Played: {{ playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Never' }}
+            {{ playlist.track_count || playlist.tracks?.length || 0 }} tracks • Total Duration: {{ formatTotalDuration(playlist.tracks) }} • Last Played: {{ playlist.last_played ? new Date(playlist.last_played).toLocaleDateString() : 'Never' }}
           </p>
         </div>
         <div class="flex items-center gap-2">
@@ -120,15 +127,6 @@
         </div>
       </div>
 
-      <!-- Enhanced chunked uploader (only in edit mode) -->
-      <div v-if="isEditMode" class="px-4 py-2 border-t border-border bg-background-light">
-        <EnhancedChunkedPlaylistUploader
-          :playlist-id="playlist.id"
-          @upload-complete="handleUploadComplete"
-          @upload-error="handleUploadError"
-          @all-uploads-complete="handleAllUploadsComplete"
-        />
-      </div>
 
       <!-- Upload Button (in edit mode only) -->
       <div v-if="isEditMode" class="upload-section">
@@ -140,6 +138,11 @@
 
       <!-- Tracks list (visible only if playlist is open) -->
       <div v-if="openPlaylists.includes(playlist.id)">
+        <!-- Loading state for tracks -->
+        <div v-if="trackLoadingStates[playlist.id]" class="px-4 py-3 text-disabled text-sm">
+          {{ t('common.loading') }} tracks...
+        </div>
+        
         <draggable
           v-model="playlist.tracks"
           :disabled="!isEditMode"
@@ -165,7 +168,7 @@
             <div class="flex items-center space-x-3">
               <div class="w-8 flex items-center justify-center">
                 <!-- Track number or wavy icon if playing -->
-                <span v-if="!(playingPlaylistId === playlist.id && playingTrackNumber === track.number)" :class="['text-success']">{{ track.number }}</span>
+                <span v-if="!(playingPlaylistId === playlist.id && playingTrackNumber === getTrackNumber(track))" :class="['text-success']">{{ getTrackDisplayPosition(track, playlist.id) }}</span>
                 <span v-else class="wavy-anim" title="Playing">
                   <svg width="16" height="16" viewBox="0 0 20 20" fill="none">
                     <rect x="2" y="6" width="2" height="8" rx="1" class="wavy-bar bar1"/>
@@ -174,7 +177,7 @@
                     <rect x="14" y="5" width="2" height="10" rx="1" class="wavy-bar bar4"/>
                   </svg>
                 </span>
-                <svg v-if="selectedTrack?.number === track.number && !(playingPlaylistId === playlist.id && playingTrackNumber === track.number)" :class="['text-disabled', 'h-5 w-5']" viewBox="0 0 20 20" fill="currentColor">
+                <svg v-if="selectedTrack && getTrackNumber(selectedTrack) === getTrackNumber(track) && !(playingPlaylistId === playlist.id && playingTrackNumber === getTrackNumber(track))" :class="['text-disabled', 'h-5 w-5']" viewBox="0 0 20 20" fill="currentColor">
                   <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" />
                 </svg>
               </div>
@@ -184,8 +187,8 @@
             </div>
 
             <div class="flex items-center space-x-4">
-              <span :class="['text-success']">{{ formatDuration(track.duration) }}</span>
-              <button v-if="isEditMode" @click.stop="$emit('deleteTrack', { playlistId: playlist.id, trackNumber: track.number })"
+              <span :class="['text-success']">{{ formatDuration(track) }}</span>
+              <button v-if="isEditMode" @click.stop="handleDeleteTrackClick(playlist.id, getTrackNumber(track))"
                       class="text-disabled hover:text-error transition-colors opacity-0 group-hover:opacity-100 delete-dialog-buttons">
                 <span class="sr-only">{{ t('common.delete') }}</span>
                 <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -197,14 +200,20 @@
           </div>
           </template>
         </draggable>
+        
+        <!-- Empty state for playlists with no tracks -->
+        <div v-if="!trackLoadingStates[playlist.id] && (!playlist.tracks || playlist.tracks.length === 0)" 
+             class="px-4 py-3 text-disabled text-sm text-center">
+          {{ playlist.track_count === 0 ? t('file.noTracksInPlaylist') || 'No tracks in this playlist' : 'Tracks not loaded yet' }}
+        </div>
       </div>
     </div>
     <!-- NFC Association Dialog -->
     <NfcAssociateDialog
-      :open="showNfcDialog"
+      :visible="showNfcDialog"
       :playlistId="selectedPlaylistId"
       @success="handleNfcSuccess"
-      @close="showNfcDialog = false"
+      @update:visible="showNfcDialog = $event"
     />
 
     <!-- Delete Confirmation Dialog -->
@@ -215,6 +224,26 @@
       @confirm="deletePlaylist"
       @cancel="showDeleteDialog = false"
     />
+
+    <!-- YouTube Integration Modal -->
+    <div v-if="showYoutubeModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div class="bg-white rounded-lg max-w-4xl max-h-[90vh] w-full mx-4 overflow-auto">
+        <div class="flex justify-between items-center p-4 border-b border-gray-200">
+          <h2 class="text-xl font-semibold">Add from YouTube</h2>
+          <button
+            @click="showYoutubeModal = false"
+            class="text-gray-500 hover:text-gray-700"
+          >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+        <div class="p-4">
+          <YoutubeIntegration />
+        </div>
+      </div>
+    </div>
 
     <!-- Create Playlist Dialog -->
     <CreatePlaylistDialog
@@ -257,52 +286,90 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { PlayList, Track } from './types'
-import dataService from '@/services/dataService'
 import { logger } from '@/utils/logger'
 import NfcAssociateDialog from './NfcAssociateDialog.vue'
 import DeleteDialog from './DeleteDialog.vue'
 import CreatePlaylistDialog from './CreatePlaylistDialog.vue'
+import NewPlaylistButton from './NewPlaylistButton.vue'
 import UploadModal from '@/components/upload/UploadModal.vue'
+import YoutubeIntegration from '@/components/youtube/YoutubeIntegration.vue'
 import { useUploadStore } from '@/stores/uploadStore'
+import { useUnifiedPlaylistStore } from '@/stores/unifiedPlaylistStore'
+import { getTrackNumber, getTrackDurationSeconds, formatTrackDuration } from '@/utils/trackFieldAccessor'
+import { handleDragError, getDragErrorMessage, DragContext } from '@/utils/dragOperationErrorHandler'
+import socketService from '@/services/socketService'
+import { SOCKET_EVENTS } from '@/constants/apiRoutes'
+import { NfcAssociationStateData } from '@/types/socket'
 import draggable from 'vuedraggable'
 
 const { t } = useI18n()
 const uploadStore = useUploadStore()
+const unifiedStore = useUnifiedPlaylistStore()
 
 const props = defineProps<{
-  playlists: PlayList[];
+  playlists?: PlayList[]; // Optional - will use unified store if not provided
   error?: string;
   selectedTrack?: Track | null;
   playingPlaylistId?: string | null;
   playingTrackNumber?: number | null;
 }>()
 
-const emit = defineEmits(['refreshPlaylists', 'play-playlist', 'select-track', 'deleteTrack', 'feedback'])
+// SIMPLIFIED EVENTS - no more circular events
+const emit = defineEmits(['play-playlist', 'select-track', 'deleteTrack', 'feedback'])
 
 
-// Edit mode state
-// Force le mode édition à false au démarrage du composant
+// Edit mode state - simplified
 const isEditMode = ref(false)
-// Simple local toggle for edit mode
 const toggleEditMode = () => {
   isEditMode.value = !isEditMode.value
   logger.debug('Edit mode toggled', { editMode: isEditMode.value }, 'FilesList')
 }
 
+// OPTIMIZED DATA SOURCE - with performance improvements
+const localPlaylists = computed(() => {
+  // Use props playlists if provided (for backward compatibility)
+  // Otherwise use unified store
+  if (props.playlists && props.playlists.length > 0) {
+    return props.playlists
+  }
+  
+  // Cache the playlists array to avoid recalculating on every access
+  const allPlaylists = unifiedStore.getAllPlaylists
+  
+  // Use Map for O(1) lookups instead of O(n) for each playlist
+  return allPlaylists.map(playlist => {
+    const tracks = unifiedStore.getTracksForPlaylist(playlist.id)
+    return {
+      ...playlist,
+      tracks
+    }
+  })
+})
+
+const trackLoadingStates = ref<Record<string, boolean>>({})
+
 // Editable titles for playlists
 const editableTitles = ref<Record<string, string>>({})
 
-// Initialize editable titles when playlists change
-watch(() => props.playlists, (newPlaylists) => {
+// Watch for playlists and initialize editable titles
+watch(localPlaylists, (newPlaylists) => {
   newPlaylists.forEach(playlist => {
     if (!editableTitles.value[playlist.id]) {
       editableTitles.value[playlist.id] = playlist.title
     }
   })
 }, { immediate: true })
+
+// Simplified delete track handler using unified accessor
+const handleDeleteTrackClick = (playlistId: string, trackNumber: number) => {
+  logger.info('DELETE BUTTON CLICKED', { playlistId, trackNumber, editMode: isEditMode.value }, 'FilesList')
+  
+  // Emit the event to parent - no debugging noise needed with unified store
+  emit('deleteTrack', { playlistId, trackNumber })
+}
 
 // Delete dialog state
 const showDeleteDialog = ref(false)
@@ -311,6 +378,9 @@ const playlistToDelete = ref<string | null>(null)
 // Create playlist dialog state
 const showCreatePlaylistDialog = ref(false)
 
+// YouTube modal state
+const showYoutubeModal = ref(false)
+
 // Upload modal state
 const currentUploadPlaylistId = ref<string | null>(null)
 
@@ -318,6 +388,10 @@ const currentUploadPlaylistId = ref<string | null>(null)
 const draggedTrack = ref<Track | null>(null)
 const dragSourcePlaylistId = ref<string | null>(null)
 const dragTargetPlaylistId = ref<string | null>(null)
+
+// Debounce for drag operations to prevent multiple API calls
+const dragOperationInProgress = ref(false)
+let dragDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
 // Feedback messages
 const feedbackMessage = ref('')
@@ -328,21 +402,9 @@ const feedbackTimeout = ref<number | null>(null)
 const openPlaylists = ref<string[]>([])
 
 // No auto-open behavior needed, playlists will be closed by default
-onMounted(() => {
-  // Initialized with empty array - all playlists closed
-  // Playlists initialized in closed state by default
-})
+// Playlists initialized in closed state by default
 
-/**
- * Watch for playlist changes but maintain closed state by default
- * This preserves the user's choice of which playlists to keep open
- */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-watch(() => props.playlists, (newPlaylists) => {
-  // We intentionally don't auto-add playlists to openPlaylists
-  // This ensures playlists remain closed by default
-  // User must explicitly open playlists via the toggle
-}, { deep: true })
+// Removed unused watcher - playlists are managed by unified store
 
 // NFC dialog state and logic
 const showNfcDialog = ref(false)
@@ -350,17 +412,23 @@ const selectedPlaylistId = ref<string | null>(null)
 
 /**
  * Handle successful NFC tag association
- * Refresh playlists but don't close the dialog automatically
- * @param {Object} data - Optional data from the success event
+ * Force sync to ensure icon is updated immediately
+ * @param {string} playlistId - ID of the playlist that was associated
  */
-const handleNfcSuccess = (data: { closeDialog?: boolean } | unknown) => {
-  // Emit refresh but don't close dialog unless specified
-  emit('refreshPlaylists')
-  // Only close dialog if explicitly requested
-  if (data && typeof data === 'object' && 'closeDialog' in data && data.closeDialog === true) {
-    showNfcDialog.value = false
+const handleNfcSuccess = async (playlistId: string) => {
+  logger.debug('NFC association success', { playlistId })
+  
+  try {
+    // Force sync the unified store to ensure NFC tag data is updated
+    await unifiedStore.forceSync()
+    logger.debug('Forced sync after NFC association success', { playlistId })
+    
+    showFeedback('success', t('file.nfcAssociationSuccess'))
+  } catch (error) {
+    logger.error('Failed to sync after NFC association', { playlistId, error })
+    // Still show success message since the association succeeded
+    showFeedback('success', t('file.nfcAssociationSuccess'))
   }
-  // Otherwise, leave dialog open for user to close manually
 }
 
 function openNfcDialog(id: string) {
@@ -369,7 +437,7 @@ function openNfcDialog(id: string) {
 }
 
 /**
- * Update a playlist title after editing
+ * Update a playlist title after editing (SIMPLIFIED)
  * @param {string} playlistId - Playlist identifier
  */
 async function updatePlaylistTitle(playlistId: string) {
@@ -377,9 +445,10 @@ async function updatePlaylistTitle(playlistId: string) {
   if (!newTitle) return
 
   try {
-    await dataService.updatePlaylist(playlistId, { title: newTitle })
-    emit('refreshPlaylists')
+    // Use unified store for consistency
+    await unifiedStore.updatePlaylist(playlistId, { title: newTitle })
     showFeedback('success', t('file.playlistUpdated'))
+    logger.info('Playlist title updated via unified store', { playlistId, newTitle })
   } catch (error) {
     showFeedback('error', t('file.errorUpdating'))
     logger.error('Failed to update playlist title', { playlistId, error }, 'FilesList')
@@ -396,21 +465,25 @@ function confirmDeletePlaylist(playlistId: string) {
 }
 
 /**
- * Delete a playlist after confirmation
+ * Delete a playlist after confirmation (SIMPLIFIED)
  */
 async function deletePlaylist() {
   if (!playlistToDelete.value) return
 
   try {
-    // Here you would call a method to delete the playlist
-    // await filesStore.deletePlaylist(playlistToDelete.value)
-    logger.info('Playlist deleted', { playlistId: playlistToDelete.value }, 'FilesList')
-    emit('refreshPlaylists')
+    const deletedPlaylistId = playlistToDelete.value
+    
+    // Use unified store for consistency
+    await unifiedStore.deletePlaylist(deletedPlaylistId)
+    
+    logger.info('Playlist deleted via unified store', { playlistId: deletedPlaylistId }, 'FilesList')
     showFeedback('success', t('file.playlistDeleted'))
+    
+    // No manual refresh needed - unified store handles WebSocket updates automatically
+    
   } catch (err) {
     logger.error('Failed to delete playlist', { playlistId: playlistToDelete.value, error: err }, 'FilesList')
-    // Reload playlists to reset the UI state
-    emit('refreshPlaylists')
+    showFeedback('error', t('file.errorDeleting'))
   } finally {
     showDeleteDialog.value = false
     playlistToDelete.value = null
@@ -418,61 +491,32 @@ async function deletePlaylist() {
 }
 
 /**
- * Create new playlist and put it in edit mode
+ * Create new playlist (SIMPLIFIED)
  * @param {string} title - Title for the new playlist
  */
 async function createNewPlaylist(title: string) {
   try {
-    logger.info('Creating new playlist', { title }, 'FilesList')
+    logger.info('Creating new playlist via unified store', { title }, 'FilesList')
 
-    // Créer la nouvelle playlist
-    const newPlaylistId = await dataService.createPlaylist({ title })
+    // Use unified store for consistency
+    const newPlaylistId = await unifiedStore.createPlaylist(title)
+    
     logger.info('Playlist created successfully', { playlistId: newPlaylistId }, 'FilesList')
-
-    showCreatePlaylistDialog.value = false
     showFeedback('success', t('file.playlistCreated'))
 
-    // Store current edit mode state before refresh (smart refresh logic)
-    const wasInEditMode = isEditMode.value
-    logger.debug('Smart refresh after playlist creation', { wasInEditMode }, 'FilesList')
-
-    // Activer le mode édition si ce n'est pas déjà fait
+    // Enable edit mode if not already enabled
     if (!isEditMode.value) {
-      // Activate edit mode
-      isEditMode.value = true // Activer le mode édition localement
+      isEditMode.value = true
     }
 
-    // CRITICAL FIX: Refresh playlists directly after creation
-    logger.debug('Refreshing playlists after creation', {}, 'FilesList')
-    emit('refreshPlaylists')
+    // No manual refresh needed - unified store handles WebSocket updates automatically
     
-    // Also try to refresh via the files store directly as backup
-    try {
-      emit('refreshPlaylists')
-      logger.debug('Direct playlist refresh completed', {}, 'FilesList')
-    } catch (err) {
-      logger.error('Failed during direct playlist refresh', { error: err }, 'FilesList')
-    }
-
-    // After refresh, ensure edit mode and playlist state are preserved
-    nextTick(() => {
-      logger.debug('Restoring state after playlist creation', {}, 'FilesList')
-
-      // Ensure edit mode is preserved after refresh
-      if (!isEditMode.value && (wasInEditMode || newPlaylistId)) {
-        logger.debug('Restoring edit mode after refresh', {}, 'FilesList')
-        isEditMode.value = true
-      }
-
-      // Add to open playlists and ensure the new playlist is opened in edit mode
-      if (newPlaylistId && !openPlaylists.value.includes(newPlaylistId)) {
-        logger.debug('Opening newly created playlist', { playlistId: newPlaylistId }, 'FilesList')
-        openPlaylists.value.push(newPlaylistId)
-      }
-    })
   } catch (err) {
     logger.error('Failed to create playlist', { error: err }, 'FilesList')
     showFeedback('error', t('file.errorCreating'))
+  } finally {
+    // Always close the dialog
+    showCreatePlaylistDialog.value = false
   }
 }
 
@@ -520,177 +564,315 @@ function dragEnd() {
 }
 
 /**
- * Handle drag change event (added, removed, moved)
+ * Handle drag change event (SIMPLIFIED with unified accessors)
  * @param {Event} evt - Change event
  * @param {string} playlistId - Current playlist ID
  */
 async function handleDragChange(evt: { moved?: { element: Track }; added?: { element: Track }; from?: { dataset?: { playlistId?: string } } }, playlistId: string) {
   const eventType = evt.added ? 'added' : evt.moved ? 'moved' : 'unknown'
-  logger.debug('Drag change event', { eventType, playlistId }, 'FilesList')
+  logger.debug('Drag change event', { eventType, playlistId, operationInProgress: dragOperationInProgress.value }, 'FilesList')
 
-  // Handle reordering within the same playlist
-  if (evt.moved) {
-    try {
-      // Get the new order of track numbers
-      const trackNumbers = props.playlists
-        .find(p => p.id === playlistId)?.tracks
-        .map(track => track.number) || []
-
-      // Call the API to update the order
-      await dataService.reorderTracks(playlistId, trackNumbers)
-      logger.info('Tracks reordered', { playlistId }, 'FilesList')
-      showFeedback('success', t('file.tracksReordered'))
-    } catch (err) {
-      logger.error('Failed to reorder tracks', { playlistId, error: err }, 'FilesList')
-      // Reload playlists to reset the UI state
-      emit('refreshPlaylists')
-    }
+  // Prevent multiple simultaneous drag operations
+  if (dragOperationInProgress.value) {
+    logger.debug('Drag operation already in progress, skipping', { eventType, playlistId }, 'FilesList')
     return
   }
 
-  // Handle moving between playlists
-  if (evt.added && evt.from) {
-    const sourcePlaylistId = evt.from.dataset?.playlistId
-    if (sourcePlaylistId && sourcePlaylistId !== playlistId) {
-      try {
-        const movedTrack = evt.added.element
-        logger.info('Track moved between playlists', { trackNumber: movedTrack.number, from: sourcePlaylistId, to: playlistId }, 'FilesList')
+  // Clear any existing debounce timer
+  if (dragDebounceTimer) {
+    clearTimeout(dragDebounceTimer)
+  }
 
-        // Call the API to move the track
-        await dataService.moveTrackBetweenPlaylists(
+  // Set debounce timer to prevent rapid-fire drag events
+  dragDebounceTimer = setTimeout(async () => {
+    await processDragEvent(evt, playlistId, eventType)
+  }, 150) // 150ms debounce
+}
+
+/**
+ * Process the actual drag event logic
+ */
+async function processDragEvent(evt: { moved?: { element: Track }; added?: { element: Track }; from?: { dataset?: { playlistId?: string } } }, playlistId: string, eventType: string) {
+  dragOperationInProgress.value = true
+  
+  try {
+    logger.debug('Processing drag event', { eventType, playlistId }, 'FilesList')
+    
+    // Drag operation protection is handled in the store's reorderTracks function
+
+    // Handle reordering within the same playlist
+    if (evt.moved) {
+      // Get the current playlist from localPlaylists which has been updated by vuedraggable
+      const currentPlaylist = localPlaylists.value.find(p => p.id === playlistId)
+      if (!currentPlaylist || !currentPlaylist.tracks) {
+        throw new Error('Playlist not found or has no tracks')
+      }
+      
+      // Get the new order from the visual position (after drag & drop)
+      // Do NOT modify the tracks directly here - they're from computed property
+      const trackNumbers: number[] = []
+      currentPlaylist.tracks.forEach((track) => {
+        trackNumbers.push(getTrackNumber(track)) // Original track number in new position
+      })
+      
+      // Apply optimistic update directly to the store for immediate UI feedback
+      const currentStoreTracks = unifiedStore.getTracksForPlaylist(playlistId)
+      if (currentStoreTracks.length > 0) {
+        // Create reordered array based on drag result
+        const reorderedTracks = trackNumbers
+          .map(num => currentStoreTracks.find(t => getTrackNumber(t) === num))
+          .filter((track): track is Track => track !== undefined)
+          .map((track, index) => ({
+            ...track,
+            track_number: index + 1, // Update track numbers for new positions
+            number: undefined // Remove legacy field
+          }))
+        
+        // Apply optimistic update to store immediately
+        unifiedStore.setTracksOptimistic(playlistId, reorderedTracks)
+      }
+      
+      logger.debug('Drag reorder details', { 
+        playlistId, 
+        trackCount: currentPlaylist.tracks.length,
+        newOrder: trackNumbers,
+        firstThreeTracks: currentPlaylist.tracks.slice(0, 3).map(t => ({ number: getTrackNumber(t), title: t.title }))
+      }, 'FilesList')
+
+      // Use unified store for consistency
+      await unifiedStore.reorderTracks(playlistId, trackNumbers)
+      logger.info('Tracks reordered via unified store', { playlistId, newOrder: trackNumbers }, 'FilesList')
+      showFeedback('success', t('file.tracksReordered'))
+    }
+    
+    // Handle moving between playlists
+    if (evt.added && evt.from) {
+      const sourcePlaylistId = evt.from.dataset?.playlistId
+      if (sourcePlaylistId && sourcePlaylistId !== playlistId) {
+        const movedTrack = evt.added.element
+        const trackNumber = getTrackNumber(movedTrack)
+        
+        logger.info('Track moved between playlists', { trackNumber, from: sourcePlaylistId, to: playlistId }, 'FilesList')
+
+        // Use unified store for consistency
+        await unifiedStore.moveTrackBetweenPlaylists(
           sourcePlaylistId,
           playlistId,
-          movedTrack.number
+          trackNumber
         )
         showFeedback('success', t('file.trackMoved'))
-      } catch (err) {
-        // Log error but continue execution
-        // Reload playlists to reset the UI state
-        emit('refreshPlaylists')
       }
     }
+  } catch (error) {
+    // Use centralized error handling
+    const context: DragContext = {
+      operation: eventType === 'moved' ? 'reorder' : 'move',
+      playlistId,
+      trackNumbers: eventType === 'moved' ? [] : undefined,
+      trackNumber: eventType === 'moved' ? undefined : 1,
+      component: 'FilesList'
+    }
+    
+    const dragError = handleDragError(error as Error, context, { 
+      logLevel: 'error',
+      showUserFeedback: true 
+    })
+    
+    const userMessage = getDragErrorMessage(context.operation, dragError)
+    showFeedback('error', userMessage)
+    
+    // Drag operation cleanup is handled automatically in the store
+  } finally {
+    // Always clear the operation flag
+    dragOperationInProgress.value = false
+    
+    // Note: Drag operation end is marked in the unified store's reorderTracks method
+    // This ensures proper timing with the API call completion
+    
+    // Clear debounce timer
+    if (dragDebounceTimer) {
+      clearTimeout(dragDebounceTimer)
+      dragDebounceTimer = null
+    }
   }
 }
 
 /**
- * Toggle a playlist's expanded/collapsed state
+ * Toggle a playlist's expanded/collapsed state (SIMPLIFIED)
  * @param {string} playlistId - Playlist identifier
  */
-function togglePlaylist(playlistId: string) {
+async function togglePlaylist(playlistId: string) {
   const index = openPlaylists.value.indexOf(playlistId)
   if (index === -1) {
+    // Expanding playlist
     openPlaylists.value.push(playlistId)
-
+    
+    // Check if tracks need to be loaded using unified store
+    const playlist = unifiedStore.getPlaylistById(playlistId)
+    if (playlist && !unifiedStore.hasTracksData(playlistId) && playlist.track_count && playlist.track_count > 0) {
+      if (!trackLoadingStates.value[playlistId]) {
+        trackLoadingStates.value[playlistId] = true
+        logger.debug('Loading tracks for playlist via unified store', { playlistId, trackCount: playlist.track_count }, 'FilesList')
+        
+        try {
+          // Use unified store for consistent track loading
+          const tracks = await unifiedStore.loadPlaylistTracks(playlistId)
+          
+          logger.debug('Tracks loaded for playlist', { 
+            playlistId, 
+            tracksLoaded: tracks.length
+          }, 'FilesList')
+          
+        } catch (error) {
+          logger.error('Failed to load tracks for playlist', { playlistId, error }, 'FilesList')
+          showFeedback('error', t('file.errorLoading'))
+        } finally {
+          trackLoadingStates.value[playlistId] = false
+        }
+      }
+    }
   } else {
+    // Collapsing playlist
     openPlaylists.value.splice(index, 1)
-
   }
 }
 
-/**
- * Handle upload completion from enhanced uploader
- * Uses NO refresh to prevent interrupting multi-file uploads
- */
-function handleUploadComplete() {
-  logger.info('Enhanced upload completed', {}, 'FilesList')
-
-  // DO NOT emit refreshPlaylists to prevent page refresh that breaks multi-file uploads
-  // The playlist will be updated via optimistic updates or manual refresh when needed
-  // This preserves UI state and allows multiple files to upload consecutively
-
-  showFeedback('success', t('file.uploadSuccess'))
-}
-
-/**
- * Handle completion of ALL uploads for a playlist
- * This triggers a smart refresh to update the playlist with all uploaded tracks
- * while preserving the edit mode state
- */
-function handleAllUploadsComplete(playlistId: string) {
-  logger.info('All uploads completed', { playlistId }, 'FilesList')
-
-  // Store the current edit mode state before refresh
-  const wasInEditMode = isEditMode.value
-
-  logger.debug('Smart refresh preserving edit mode', { wasInEditMode, playlistId }, 'FilesList')
-
-  // Emit refresh to update the playlist with newly uploaded tracks
-  emit('refreshPlaylists')
-
-  // After refresh, restore the edit mode if it was active
-  // Use nextTick to ensure DOM is updated after the refresh
-  nextTick(() => {
-    if (wasInEditMode) {
-      logger.debug('Restoring edit mode after refresh', { playlistId }, 'FilesList')
-      // Re-enable edit mode after refresh
-      isEditMode.value = true
-    }
-
-    showFeedback('success', t('file.uploadSuccess'))
-  })
-}
-
-/**
- * Handle upload error from enhanced uploader
- * @param {unknown} error - Upload error details
- */
-function handleUploadError(error: unknown) {
-  logger.error('Enhanced upload error', { error }, 'FilesList')
-  showFeedback('error', t('file.uploadError'))
-}
 
 /**
  * Open upload modal for a playlist
  * @param {string} playlistId - Playlist identifier
  */
 function openUploadModal(playlistId: string) {
+  logger.debug('Opening upload modal for playlist', { playlistId }, 'FilesList')
   currentUploadPlaylistId.value = playlistId
   uploadStore.openUploadModal(playlistId)
+  logger.debug('Upload store state updated', { isModalOpen: uploadStore.isModalOpen, modalPlaylistId: uploadStore.modalPlaylistId }, 'FilesList')
 }
 
-// Watch for modal close to refresh playlists
+// Watch for modal close - simplified (no manual refresh needed)
 watch(() => uploadStore.isModalOpen, (isOpen) => {
   if (!isOpen && currentUploadPlaylistId.value) {
-    // Modal closed, refresh playlists
-    emit('refreshPlaylists')
+    // Unified store handles WebSocket updates automatically
+    // No manual refresh needed
+    logger.debug('Upload modal closed', { playlistId: currentUploadPlaylistId.value }, 'FilesList')
     currentUploadPlaylistId.value = null
   }
 })
 
+// SIMPLIFIED: Only NFC state listener needed (no more playlist event duplication)
+function setupGlobalNfcListener() {
+  socketService.on(SOCKET_EVENTS.NFC_ASSOCIATION_STATE, (data: NfcAssociationStateData) => {
+    logger.debug('Global NFC state received', { state: data.state, playlistId: data.playlist_id })
+    
+    // Only handle active/waiting states that should open dialogs
+    if ((data.state === 'activated' || data.state === 'waiting') && data.playlist_id) {
+      selectedPlaylistId.value = data.playlist_id
+      showNfcDialog.value = true
+    }
+    
+    // Success state feedback is handled by dialog component now
+    if (data.state === 'success') {
+      showFeedback('success', t('file.nfcAssociationSuccess'))
+    }
+  })
+}
+
+function cleanupGlobalNfcListener() {
+  socketService.off(SOCKET_EVENTS.NFC_ASSOCIATION_STATE)
+}
+
+// REMOVED DUPLICATE LISTENERS - All playlist WebSocket events are now handled by unified store
+// This eliminates the circular event problem identified in the audit
+
+// Setup only NFC listener on mount
+onMounted(() => {
+  setupGlobalNfcListener()
+  logger.debug('FilesList mounted - NFC listener setup (unified store handles playlist events)')
+})
+
+// Cleanup on unmount
+onUnmounted(() => {
+  cleanupGlobalNfcListener()
+  
+  // Clean up drag debounce timer
+  if (dragDebounceTimer) {
+    clearTimeout(dragDebounceTimer)
+    dragDebounceTimer = null
+  }
+  
+  logger.debug('FilesList unmounted - cleaned up NFC listener and drag timers')
+})
 /**
- * Formats duration in seconds to MM:SS format
- * @param {string} duration - Duration in seconds as string
+ * Format single track duration using unified accessor
+ * @param {Track | string | number} track - Track object or duration value
  * @returns {string} Formatted duration
  */
-function formatDuration(duration: string): string {
-  const seconds = parseInt(duration)
-  if (isNaN(seconds)) return '00:00'
-  const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`
+function formatDuration(track: Track | string | number): string {
+  if (typeof track === 'object' && track !== null) {
+    // Use unified track accessor
+    return formatTrackDuration(track)
+  }
+  
+  // Legacy support for direct duration values
+  const durationValue = typeof track === 'string' ? parseFloat(track) : track
+  if (isNaN(durationValue)) return '00:00'
+  
+  const totalSeconds = Math.floor(durationValue)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  
+  if (minutes >= 60) {
+    const hours = Math.floor(minutes / 60)
+    const remainingMinutes = minutes % 60
+    return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+  }
+  
+  return `${minutes}:${seconds.toString().padStart(2, '0')}`
 }
 
 /**
- * Computes and formats the total duration of all tracks in a playlist.
- * @param {Track[]} tracks
- * @returns {string} Formatted total duration (e.g., 1h12m or MM:SS)
+ * Get track display position (visual position in the list)
+ * @param {Track} track - Track object
+ * @param {string} playlistId - Playlist ID
+ * @returns {number} Display position (1-based)
+ */
+function getTrackDisplayPosition(track: Track, playlistId: string): number {
+  const playlist = localPlaylists.value.find(p => p.id === playlistId)
+  if (!playlist || !playlist.tracks) return getTrackNumber(track)
+  
+  const trackIndex = playlist.tracks.findIndex(t => 
+    (t.id && track.id && t.id === track.id) || 
+    (getTrackNumber(t) === getTrackNumber(track) && t.title === track.title)
+  )
+  
+  return trackIndex >= 0 ? trackIndex + 1 : getTrackNumber(track)
+}
+
+/**
+ * Format total duration of tracks using unified accessors
+ * @param {Track[]} tracks - Array of tracks
+ * @returns {string} Formatted total duration
  */
 function formatTotalDuration(tracks: Track[]): string {
   if (!tracks || tracks.length === 0) return '00:00'
+  
   let totalSeconds = 0
   for (const track of tracks) {
-    // Accept both string and number durations
-    const sec = typeof track.duration === 'number' ? track.duration : parseInt(track.duration)
-    if (!isNaN(sec) && sec > 0) totalSeconds += sec
+    // Use unified track accessor for consistent duration handling
+    totalSeconds += getTrackDurationSeconds(track)
   }
+  
   if (totalSeconds === 0) return '00:00'
-  const hours = Math.floor(totalSeconds / 3600)
-  const minutes = Math.floor((totalSeconds % 3600) / 60)
-  const seconds = totalSeconds % 60
+  
+  const totalSecondsInt = Math.floor(totalSeconds)
+  const hours = Math.floor(totalSecondsInt / 3600)
+  const minutes = Math.floor((totalSecondsInt % 3600) / 60)
+  const secondsRemainder = totalSecondsInt % 60
+  
   if (hours > 0) {
     return `${hours}h${minutes.toString().padStart(2, '0')}m`
   } else {
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+    return `${minutes.toString().padStart(2, '0')}:${secondsRemainder.toString().padStart(2, '0')}`
   }
 }
 </script>
@@ -698,4 +880,3 @@ function formatTotalDuration(tracks: Track[]): string {
 <style scoped>
 
 </style>
-

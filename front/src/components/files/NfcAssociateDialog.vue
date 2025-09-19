@@ -1,356 +1,556 @@
 <template>
-  <div v-if="open" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-    <div class="bg-white rounded-lg shadow-lg p-8 w-full max-w-md relative">
-      <button class="absolute top-2 right-2 text-disabled hover:text-onBackground" @click="handleCancel">
-        <span class="sr-only">Close</span>
-        <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
-      </button>
-      <h2 class="text-xl font-semibold mb-4 text-onBackground">{{ t('nfc.associate_tag') }}</h2>
-
-      <!-- Initial state - ready to start association -->
-      <div v-if="state === 'idle'">
-        <p>{{ t('nfc.ready_to_associate') }}</p>
-        <button class="btn-primary mt-4 w-full" @click="startAssociation">{{ t('nfc.start') }}</button>
+  <div v-if="visible" class="nfc-associate-dialog-overlay" @click="handleBackdropClick">
+    <div class="nfc-associate-dialog" @click.stop>
+      <div class="dialog-header">
+        <h3>{{ $t('nfc.associate.title') }}</h3>
+        <button class="close-btn" @click="handleClose" :aria-label="$t('common.close')">
+          <i class="fas fa-times"></i>
+        </button>
       </div>
 
-      <!-- Waiting for tag scan -->
-      <div v-else-if="state === 'waiting'">
-        <div class="mb-4">
-          <p class="flex items-center gap-2 text-primary mb-2">
-            <svg class="animate-spin h-5 w-5 text-primary" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/></svg>
-            {{ t('nfc.waiting_for_tag') }}
-          </p>
-          <div v-if="scanStatus" class="text-sm text-disabled italic">
-            {{ t('nfc.scanning_status') }}: {{ scanStatus }}
+      <div class="dialog-content">
+        <!-- Idle State -->
+        <div v-if="state === 'idle'" class="state-content">
+          <div class="nfc-icon">
+            <i class="fas fa-wifi"></i>
+          </div>
+          <p>{{ $t('nfc.associate.ready') }}</p>
+          <button class="btn btn-primary" @click="startAssociation">
+            {{ $t('nfc.associate.start') }}
+          </button>
+        </div>
+
+        <!-- Waiting State -->
+        <div v-else-if="state === 'waiting'" class="state-content">
+          <div class="nfc-icon scanning">
+            <i class="fas fa-wifi"></i>
+          </div>
+          <p>{{ $t('nfc.associate.waiting') }}</p>
+          <div v-if="countdown > 0" class="countdown">
+            {{ $t('nfc.associate.timeout', { seconds: countdown }) }}
+          </div>
+          <button class="btn btn-secondary" @click="cancelAssociation">
+            {{ $t('common.cancel') }}
+          </button>
+        </div>
+
+        <!-- Success State -->
+        <div v-else-if="state === 'success'" class="state-content">
+          <div class="nfc-icon success">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <p>{{ $t('nfc.associate.success') }}</p>
+          <button class="btn btn-primary" @click="handleClose">
+            {{ $t('common.close') }}
+          </button>
+        </div>
+
+        <!-- Already Associated (Duplicate) State -->
+        <div v-else-if="state === 'already_associated'" class="state-content">
+          <div class="nfc-icon warning">
+            <i class="fas fa-exclamation-triangle"></i>
+          </div>
+          <p>{{ $t('nfc.associate.duplicate') }}</p>
+          <div v-if="existingPlaylistInfo" class="existing-playlist-info">
+            <p><strong>{{ $t('nfc.associate.existingPlaylist') }}:</strong> {{ existingPlaylistInfo.title }}</p>
+          </div>
+          <div class="button-group">
+            <button class="btn btn-secondary" @click="handleClose">
+              {{ $t('common.cancel') }}
+            </button>
+            <button class="btn btn-warning" @click="replaceAssociation">
+              {{ $t('nfc.associate.replace') }}
+            </button>
           </div>
         </div>
-        <button class="btn-secondary mt-4 w-full" @click="handleCancel">{{ t('common.cancel') }}</button>
-      </div>
 
-      <!-- Tag successfully associated -->
-      <div v-else-if="state === 'success'">
-        <div class="flex items-center gap-2 text-success font-medium mb-2">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
-          </svg>
-          {{ t('nfc.tag_associated_success') }}
+        <!-- Error States -->
+        <div v-else-if="state === 'error' || state === 'hardware_error'" class="state-content">
+          <div class="nfc-icon error">
+            <i class="fas fa-exclamation-circle"></i>
+          </div>
+          <p>{{ message || $t('nfc.associate.error') }}</p>
+          <div class="button-group">
+            <button class="btn btn-secondary" @click="handleClose">
+              {{ $t('common.close') }}
+            </button>
+            <button class="btn btn-primary" @click="retryAssociation">
+              {{ $t('common.retry') }}
+            </button>
+          </div>
         </div>
-        <p v-if="nfcStatusMessage" class="text-sm text-disabled mt-2 mb-4">{{ nfcStatusMessage }}</p>
-        <button class="btn-primary mt-4 w-full" @click="handleClose">{{ t('common.close') }}</button>
-      </div>
 
-      <!-- Tag already associated with another playlist -->
-      <div v-else-if="state === 'already_associated'">
-        <div class="flex items-center gap-2 text-warning font-medium mb-2">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          {{ t('nfc.tag_already_associated') }}
+        <!-- Cancelled State -->
+        <div v-else-if="state === 'cancelled'" class="state-content">
+          <div class="nfc-icon">
+            <i class="fas fa-ban"></i>
+          </div>
+          <p>{{ $t('nfc.associate.cancelled') }}</p>
+          <button class="btn btn-primary" @click="handleClose">
+            {{ $t('common.close') }}
+          </button>
         </div>
-        <p v-if="nfcStatusMessage" class="text-sm text-disabled mt-2 mb-4">{{ nfcStatusMessage }}</p>
-        <button class="btn-warning mt-4 w-full" @click="overrideAssociation">{{ t('nfc.force_association') }}</button>
-        <button class="btn-secondary mt-2 w-full" @click="handleCancel">{{ t('common.cancel') }}</button>
-      </div>
 
-      <!-- Hardware error with NFC reader -->
-      <div v-else-if="state === 'hardware_error'">
-        <div class="flex items-center gap-2 text-error font-medium mb-2">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          {{ t('nfc.hardware_error') }}
+        <!-- Timeout State -->
+        <div v-else-if="state === 'timeout'" class="state-content">
+          <div class="nfc-icon warning">
+            <i class="fas fa-clock"></i>
+          </div>
+          <p>{{ $t('nfc.associate.timedOut') }}</p>
+          <div class="button-group">
+            <button class="btn btn-secondary" @click="handleClose">
+              {{ $t('common.close') }}
+            </button>
+            <button class="btn btn-primary" @click="retryAssociation">
+              {{ $t('common.retry') }}
+            </button>
+          </div>
         </div>
-        <p class="text-sm text-disabled mt-2">{{ t('nfc.' + (errorMsg || 'NFC_NOT_AVAILABLE')) }}</p>
-        <button class="btn-secondary mt-4 w-full" @click="handleCancel">{{ t('common.close') }}</button>
-      </div>
-
-      <!-- NFC unavailable -->
-      <div v-else-if="state === 'nfc_unavailable'">
-        <div class="flex items-center gap-2 text-error font-medium mb-2">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-          </svg>
-          {{ t('nfc.unavailable') }}
-        </div>
-        <p class="text-sm text-disabled mt-2">{{ t('nfc.' + (errorMsg || 'NFC_NOT_AVAILABLE')) }}</p>
-        <button class="btn-secondary mt-4 w-full" @click="handleClose">{{ t('common.close') }}</button>
-      </div>
-
-      <!-- General error -->
-      <div v-else-if="state === 'error'">
-        <div class="flex items-center gap-2 text-error font-medium mb-2">
-          <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-          {{ t('nfc.association_error') }}
-        </div>
-        <p v-if="errorMsg" class="text-sm text-disabled mt-2">{{ errorMsg }}</p>
-        <button class="btn-secondary mt-4 w-full" @click="handleCancel">{{ t('common.close') }}</button>
-      </div>
-
-      <!-- Association cancelled -->
-      <div v-else-if="state === 'cancelled'">
-        <p class="text-disabled">{{ t('nfc.association_cancelled') }}</p>
-        <button class="btn-secondary mt-4 w-full" @click="handleClose">{{ t('common.close') }}</button>
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import socketService from '@/services/socketService'
-import dataService from '@/services/dataService'
-import { logger } from '@/utils/logger'
+import apiService from '@/services/apiService'
+import { SOCKET_EVENTS } from '@/constants/apiRoutes'
+import { NfcAssociationStateData, NfcTagDuplicateData } from '@/types/socket'
 
-const props = defineProps<{
-  open: boolean,
-  playlistId: string | null
+// Props and emits
+interface Props {
+  visible: boolean
+  playlistId: string
+}
+
+const props = defineProps<Props>()
+const emit = defineEmits<{
+  'update:visible': [value: boolean]
+  'success': [playlistId: string]
 }>()
-const emit = defineEmits(['close', 'success'])
-
-// State management
-const state = ref<'idle' | 'waiting' | 'success' | 'already_associated' | 'error' | 'hardware_error' | 'cancelled' | 'cancelling' | 'nfc_unavailable'>('idle')
-const errorMsg = ref<string | null>(null)
-const nfcStatusMessage = ref<string | null>(null)
-const scanStatus = ref<string | null>(null)
-const associatedPlaylistInfo = ref<{id: string, title: string} | null>(null)
-const lastTagId = ref<string | null>(null)
 
 const { t } = useI18n()
 
-// Socket event data interfaces
-interface NfcStatusData {
-  status: string;
-  message?: string;
-  associated_playlist_id?: string;
-  associated_playlist_title?: string;
-  tag_id?: string;
+// State management
+type NfcState = 'idle' | 'waiting' | 'success' | 'already_associated' | 'error' | 'hardware_error' | 'cancelled' | 'timeout'
+
+const state = ref<NfcState>('idle')
+const message = ref('')
+const countdown = ref(0)
+const isOverrideMode = ref(false)
+const existingPlaylistInfo = ref<{ id: string; title: string } | null>(null)
+
+// Countdown timer
+let countdownInterval: ReturnType<typeof setInterval> | null = null
+
+
+// Countdown management
+function startCountdown(expiresAt: number) {
+  stopCountdown()
+
+  const updateCountdown = () => {
+    const now = Date.now() / 1000
+    const remaining = Math.max(0, Math.ceil(expiresAt - now))
+    countdown.value = remaining
+
+    if (remaining <= 0) {
+      stopCountdown()
+    }
+  }
+
+  updateCountdown()
+  countdownInterval = setInterval(updateCountdown, 1000)
 }
 
-interface NfcScanningData {
-  last_tag_id?: string;
-}
-
-interface NfcTagDetectedData {
-  tag_id?: string;
-}
-
-interface NfcErrorData {
-  message?: string;
+function stopCountdown() {
+  if (countdownInterval) {
+    clearInterval(countdownInterval)
+    countdownInterval = null
+  }
+  countdown.value = 0
 }
 
 // Socket.IO event handlers
 function setupSocketHandlers() {
-  // Handle NFC status updates
-  socketService.on('nfc_status', (data: unknown) => {
-    const nfcData = data as NfcStatusData
-    logger.debug('NFC status received', { data: nfcData }, 'NfcAssociateDialog')
-    const status = nfcData.status
+  socketService.on(SOCKET_EVENTS.NFC_ASSOCIATION_STATE, (data: unknown) => {
+    const stateData = data as NfcAssociationStateData
+    console.log('NFC association state received', { data: stateData, currentPlaylist: props.playlistId })
 
-    switch (status) {
-      case 'waiting':
+    // Only process events for our current playlist
+    if (stateData.playlist_id !== props.playlistId) {
+      console.log('Ignoring NFC event for different playlist:', stateData.playlist_id)
+      return
+    }
+
+    switch (stateData.state) {
+      case 'activated':
+      case 'waiting': // Handle both 'activated' and 'waiting' states the same way
         state.value = 'waiting'
-        nfcStatusMessage.value = nfcData.message || t('nfc.waiting_for_tag')
-        break
-
-      case 'already_associated':
-        state.value = 'already_associated'
-        nfcStatusMessage.value = nfcData.message || t('nfc.tag_used_by_other_playlist')
-        if (nfcData.associated_playlist_id && nfcData.associated_playlist_title) {
-          associatedPlaylistInfo.value = {
-            id: nfcData.associated_playlist_id,
-            title: nfcData.associated_playlist_title
-          }
-        }
-        if (nfcData.tag_id) {
-          lastTagId.value = nfcData.tag_id
+        emit('update:visible', true) // Open dialog when NFC association is active
+        if (stateData.expires_at) {
+          startCountdown(stateData.expires_at)
         }
         break
-
       case 'success':
+        console.log('✅ NFC ASSOCIATION SUCCESS EVENT RECEIVED!', stateData)
         state.value = 'success'
-        nfcStatusMessage.value = nfcData.message || t('nfc.tag_associated_success')
-        // Only emit success signal but don't close, wait for user to click OK
-        // The dialog will stay open until user clicks the button
-        emit('success', { closeDialog: false }) // Explicitly indicate not to close
+        message.value = stateData.message || t('nfc.associate.success')
+        stopCountdown()
+        stopAssociationPolling()
+        console.log('NFC association successful, will close dialog in 3 seconds')
+        // Emit success event to parent for playlist update
+        emit('success', props.playlistId)
+        // Auto-close dialog after showing success for 3 seconds
+        setTimeout(() => {
+          handleClose()
+        }, 3000)
         break
-
+      case 'duplicate':
+        state.value = 'already_associated'
+        existingPlaylistInfo.value = stateData.existing_playlist || null
+        message.value = stateData.message || t('nfc.associate.duplicate')
+        break
+      case 'timeout':
+        state.value = 'timeout'
+        message.value = stateData.message || t('nfc.associate.timedOut')
+        stopCountdown()
+        break
+      case 'cancelled':
+        state.value = 'cancelled'
+        message.value = stateData.message || t('nfc.associate.cancelled')
+        stopCountdown()
+        break
       case 'error':
         state.value = 'error'
-        errorMsg.value = nfcData.message || t('nfc.general_error')
-        break
-
-      case 'stopped':
-      case 'not_listening':
-        // Only transition to cancelled if we're not already in a completion state
-        if (state.value === 'waiting') {
-          state.value = 'cancelled'
-        }
-        break
-
-      case 'override_mode':
-        // When override mode is enabled, update the UI to show we're processing
-        nfcStatusMessage.value = nfcData.message || t('nfc.override_in_progress')
+        message.value = stateData.message || t('nfc.associate.error')
+        stopCountdown()
         break
     }
   })
 
-  // Handle real-time scanning updates
-  socketService.on('nfc_scanning', (data: unknown) => {
-    const scanData = data as NfcScanningData
-    scanStatus.value = new Date().toLocaleTimeString()
-    if (scanData.last_tag_id) {
-      lastTagId.value = scanData.last_tag_id
-    }
+  socketService.on('nfc_tag_duplicate', (data: unknown) => {
+    const duplicateData = data as NfcTagDuplicateData
+    console.log('NFC tag duplicate detected', { data: duplicateData })
+    existingPlaylistInfo.value = duplicateData.existing_playlist
   })
 
-  // Handle tag detection events
-  socketService.on('nfc_tag_detected', (data: unknown) => {
-    const tagData = data as NfcTagDetectedData
-    logger.info('NFC tag detected', { tagId: tagData.tag_id }, 'NfcAssociateDialog')
-    if (tagData.tag_id) {
-      lastTagId.value = tagData.tag_id
-      scanStatus.value = new Date().toLocaleTimeString() + ` - Tag: ${tagData.tag_id}`
-    }
-  })
-
-  // Handle errors
-  socketService.on('nfc_error', (data: unknown) => {
-    const errorData = data as NfcErrorData
-    logger.error('NFC error received', { data: errorData }, 'NfcAssociateDialog')
-    state.value = 'error'
-    errorMsg.value = errorData.message || t('nfc.general_error')
-  })
+  console.log('NFC Socket handlers setup complete')
 }
 
 function cleanupSocketHandlers() {
-  socketService.off('nfc_status')
-  socketService.off('nfc_scanning')
-  socketService.off('nfc_tag_detected')
-  socketService.off('nfc_error')
+  socketService.off(SOCKET_EVENTS.NFC_ASSOCIATION_STATE)
+  socketService.off('nfc_tag_duplicate')
 }
 
-watch(() => props.open, async (newVal) => {
-  if (newVal) {
-    // Check NFC status when popup loads
+// Polling mechanism as fallback for socket issues
+let associationPollInterval: ReturnType<typeof setInterval> | null = null
+
+function startAssociationPolling() {
+  if (associationPollInterval) return
+  
+  console.log('Starting NFC association status polling')
+  associationPollInterval = setInterval(async () => {
     try {
-      const data = await dataService.getNfcStatus()
-      if (data?.status && data.status !== 'ready') {
-        state.value = 'nfc_unavailable'
-        errorMsg.value = data.device_info || 'NFC_NOT_AVAILABLE'
-        return
+      const status = await apiService.getNfcStatus()
+      console.log('NFC status poll:', status)
+      
+      // Check if there's an active session for our playlist
+      if (status.active_sessions && status.active_sessions.length > 0) {
+        const ourSession = status.active_sessions.find(s => s.playlist_id === props.playlistId)
+        if (ourSession) {
+          console.log('Found our association session:', ourSession)
+          
+          if (ourSession.state === 'success' && state.value === 'waiting') {
+            console.log('✅ POLLING DETECTED SUCCESS - closing dialog')
+            state.value = 'success'
+            message.value = t('nfc.associate.success')
+            stopAssociationPolling()
+            // Emit success event to parent for playlist update
+            emit('success', props.playlistId)
+            setTimeout(() => {
+              handleClose()
+            }, 3000)
+          } else if (ourSession.state === 'duplicate' && state.value === 'waiting') {
+            state.value = 'already_associated'
+            stopAssociationPolling()
+          }
+        }
       }
-    } catch (e) {
-      // If NFC status call fails, fallback to hardware error
-      state.value = 'hardware_error'
-      errorMsg.value = 'NFC_NOT_AVAILABLE'
-      return
+    } catch (error) {
+      console.error('Failed to poll NFC status:', error)
     }
-    state.value = 'idle'
-    setupSocketHandlers()
-  } else {
-    cleanupSocketHandlers()
+  }, 1000)
+}
+
+function stopAssociationPolling() {
+  if (associationPollInterval) {
+    clearInterval(associationPollInterval)
+    associationPollInterval = null
+    console.log('Stopped NFC association status polling')
+  }
+}
+
+// User actions
+async function startAssociation() {
+  console.log('Starting NFC association for playlist:', props.playlistId)
+  state.value = 'waiting'
+  try {
+    // Use proper REST API call instead of Socket.IO event
+    // Note: nfc_association_state events are emitted globally, so no room joining needed
+    const result = await apiService.startNfcAssociation(props.playlistId)
+    console.log('NFC association started, result:', result)
+    
+    // Set up timeout countdown if we have expiration info
+    if (result && result.timeout_ms) {
+      const expiresAt = Date.now() / 1000 + (result.timeout_ms / 1000)
+      startCountdown(expiresAt)
+    }
+    
+    // Start polling as fallback if socket events don't work
+    startAssociationPolling()
+    
+  } catch (error) {
+    console.error('Failed to start NFC association:', error)
+    state.value = 'error'
+  }
+}
+
+async function cancelAssociation() {
+  console.log('Cancelling NFC association')
+  try {
+    // Use proper REST API call instead of Socket.IO event
+    await apiService.cancelNfcObservation()
+  } catch (error) {
+    console.error('Failed to cancel NFC association:', error)
+  }
+  state.value = 'cancelled'
+}
+
+function retryAssociation() {
+  console.log('Retrying NFC association')
+  state.value = 'idle'
+  message.value = ''
+  existingPlaylistInfo.value = null
+  isOverrideMode.value = false
+}
+
+function replaceAssociation() {
+  console.log('Replacing NFC tag association')
+  isOverrideMode.value = true
+  socketService.emit('override_nfc_tag', {
+    playlist_id: props.playlistId
+  })
+  state.value = 'waiting'
+}
+
+function handleBackdropClick() {
+  if (state.value !== 'waiting') {
+    handleClose()
+  }
+}
+
+async function handleClose() {
+  console.log('Closing NFC association dialog')
+
+  // Stop any ongoing association
+  if (state.value === 'waiting') {
+    try {
+      await apiService.cancelNfcObservation()
+    } catch (error) {
+      console.error('Failed to cancel NFC observation on cleanup:', error)
+    }
+  }
+
+  // Stop polling
+  stopAssociationPolling()
+
+  // Reset state
+  state.value = 'idle'
+  message.value = ''
+  isOverrideMode.value = false
+  existingPlaylistInfo.value = null
+  stopCountdown()
+
+  emit('update:visible', false)
+}
+
+// Check current association state when dialog opens
+async function checkAssociationState() {
+  try {
+    socketService.emit(SOCKET_EVENTS.SYNC_REQUEST, {
+      playlist_id: props.playlistId
+    })
+  } catch (error) {
+    console.error('Failed to check NFC association state:', error)
+  }
+}
+
+// Lifecycle hooks
+onMounted(() => {
+  setupSocketHandlers()
+  if (props.visible) {
+    checkAssociationState()
   }
 })
-onUnmounted(cleanupSocketHandlers)
 
-const startAssociation = async () => {
-  if (!props.playlistId) return
+onUnmounted(() => {
+  cleanupSocketHandlers()
+  stopCountdown()
+})
 
-  // Reset state variables
-  scanStatus.value = null
-  nfcStatusMessage.value = null
-  lastTagId.value = null
-  associatedPlaylistInfo.value = null
-
-  // Set initial waiting state
-  state.value = 'waiting'
-
-  try {
-    logger.info('Starting NFC association', { playlistId: props.playlistId }, 'NfcAssociateDialog')
-
-    // Emit Socket.IO event to start NFC listening
-    socketService.emit('start_nfc_link', { playlist_id: props.playlistId })
-
-    // Status updates will be handled by socket event handlers
-  } catch (err: unknown) {
-    logger.error('Failed to start NFC association', { error: err }, 'NfcAssociateDialog')
-
-    // Handle hardware errors
-    if (err && typeof err === 'object' && 'response' in err) {
-      const response = (err as { response?: { status?: number; data?: { error?: string } } }).response
-      if (response?.status === 503 ||
-          (typeof response?.data?.error === 'string' &&
-           response.data.error.toLowerCase().includes('hardware'))) {
-        state.value = 'hardware_error'
-        errorMsg.value = response?.data?.error || t('nfc.hardware_error_details')
-      } else {
-        state.value = 'error'
-        errorMsg.value = (err as { message?: string }).message || t('nfc.general_error')
-      }
-    } else {
-      state.value = 'error'
-      errorMsg.value = t('nfc.general_error')
-    }
+// Watch for visibility changes
+watch(() => props.visible, (newVisible) => {
+  if (newVisible) {
+    // Reset state when dialog opens
+    state.value = 'idle'
+    message.value = ''
+    isOverrideMode.value = false
+    existingPlaylistInfo.value = null
+    checkAssociationState()
+  } else {
+    // Clean up when dialog closes
+    stopCountdown()
   }
-}
-
-const overrideAssociation = async () => {
-  if (!props.playlistId) return
-  try {
-    // Emit Socket.IO event to override existing association
-    socketService.emit('override_nfc_tag', {})
-
-    // Status updates will be handled by socket event handlers
-  } catch (err: unknown) {
-    logger.error('Failed to override NFC association', { error: err }, 'NfcAssociateDialog')
-    state.value = 'error'
-    errorMsg.value = (err as { message?: string })?.message || t('nfc.override_error')
-  }
-}
-
-const handleCancel = async () => {
-  try {
-    // Emit Socket.IO event to cancel NFC association
-    socketService.emit('stop_nfc_link', {})
-    logger.debug('Sent stop_nfc_link event', {}, 'NfcAssociateDialog')
-
-    // Update state but wait for confirmation from server before closing
-    state.value = 'cancelling'
-    nfcStatusMessage.value = t('nfc.cancelling_association')
-  } catch (err) {
-    logger.error('Failed to cancel NFC association', { error: err }, 'NfcAssociateDialog')
-    // User can still cancel even if the request fails
-    state.value = 'cancelled'
-    emit('close')
-  }
-}
-const handleClose = async () => {
-  try {
-    // When closing the dialog, always ensure NFC association mode is stopped
-    socketService.emit('stop_nfc_link', {})
-    logger.debug('Sent stop_nfc_link event from handleClose', {}, 'NfcAssociateDialog')
-  } catch (err) {
-    logger.error('Failed to stop NFC association on dialog close', { error: err }, 'NfcAssociateDialog')
-  } finally {
-    // Always close the dialog
-    emit('close')
-  }
-}
+})
 </script>
 
 <style scoped>
+.nfc-associate-dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.nfc-associate-dialog {
+  background: white;
+  border-radius: 8px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.dialog-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 18px;
+  cursor: pointer;
+  color: #666;
+}
+
+.close-btn:hover {
+  color: #333;
+}
+
+.state-content {
+  text-align: center;
+}
+
+.nfc-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.nfc-icon.scanning {
+  animation: pulse 2s infinite;
+}
+
+.nfc-icon.success {
+  color: #10b981;
+}
+
+.nfc-icon.warning {
+  color: #f59e0b;
+}
+
+.nfc-icon.error {
+  color: #ef4444;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.countdown {
+  font-size: 14px;
+  color: #666;
+  margin: 8px 0;
+}
+
+.existing-playlist-info {
+  background: #f3f4f6;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 12px 0;
+  font-size: 14px;
+}
+
+.button-group {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  flex: 1;
+}
+
 .btn-primary {
-  @apply bg-primary text-onPrimary rounded px-4 py-2 font-semibold hover:bg-primary-light;
+  background: #3b82f6;
+  color: white;
 }
+
+.btn-primary:hover {
+  background: #2563eb;
+}
+
 .btn-secondary {
-  @apply bg-surface text-onSurface rounded px-4 py-2 font-semibold hover:bg-background;
+  background: #6b7280;
+  color: white;
 }
+
+.btn-secondary:hover {
+  background: #4b5563;
+}
+
 .btn-warning {
-  @apply bg-warning text-onWarning rounded px-4 py-2 font-semibold hover:bg-warning-light;
+  background: #f59e0b;
+  color: white;
+}
+
+.btn-warning:hover {
+  background: #d97706;
 }
 </style>

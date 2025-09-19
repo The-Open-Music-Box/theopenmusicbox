@@ -36,7 +36,6 @@ import { EllipsisVerticalIcon } from '@heroicons/vue/20/solid'
 import type { LegacyAudioFile } from './types'
 import { useFileDialog } from './composables/useFileDialog'
 import { useI18n } from 'vue-i18n'
-import { colors } from '@theme/colors'
 
 const { t } = useI18n()
 

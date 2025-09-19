@@ -1,241 +1,84 @@
 /**
- * FilesStore Composable
+ * FilesStore Composable - DEPRECATED
  *
- * Manages the state and logic for playlists and tracks.
- * Handles loading playlists, track deletion, reordering, and playlist editing operations.
+ * ⚠️  DEPRECATED: This composable has been replaced by the unified playlist store.
+ * Use `useUnifiedPlaylistStore` instead for all playlist and track operations.
+ * This file provides backward compatibility during migration.
+ * 
+ * @deprecated Use useUnifiedPlaylistStore instead
  */
 import { ref } from 'vue'
-import type { PlayList, BaseContent, Track } from '../types'
-import dataService from '../../../services/dataService'
-import { useI18n } from 'vue-i18n'
 import { logger } from '@/utils/logger'
+import { useUnifiedPlaylistStore } from '@/stores/unifiedPlaylistStore'
 
 export function useFilesStore() {
-  const { t } = useI18n()
-  const playlists = ref<PlayList[]>([])
-  const isLoading = ref(false)
-  const error = ref<string | null>(null)
+  // DEPRECATED: Use unified store instead
+  logger.warn('useFilesStore is deprecated - use useUnifiedPlaylistStore instead')
+  const unifiedStore = useUnifiedPlaylistStore()
   
-  // Initialisation du mode édition - toujours désactivé par défaut
-  // Créer un singleton pour éviter de réinitialiser à chaque instanciation du store
-  const isEditMode = ref(false)
-  
-  // Forcer la désactivation du mode édition au démarrage de l'application
-  // Cela garantit que l'application commence toujours en mode normal
-  localStorage.removeItem('isEditMode')
-  
-  const isSaving = ref(false)
+  // Return a backward compatibility wrapper
+  return {
+    // State - delegates to unified store
+    playlists: unifiedStore.getAllPlaylists,
+    isLoading: unifiedStore.isLoading,
+    error: unifiedStore.error,
+    isEditMode: ref(false),
+    isSaving: ref(false),
 
-  /**
-   * Load all playlists from the server
-   * @returns {Promise<void>}
-   */
-  const loadPlaylists = async () => {
-    isLoading.value = true
-    error.value = null
-    try {
-      const data = await dataService.getPlaylists()
-      playlists.value = data.filter((item: BaseContent): item is PlayList => item.type === 'playlist')
-    } catch (err) {
-      error.value = t('file.errorLoading')
-      logger.error('Failed to load playlists', { error: err }, 'useFilesStore')
-    } finally {
-      isLoading.value = false
-    }
-  }
+    // Methods - delegates to unified store
+    async loadPlaylists() {
+      logger.warn('useFilesStore.loadPlaylists is deprecated')
+      return unifiedStore.loadAllPlaylists()
+    },
 
-  /**
-   * Delete a track from a playlist
-   * @param {string} playlistId - Playlist identifier
-   * @param {number} trackNumber - Track number to delete
-   * @returns {Promise<void>}
-   */
-  const deleteTrack = async (playlistId: string, trackNumber: number) => {
-    try {
-      await dataService.deleteTrack(playlistId, trackNumber)
-      // Invalidate cache to ensure fresh data on next load
-      dataService.invalidatePlaylistCache(playlistId)
-      const playlist = playlists.value.find(p => p.id === playlistId)
-      if (playlist) {
-        playlist.tracks = playlist.tracks.filter(t => t.number !== trackNumber)
-      }
-    } catch (err) {
-      logger.error('Failed to delete track', { playlistId, trackNumber, error: err }, 'useFilesStore')
-      throw err
-    }
-  }
+    async deleteTrack(playlistId: string, trackNumber: number) {
+      logger.warn('useFilesStore.deleteTrack is deprecated')
+      return unifiedStore.deleteTrack(playlistId, trackNumber)
+    },
 
-  /**
-   * Toggle edit mode for playlists
-   */
-  const toggleEditMode = () => {
-    isEditMode.value = !isEditMode.value
-    // Save to localStorage to persist between sessions
-    localStorage.setItem('isEditMode', isEditMode.value ? 'true' : 'false')
-  }
+    toggleEditMode() {
+      logger.warn('useFilesStore.toggleEditMode is deprecated - handle edit mode locally')
+      // Just a no-op for compatibility
+    },
 
-  /**
-   * Update a playlist title
-   * @param {string} playlistId - Playlist identifier
-   * @param {string} newTitle - New title for the playlist
-   * @returns {Promise<void>}
-   */
-  const updatePlaylistTitle = async (playlistId: string, newTitle: string) => {
-    try {
-      isSaving.value = true
-      error.value = null
-      
-      // Call API to update playlist title
-      await dataService.updatePlaylist(playlistId, { title: newTitle })
-      
-      // Update local state
-      const playlist = playlists.value.find(p => p.id === playlistId)
-      if (playlist) {
-        playlist.title = newTitle
-      }
-    } catch (err) {
-      error.value = t('file.errorUpdating')
-      logger.error('Failed to update playlist title', { playlistId, newTitle, error: err }, 'useFilesStore')
-      throw err
-    } finally {
-      isSaving.value = false
-    }
-  }
+    async updatePlaylistTitle(playlistId: string, newTitle: string) {
+      logger.warn('useFilesStore.updatePlaylistTitle is deprecated')
+      return unifiedStore.updatePlaylist(playlistId, { title: newTitle })
+    },
 
-  /**
-   * Reorder tracks within a playlist
-   * @param {string} playlistId - Playlist identifier
-   * @param {number[]} newOrder - New order of track numbers
-   * @returns {Promise<void>}
-   */
-  const reorderPlaylistTracks = async (playlistId: string, newOrder: number[]) => {
-    try {
-      isSaving.value = true
-      error.value = null
-      
-      // Call API to reorder tracks
-      await dataService.reorderTracks(playlistId, newOrder)
-      
-      // Update local state
-      const playlist = playlists.value.find(p => p.id === playlistId)
-      if (playlist) {
-        // Create a map of track number to track object
-        const trackMap = new Map()
-        playlist.tracks.forEach(track => trackMap.set(track.number, track))
-        
-        // Reorder tracks based on new order
-        const reorderedTracks = newOrder.map(number => trackMap.get(number))
-          .filter((track): track is Track => track !== undefined)
-        
-        playlist.tracks = reorderedTracks
-      }
-    } catch (err) {
-      error.value = t('file.errorReordering')
-      logger.error('Failed to reorder tracks', { playlistId, newOrder, error: err }, 'useFilesStore')
-      throw err
-    } finally {
-      isSaving.value = false
-    }
-  }
+    async reorderPlaylistTracks(playlistId: string, newOrder: number[]) {
+      logger.warn('useFilesStore.reorderPlaylistTracks is deprecated')
+      return unifiedStore.reorderTracks(playlistId, newOrder)
+    },
 
-  /**
-   * Move a track from one playlist to another
-   * @param {string} sourcePlaylistId - Source playlist identifier
-   * @param {string} targetPlaylistId - Target playlist identifier
-   * @param {number} trackNumber - Track number to move
-   * @param {number} targetPosition - Position in target playlist (optional)
-   * @returns {Promise<void>}
-   */
-  const moveTrackBetweenPlaylists = async (
-    sourcePlaylistId: string, 
-    targetPlaylistId: string, 
-    trackNumber: number,
-    targetPosition?: number
-  ) => {
-    try {
-      isSaving.value = true
-      error.value = null
-      
-      // Call the backend API to move the track
-      await dataService.moveTrackBetweenPlaylists(
-        sourcePlaylistId,
-        targetPlaylistId,
-        trackNumber,
+    async moveTrackBetweenPlaylists(
+      sourcePlaylistId: string, 
+      targetPlaylistId: string, 
+      trackNumber: number,
+      targetPosition?: number
+    ) {
+      logger.warn('useFilesStore.moveTrackBetweenPlaylists is deprecated')
+      return unifiedStore.moveTrackBetweenPlaylists(
+        sourcePlaylistId, 
+        targetPlaylistId, 
+        trackNumber, 
         targetPosition
       )
-      
-      // Refresh both playlists to reflect the changes
-      await loadPlaylists()
-      
-      logger.info('Track moved between playlists', { sourcePlaylistId, targetPlaylistId, trackNumber }, 'useFilesStore')
-    } catch (err) {
-      error.value = t('file.errorMoving')
-      logger.error('Failed to move track between playlists', { sourcePlaylistId, targetPlaylistId, trackNumber, error: err }, 'useFilesStore')
-      throw err
-    } finally {
-      isSaving.value = false
-    }
-  }
+    },
 
-  /**
-   * Create a new playlist
-   * @param {string} title - Title for the new playlist
-   * @returns {Promise<string>} - ID of the created playlist
-   */
-  const createNewPlaylist = async (title: string) => {
-    try {
-      isLoading.value = true
-      error.value = null
-      
-      // Call API to create new playlist
-      const response = await dataService.createPlaylist({ title })
-      // Process playlist response
-      
-      // Handle both response formats:
-      // 1. Response with nested playlist object: { playlist: { id: '...', ... } }
-      // 2. Direct playlist object: { id: '...', ... }
-      let playlistId = null
-      
-      if (response && response.playlist && response.playlist.id) {
-        // Format 1: Nested playlist object
-        playlistId = response.playlist.id
-        logger.info('New playlist created (nested format)', { playlistId }, 'useFilesStore')
-      } else if (response && response.id) {
-        // Format 2: Direct playlist object
-        playlistId = response.id
-        logger.info('New playlist created (direct format)', { playlistId }, 'useFilesStore')
-      } else {
-        logger.error('Invalid playlist creation response format', { response }, 'useFilesStore')
-        throw new Error('Invalid response format')
-      }
-      
-      // Reload playlists to get updated data including the new playlist
-      // Only executed if we have a valid playlist ID
-      // Reload playlists after successful creation
-      await loadPlaylists()
-      
-      return playlistId
-    } catch (err) {
-      error.value = t('file.errorCreating')
-      logger.error('Failed to create playlist', { title, error: err }, 'useFilesStore')
-      throw err
-    } finally {
-      isSaving.value = false
-    }
-  }
+    async createNewPlaylist(title: string) {
+      logger.warn('useFilesStore.createNewPlaylist is deprecated')
+      return unifiedStore.createPlaylist(title)
+    },
 
-  return {
-    playlists,
-    isLoading,
-    isSaving,
-    error,
-    isEditMode,
-    loadPlaylists,
-    deleteTrack,
-    toggleEditMode,
-    updatePlaylistTitle,
-    reorderPlaylistTracks,
-    moveTrackBetweenPlaylists,
-    createNewPlaylist
+    setupRealtimeListeners() {
+      logger.warn('useFilesStore.setupRealtimeListeners is deprecated - unified store handles this automatically')
+      // No-op - unified store handles all WebSocket listeners
+    },
+
+    cleanupRealtimeListeners() {
+      logger.warn('useFilesStore.cleanupRealtimeListeners is deprecated - unified store handles this automatically')
+      // No-op - unified store handles cleanup
+    }
   }
 }

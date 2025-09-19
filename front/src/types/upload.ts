@@ -8,7 +8,7 @@
 // Core upload file interface
 export interface UploadFile {
   file: File
-  status: 'pending' | 'uploading' | 'success' | 'error' | 'cancelled'
+  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'error'
   progress: number
   sessionId?: string
   error?: string
@@ -143,7 +143,7 @@ export interface BatchUpload {
   id: string
   playlistId: string
   files: UploadFile[]
-  status: 'pending' | 'uploading' | 'completed' | 'failed' | 'cancelled'
+  status: 'pending' | 'uploading' | 'processing' | 'completed' | 'error'
   progress: number
   startedAt?: Date
   completedAt?: Date

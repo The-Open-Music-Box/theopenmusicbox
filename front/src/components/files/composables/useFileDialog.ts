@@ -39,8 +39,8 @@ export function useFileDialog() {
 
     try {
       // Implement deletion logic here
-      // await dataService.deleteFile(fileToDelete.value.id)
-      console.log('File deleted:', fileToDelete.value.name)
+      // await apiService.deleteFile(fileToDelete.value.id)
+      // File deleted successfully
     } catch (error) {
       console.error('Error deleting file:', error)
     } finally {

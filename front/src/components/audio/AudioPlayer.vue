@@ -1,21 +1,29 @@
 <template>
-  <div class="w-full max-w-xl mx-auto">
-    <div :class="['bg-surface', 'border-border', 'border-b rounded-t-xl p-4 pb-6 sm:p-10 sm:pb-8 lg:p-6 xl:p-10 xl:pb-8 space-y-6 sm:space-y-8 lg:space-y-6 xl:space-y-8 items-center']">
-      <TrackInfo :track="currentTrack || undefined" />
+  <div v-if="!serverStateStore" class="w-full max-w-xl mx-auto p-4 text-center text-gray-500">
+    Loading player...
+  </div>
+  <div v-else class="w-full max-w-xl mx-auto">
+    <div class="bg-surface border-border border-b rounded-t-xl p-4 pb-6 sm:p-10 sm:pb-8 lg:p-6 xl:p-10 xl:pb-8 space-y-6 sm:space-y-8 lg:space-y-6 xl:space-y-8 items-center">
+      <TrackInfo 
+        :track="currentTrack || undefined" 
+        :playlistTitle="playerState?.active_playlist_title"
+        :duration="duration"
+      />
       <ProgressBar
         :currentTime="currentTime"
         :duration="duration"
+        @seek="seekTo"
       />
     </div>
-    <div :class="['bg-background', 'text-disabled', 'rounded-b-xl flex items-center justify-center w-full']">
+    <div class="bg-background text-disabled rounded-b-xl flex items-center justify-center w-full">
       <div class="w-full max-w-[380px] mx-auto flex justify-center">
         <PlaybackControls
           :isPlaying="isPlaying"
+          :canPrevious="playerState?.can_prev || false"
+          :canNext="playerState?.can_next || false"
           @toggle-play-pause="togglePlayPause"
           @previous="previous"
           @next="next"
-          @rewind="rewind"
-          @skip="skip"
         />
       </div>
     </div>
@@ -24,197 +32,294 @@
 
 <script setup lang="ts">
 /**
- * AudioPlayer Component
+ * Simplified AudioPlayer Component
  *
- * A full-featured audio player with:
- * - Play/Pause functionality
- * - Track progress visualization
- * - Next/Previous track navigation
- * - Skip forward/backward controls
- * - Track metadata display
+ * Server-authoritative player with:
+ * - Position updates from server state:track_position events (200ms)
+ * - No frontend timers - all position comes from backend
+ * - Optimistic UI updates for seek operations only
  */
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TrackInfo from './TrackInfo.vue'
 import ProgressBar from './ProgressBar.vue'
 import PlaybackControls from './PlaybackControls.vue'
 import type { Track, PlayList } from '../files/types'
-import socketService from '@/services/socketService'
-import apiService from '@/services/realApiService'
+import { useServerStateStore } from '@/stores/serverStateStore'
+import { useUnifiedPlaylistStore } from '@/stores/unifiedPlaylistStore'
+import { storeToRefs } from 'pinia'
+import apiService from '@/services/apiService'
 import { logger } from '@/utils/logger'
+import { getTrackNumber, getTrackDurationMs } from '@/utils/trackFieldAccessor'
 
-// Component props with types and defaults
+// Props
 interface Props {
-  /** The currently selected track */
-  selectedTrack?: Track | null;
-  /** The playlist containing the track */
-  playlist?: PlayList | null;
+  selectedTrack?: Track
+  playlist?: PlayList
 }
+const props = defineProps<Props>()
 
-withDefaults(defineProps<Props>(), {
-  selectedTrack: null,
-  playlist: null
+// Stores
+const serverStateStore = useServerStateStore()
+const unifiedStore = useUnifiedPlaylistStore()
+const { playerState } = storeToRefs(serverStateStore)
+
+// Local reactive state - with smooth interpolation (all in milliseconds)
+const currentTime = ref<number>(0)  // milliseconds
+const isSeekInProgress = ref<boolean>(false)
+const lastServerTime = ref<number>(0)  // milliseconds
+const lastServerUpdate = ref<number>(0)
+const animationFrame = ref<number | null>(null)
+
+// Computed properties - enhanced with unified store data
+const currentTrack = computed(() => {
+  // Priority: server state > props > unified store lookup
+  let track = playerState.value?.active_track || props.selectedTrack || null
+  
+  // If we have a track from server state or props, try to get full data from unified store
+  if (track && playerState.value?.active_playlist_id) {
+    const fullTrack = unifiedStore.getTrackByNumber(
+      playerState.value.active_playlist_id, 
+      getTrackNumber(track)
+    )
+    if (fullTrack) {
+      track = fullTrack // Use full track data from store
+    }
+  }
+  
+  return track
 })
 
-// State management
-const isPlaying = ref(false)
-const currentTime = ref(0)
-const duration = ref(0)
-const currentTrack = ref<Track | null>(null)
-const currentPlaylist = ref<PlayList | null>(null)
-// Loading state for track change
-const isChangingTrack = ref(false)
+const duration = computed(() => {
+  // Priority: server state duration > track duration using unified accessor
+  if (playerState.value?.duration_ms && playerState.value.duration_ms > 0) {
+    return playerState.value.duration_ms // Keep in milliseconds
+  }
 
-// Listen for WebSocket events
-let lastBackendTime = 0
-let lastReceivedTimestamp = 0
+  if (currentTrack.value) {
+    return getTrackDurationMs(currentTrack.value) // Use millisecond accessor
+  }
 
-let progressInterval: ReturnType<typeof setInterval> | null = null
+  return 0
+})
 
-function startProgressTimer() {
-  logger.debug('Starting progress timer', { isPlaying: isPlaying.value, duration: duration.value }, 'AudioPlayer');
-  if (progressInterval) clearInterval(progressInterval)
-  progressInterval = setInterval(() => {
-    // Log à chaque tick d'update progress bar
-    if (isPlaying.value && duration.value > 0) {
-     // console.log('[AudioPlayer] ProgressBar Tick. isPlaying:', isPlaying.value, 'currentTime:', currentTime.value, 'duration:', duration.value, 'at', Date.now());
-      const now = Date.now() / 1000
-      const elapsed = now - lastReceivedTimestamp
-      const displayTime = Math.min(lastBackendTime + elapsed, duration.value)
-      currentTime.value = displayTime
+const isPlaying = computed(() => {
+  return Boolean(playerState.value?.is_playing)
+})
+
+// Smooth position interpolation
+function startSmoothAnimation() {
+  if (animationFrame.value) {
+    cancelAnimationFrame(animationFrame.value)
+  }
+  
+  const animate = () => {
+    if (!isPlaying.value || isSeekInProgress.value) {
+      animationFrame.value = null
+      return
+    }
+    
+    const now = Date.now()
+    const timeSinceLastUpdate = now - lastServerUpdate.value
+    const interpolatedTime = lastServerTime.value + timeSinceLastUpdate  // All in milliseconds
+
+    // Only update if interpolation seems reasonable (within 2 seconds of last server update)
+    if (timeSinceLastUpdate < 2000) {  // 2000ms = 2 seconds
+      currentTime.value = interpolatedTime
+    }
+    
+    animationFrame.value = requestAnimationFrame(animate)
+  }
+  
+  animationFrame.value = requestAnimationFrame(animate)
+}
+
+function stopSmoothAnimation() {
+  if (animationFrame.value) {
+    cancelAnimationFrame(animationFrame.value)
+    animationFrame.value = null
+  }
+}
+
+// Watch for position updates from server
+let lastServerPosition = 0
+const unwatchPosition = serverStateStore.$subscribe((mutation, state) => {
+  if (state.playerState.position_ms !== lastServerPosition) {
+    lastServerPosition = state.playerState.position_ms
+    
+    // Only update if we're not currently seeking
+    if (!isSeekInProgress.value) {
+      const newTime = state.playerState.position_ms  // Keep in milliseconds
+      lastServerTime.value = newTime
+      lastServerUpdate.value = Date.now()
+      currentTime.value = newTime
+
+      // Start smooth animation if playing
+      if (state.playerState.is_playing) {
+        startSmoothAnimation()
+      } else {
+        stopSmoothAnimation()
+      }
+    }
+  }
+  
+  // Handle play/pause state changes
+  const nowPlaying = Boolean(state.playerState.is_playing)
+  if (nowPlaying !== isPlaying.value) {
+    if (nowPlaying) {
+      startSmoothAnimation()
     } else {
-      // Stop timer if not playing
-      if (progressInterval) {
-        clearInterval(progressInterval)
-        progressInterval = null
-        logger.debug('Progress timer stopped (paused or no duration)', {}, 'AudioPlayer');
-      }
+      stopSmoothAnimation()
     }
-  }, 200)
+  }
+})
+
+// Player control methods
+async function togglePlayPause() {
+  try {
+    if (isPlaying.value) {
+      await apiService.pausePlayer()
+      logger.debug('[AudioPlayerSimplified] Pause requested')
+    } else {
+      await apiService.playPlayer()
+      logger.debug('[AudioPlayerSimplified] Play requested')
+    }
+  } catch (error) {
+    logger.error('[AudioPlayerSimplified] Failed to toggle play/pause:', error)
+  }
 }
 
-onMounted(() => {
-  logger.debug('AudioPlayer mounted', {}, 'AudioPlayer');
-  socketService.on('track_progress', (data: unknown) => {
-    try {
-      const trackData = data as { track?: Track; playlist?: PlayList; current_time?: number; duration?: number; is_playing?: boolean }
-      logger.debug('Received track_progress', { trackData }, 'AudioPlayer');
-      // data: { track, playlist, current_time, duration, is_playing }
-      // Detect track change
-      const isNewTrack = currentTrack.value?.filename !== trackData.track?.filename
-      if (isChangingTrack.value && isNewTrack) {
-        isChangingTrack.value = false;
-        // Resume playback and reset progress bar
-        isPlaying.value = true;
-        currentTime.value = 0;
-      }
-      currentTrack.value = trackData.track || null;
-      currentPlaylist.value = trackData.playlist || null;
-      lastBackendTime = trackData.current_time || 0;
-      lastReceivedTimestamp = Date.now() / 1000;
-      duration.value = trackData.duration || 0;
-      // Always sync from backend, but only auto-resume if this was a track change
-      if (!isChangingTrack.value) {
-        isPlaying.value = trackData.is_playing || false;
-      }
-      // Set currentTime immediately to backend value or reset if new track
-      if (!isChangingTrack.value) {
-        currentTime.value = isNewTrack ? 0 : lastBackendTime;
-      }
-      // Timer will be managed by watcher
-    } catch (err) {
-      logger.error('Error updating playback state from track_progress', { error: err, data }, 'AudioPlayer');
+async function previous() {
+  try {
+    await apiService.previousTrack()
+    logger.debug('[AudioPlayerSimplified] Previous track requested')
+  } catch (error) {
+    logger.error('[AudioPlayerSimplified] Failed to go to previous track:', error)
+  }
+}
+
+async function next() {
+  try {
+    await apiService.nextTrack()
+    logger.debug('[AudioPlayerSimplified] Next track requested')
+  } catch (error) {
+    logger.error('[AudioPlayerSimplified] Failed to go to next track:', error)
+  }
+}
+
+async function seekTo(timeMs: number) {
+  try {
+    // Client-side validation for seek duration (max 24 hours in milliseconds)
+    const maxDurationMs = 86400000 // 24 hours in milliseconds
+    if (timeMs < 0 || timeMs > maxDurationMs) {
+      logger.error('[AudioPlayerSimplified] Seek position out of bounds', {
+        timeMs,
+        maxDurationMs
+      })
+      return
     }
-  })
-  socketService.on('playback_status', (data: unknown) => {
-    try {
-      const statusData = data as { status?: string; playlist?: PlayList; current_track?: Track }
-      logger.debug('Received playback_status', { statusData }, 'AudioPlayer');
-      // data: { status, playlist, current_track }
-      // Detect track change
-      const isNewTrack = currentTrack.value?.filename !== statusData.current_track?.filename
-      currentTrack.value = statusData.current_track || null
-      currentPlaylist.value = statusData.playlist || null
-      // Optionally map status to isPlaying
-      isPlaying.value = statusData.status === 'playing' // Always sync from backend
-      // duration and currentTime may not be present; set to 0 if missing
-      duration.value = statusData.current_track?.duration ? parseInt(statusData.current_track.duration) : 0
-      currentTime.value = isNewTrack ? 0 : currentTime.value
-      // Timer will be managed by watcher
-    } catch (err) {
-      logger.error('Error updating playback state from playback_status', { error: err, data }, 'AudioPlayer');
+
+    // Stop smooth animation during seek
+    stopSmoothAnimation()
+
+    // Optimistic update for immediate UI feedback
+    isSeekInProgress.value = true
+    currentTime.value = timeMs  // Already in milliseconds
+    lastServerTime.value = timeMs
+    lastServerUpdate.value = Date.now()
+
+    // Send seek request to server - already in milliseconds
+    await apiService.seekPlayer(Math.floor(timeMs))
+
+    logger.debug('[AudioPlayerSimplified] Seek completed', {
+      timeMs
+    })
+    
+    // Clear seek flag after a short delay to allow server update to come through
+    setTimeout(() => {
+      isSeekInProgress.value = false
+      // Restart smooth animation if playing
+      if (isPlaying.value) {
+        startSmoothAnimation()
+      }
+    }, 500)
+    
+  } catch (error) {
+    logger.error('[AudioPlayerSimplified] Failed to seek:', error)
+    
+    // Revert optimistic update on error
+    const fallbackTime = playerState.value?.position_ms || 0  // Already in milliseconds
+    currentTime.value = fallbackTime
+    lastServerTime.value = fallbackTime
+    lastServerUpdate.value = Date.now()
+    isSeekInProgress.value = false
+    
+    // Restart smooth animation if playing
+    if (isPlaying.value) {
+      startSmoothAnimation()
     }
-  })
-  socketService.on('connection_status', (data: unknown) => {
-    const connectionData = data as { status?: string }
-    // Handle connection status changes, especially reconnection
-    if (connectionData.status === 'connected') {
-      // Request current playback status to resync state
+  }
+}
+
+// Lifecycle - enhanced with unified store initialization
+onMounted(async () => {
+  logger.debug('[AudioPlayer] Component mounted - initializing unified integration')
+  
+  // Initialize unified store if not already done
+  if (!unifiedStore.isInitialized) {
+    try {
+      await unifiedStore.initialize()
+      logger.debug('[AudioPlayer] Unified store initialized')
+    } catch (error) {
+      logger.warn('[AudioPlayer] Failed to initialize unified store:', error)
+      // Continue anyway - server state store will still work
+    }
+  }
+  
+  // Initialize position from current player state
+  if (playerState.value?.position_ms) {
+    const initialTime = playerState.value.position_ms  // Keep in milliseconds
+    currentTime.value = initialTime
+    lastServerTime.value = initialTime
+    lastServerUpdate.value = Date.now()
+    lastServerPosition = playerState.value.position_ms
+
+    // Start smooth animation if already playing
+    if (playerState.value.is_playing) {
+      startSmoothAnimation()
+    }
+  }
+  
+  // Subscribe to playlists room for player state updates
+  try {
+    await serverStateStore.subscribeToPlaylists()
+    logger.debug('[AudioPlayer] Subscribed to playlists room')
+    
+    await serverStateStore.requestInitialPlayerState()
+    logger.debug('[AudioPlayer] Requested initial player state')
+    
+    // Set up periodic state sync as fallback
+    const syncInterval = setInterval(async () => {
       try {
-        socketService.emit && socketService.emit('get_playback_status', {});
-        logger.debug('Requested playback status after reconnect', {}, 'AudioPlayer');
-      } catch (err) {
-        logger.error('Error requesting playback status after reconnect', { error: err }, 'AudioPlayer');
+        if (!playerState.value?.active_track && serverStateStore.isConnected) {
+          await serverStateStore.requestInitialPlayerState()
+        }
+      } catch (error) {
+        logger.debug('[AudioPlayer] Periodic sync failed:', error)
       }
-    }
-  })
-  socketService.setupSocketConnection()
-})
-
-onUnmounted(() => {
-  socketService.off('track_progress')
-  socketService.off('playback_status')
-  socketService.off('connection_status')
-  if (progressInterval) clearInterval(progressInterval)
-})
-
-// Watcher pour gérer le timer selon l'état lecture/pause
-watch(isPlaying, (newVal) => {
-  if (newVal) {
-    startProgressTimer()
-  } else if (progressInterval) {
-    clearInterval(progressInterval)
-    progressInterval = null
-    logger.debug('Progress timer stopped by watcher (paused)', {}, 'AudioPlayer');
+    }, 5000)
+    
+    // Add cleanup to unmount
+    onUnmounted(() => {
+      clearInterval(syncInterval)
+      stopSmoothAnimation()
+      unwatchPosition()
+      logger.debug('[AudioPlayer] Component unmounted with cleanup')
+    })
+    
+  } catch (error) {
+    logger.error('[AudioPlayer] Failed to subscribe to playlists room:', error)
   }
 })
 
-const togglePlayPause = async () => {
-  const action = isPlaying.value ? 'pause' : 'resume';
-  logger.debug('Play/Pause button clicked', { action, wasPlaying: isPlaying.value }, 'AudioPlayer');
-  try {
-    // Ne pas faire de mise à jour optimiste !
-    await apiService.controlPlaylist(action);
-    // La vraie valeur sera resynchronisée via l'événement backend
-  } catch (error) {
-    logger.error('Error in togglePlayPause', { error }, 'AudioPlayer');
-  }
-}
-
-const rewind = () => {
-  // Not supported in monitor mode
-}
-
-const skip = () => {
-  // Not supported in monitor mode
-}
-
-const previous = async () => {
-  logger.debug('Previous track requested', { currentPlaylist: currentPlaylist.value?.id, currentTrack: currentTrack.value?.filename }, 'AudioPlayer');
-  // Suppression de tout verrouillage : on envoie la commande à chaque clic
-  try {
-    await apiService.controlPlaylist('previous');
-  } catch (error) {
-    logger.error('Error in previous', { error }, 'AudioPlayer');
-  }
-}
-
-const next = async () => {
-  logger.debug('Next track requested', { currentPlaylist: currentPlaylist.value?.id, currentTrack: currentTrack.value?.filename }, 'AudioPlayer');
-  // Suppression de tout verrouillage : on envoie la commande à chaque clic
-  try {
-    await apiService.controlPlaylist('next');
-  } catch (error) {
-    logger.error('Error in next', { error }, 'AudioPlayer');
-  }
-}
+// onUnmounted cleanup is now handled in the try block above
 </script>

@@ -5,6 +5,8 @@
       <button
         type="button"
         class="block"
+        :class="{ 'opacity-50 cursor-not-allowed': !props.canPrevious }"
+        :disabled="!props.canPrevious"
         :aria-label="t('player.previous')"
         @click="handlePrevious()"
       >
@@ -26,28 +28,7 @@
           />
         </svg>
       </button>
-      <button
-        type="button"
-        :aria-label="t('player.rewind')"
-        @click="$emit('rewind')"
-      >
-        <svg width="24" height="24" fill="none">
-          <path
-            d="M6.492 16.95c2.861 2.733 7.5 2.733 10.362 0 2.861-2.734 2.861-7.166 0-9.9-2.862-2.733-7.501-2.733-10.362 0A7.096 7.096 0 0 0 5.5 8.226"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M5 5v3.111c0 .491.398.889.889.889H9"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
+      <!-- Rewind button removed per spec -->
     </div>
     <!-- Bouton central -->
     <button
@@ -66,31 +47,12 @@
     </button>
     <!-- Groupe droit -->
     <div class="flex items-center gap-x-0 sm:gap-x-6">
-      <button
-        type="button"
-        :aria-label="t('player.skip')"
-        @click="$emit('skip')"
-      >
-        <svg width="24" height="24" fill="none">
-          <path
-            d="M17.509 16.95c-2.862 2.733-7.501 2.733-10.363 0-2.861-2.734-2.861-7.166 0-9.9 2.862-2.733 7.501-2.733 10.363 0 .38.365.711.759.991 1.176"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-          <path
-            d="M19 5v3.111c0 .491-.398.889-.889.889H15"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-      </button>
+      <!-- Skip 10s button removed per spec -->
       <button
         type="button"
         class="block"
+        :class="{ 'opacity-50 cursor-not-allowed': !props.canNext }"
+        :disabled="!props.canNext"
         :aria-label="t('player.next')"
         @click="handleNext()"
       >
@@ -123,7 +85,7 @@
  * Provides a set of controls for audio playback including:
  * - Play/pause button
  * - Previous/next track buttons
- * - Rewind/skip buttons
+ * - Previous/next buttons (rewind/skip removed)
  */
 
 import { useI18n } from 'vue-i18n'
@@ -132,9 +94,13 @@ import { logger } from '@/utils/logger'
 
 const { t } = useI18n()
 
-defineProps<{
+const props = defineProps<{
   /** Whether audio is currently playing */
   isPlaying: boolean
+  /** Whether previous track is available */
+  canPrevious?: boolean
+  /** Whether next track is available */
+  canNext?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -144,18 +110,23 @@ const emit = defineEmits<{
   (e: 'previous'): void;
   /** Emitted when next track button is clicked */
   (e: 'next'): void;
-  /** Emitted when rewind button is clicked */
-  (e: 'rewind'): void;
-  /** Emitted when skip button is clicked */
-  (e: 'skip'): void;
+  // rewind/skip removed
 }>()
 
 const handlePrevious = () => {
+  if (!props.canPrevious) {
+    logger.debug('Previous button clicked but disabled', {}, 'PlaybackControls')
+    return
+  }
   logger.debug('Previous button clicked', {}, 'PlaybackControls')
   emit('previous')
 }
 
 const handleNext = () => {
+  if (!props.canNext) {
+    logger.debug('Next button clicked but disabled', {}, 'PlaybackControls')
+    return
+  }
   logger.debug('Next button clicked', {}, 'PlaybackControls')
   emit('next')
 }

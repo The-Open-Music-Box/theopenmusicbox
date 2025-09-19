@@ -21,7 +21,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
-import dataService from '../services/dataService'
+import apiService from '../services/apiService'
 
 interface SystemHealth {
   error?: string;
@@ -33,7 +33,7 @@ const healthCheckInterval = ref<number | null>(null)
 
 const checkHealth = async () => {
   try {
-    const response = await dataService.checkHealth()
+    const response = await apiService.checkHealth()
     systemHealth.value = response
   } catch (error) {
     systemHealth.value = { error: 'Failed to fetch health status' }
