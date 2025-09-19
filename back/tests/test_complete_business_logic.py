@@ -32,7 +32,7 @@ from app.src.application.services.nfc_application_service import NfcApplicationS
 from app.src.application.services.upload_application_service import UploadApplicationService
 
 # Infrastructure 
-from app.src.infrastructure.repositories.sqlite_playlist_repository import SQLitePlaylistRepository
+from app.src.infrastructure.repositories.pure_sqlite_playlist_repository import PureSQLitePlaylistRepository
 from app.src.infrastructure.nfc.adapters.nfc_hardware_adapter import NfcHardwareAdapter
 from app.src.infrastructure.upload.adapters.file_storage_adapter import LocalFileStorageAdapter
 from app.src.infrastructure.upload.adapters.metadata_extractor import MutagenMetadataExtractor, MockMetadataExtractor
@@ -514,7 +514,7 @@ class TestInfrastructureBusinessLogic:
         """Test SQLite repository business logic operations."""
         with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as temp_db:
             try:
-                repo = SQLitePlaylistRepository(database_path=temp_db.name)
+                repo = PureSQLitePlaylistRepository(database_path=temp_db.name)
                 
                 # Test playlist creation business logic
                 playlist = Playlist(name="Test Playlist", description="Test Description")

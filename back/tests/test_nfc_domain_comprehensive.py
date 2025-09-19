@@ -10,10 +10,10 @@ from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 
 from app.src.domain.nfc.entities.nfc_tag import NfcTag
-from app.src.domain.nfc.entities.association_session import AssociationSession, AssociationState
+from app.src.domain.nfc.entities.association_session import AssociationSession, SessionState
 from app.src.domain.nfc.value_objects.tag_identifier import TagIdentifier
 from app.src.domain.nfc.services.nfc_association_service import NfcAssociationService
-from app.src.domain.nfc.repositories.nfc_memory_repository import NfcMemoryRepository
+from app.src.infrastructure.nfc.repositories.nfc_memory_repository import NfcMemoryRepository
 
 
 class TestTagIdentifierValueObject:
@@ -144,7 +144,7 @@ class TestAssociationSessionEntity:
 
         assert session.session_id == session_id
         assert session.playlist_id == playlist_id
-        assert session.state == AssociationState.LISTENING
+        assert session.state == SessionState.LISTENING
         assert not session.is_expired()
         assert session.tag_id is None
 
@@ -175,34 +175,34 @@ class TestAssociationSessionEntity:
         session = AssociationSession("session-123", "playlist-456", 60)
 
         # Start in LISTENING state
-        assert session.state == AssociationState.LISTENING
+        assert session.state == SessionState.LISTENING
 
         # Can transition to SUCCESS
         session.mark_successful("tag-123")
-        assert session.state == AssociationState.SUCCESS
+        assert session.state == SessionState.SUCCESS
         assert session.tag_id == "tag-123"
 
         # Create new session for other transitions
         session2 = AssociationSession("session-456", "playlist-789", 60)
         session2.mark_duplicate("tag-456", "existing-playlist-123")
-        assert session2.state == AssociationState.DUPLICATE
+        assert session2.state == SessionState.DUPLICATE
         assert session2.tag_id == "tag-456"
         assert session2.conflict_playlist_id == "existing-playlist-123"
 
         # Test STOPPED state
         session3 = AssociationSession("session-789", "playlist-012", 60)
         session3.mark_stopped()
-        assert session3.state == AssociationState.STOPPED
+        assert session3.state == SessionState.STOPPED
 
         # Test TIMEOUT state
         session4 = AssociationSession("session-012", "playlist-345", 60)
         session4.mark_timeout()
-        assert session4.state == AssociationState.TIMEOUT
+        assert session4.state == SessionState.TIMEOUT
 
         # Test ERROR state
         session5 = AssociationSession("session-345", "playlist-678", 60)
         session5.mark_error("Test error message")
-        assert session5.state == AssociationState.ERROR
+        assert session5.state == SessionState.ERROR
         assert session5.error_message == "Test error message"
 
     def test_session_serialization(self):
@@ -242,7 +242,7 @@ class TestNfcAssociationService:
 
         assert session is not None
         assert session.playlist_id == playlist_id
-        assert session.state == AssociationState.LISTENING
+        assert session.state == SessionState.LISTENING
         assert not session.is_expired()
 
     @pytest.mark.asyncio
@@ -261,7 +261,7 @@ class TestNfcAssociationService:
 
         assert result['success'] is True
         assert result['session_id'] == session.session_id
-        assert result['state'] == AssociationState.SUCCESS
+        assert result['state'] == SessionState.SUCCESS
 
         # Verify tag was stored and associated
         stored_tag = await self.repository.find_by_identifier(tag_identifier)
@@ -291,7 +291,7 @@ class TestNfcAssociationService:
 
         assert result['success'] is False
         assert result['session_id'] == session.session_id
-        assert result['state'] == AssociationState.DUPLICATE
+        assert result['state'] == SessionState.DUPLICATE
         assert result['conflict_playlist_id'] == "existing-playlist-456"
 
     @pytest.mark.asyncio
@@ -386,7 +386,7 @@ class TestNfcAssociationService:
         session2 = await self.service.start_association_session("playlist-456")
         result2 = await self.service.process_tag_detection(tag_id)
         assert result2['success'] is False
-        assert result2['state'] == AssociationState.DUPLICATE
+        assert result2['state'] == SessionState.DUPLICATE
 
     @pytest.mark.asyncio
     async def test_repository_sync_failure_handling(self):

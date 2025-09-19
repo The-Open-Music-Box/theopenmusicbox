@@ -10,10 +10,10 @@ from unittest.mock import AsyncMock, Mock, patch
 from datetime import datetime, timedelta
 
 from app.src.application.services.nfc_application_service import NfcApplicationService
-from app.src.domain.nfc.entities.association_session import AssociationState
+from app.src.domain.nfc.entities.association_session import SessionState
 from app.src.domain.nfc.value_objects.tag_identifier import TagIdentifier
-from app.src.domain.nfc.repositories.nfc_memory_repository import NfcMemoryRepository
-from app.src.infrastructure.repositories.sqlite_playlist_repository import SQLitePlaylistRepository
+from app.src.infrastructure.nfc.repositories.nfc_memory_repository import NfcMemoryRepository
+from app.src.infrastructure.repositories.pure_sqlite_playlist_repository import PureSQLitePlaylistRepository
 
 
 class TestNfcApplicationServiceInitialization:
@@ -102,7 +102,7 @@ class TestNfcApplicationServiceAssociation:
         mock_session = Mock()
         mock_session.session_id = "session-456"
         mock_session.playlist_id = playlist_id
-        mock_session.state = AssociationState.LISTENING
+        mock_session.state = SessionState.LISTENING
         mock_session.to_dict.return_value = {
             'session_id': 'session-456',
             'playlist_id': playlist_id,
@@ -185,7 +185,7 @@ class TestNfcApplicationServiceTagDetection:
             'success': True,
             'session_id': 'session-123',
             'playlist_id': 'playlist-456',
-            'state': AssociationState.SUCCESS
+            'state': SessionState.SUCCESS
         }
 
         await self.service._on_tag_detected(tag_uid)
@@ -206,7 +206,7 @@ class TestNfcApplicationServiceTagDetection:
             'success': False,
             'session_id': 'session-123',
             'playlist_id': 'playlist-456',
-            'state': AssociationState.DUPLICATE,
+            'state': SessionState.DUPLICATE,
             'conflict_playlist_id': 'existing-playlist-789'
         }
 
@@ -249,7 +249,7 @@ class TestNfcApplicationServiceTagDetection:
         tag_uid = "04f7eda4df6181"
         self.mock_association_service.process_tag_detection.return_value = {
             'success': True,
-            'state': AssociationState.SUCCESS
+            'state': SessionState.SUCCESS
         }
 
         await self.service._on_tag_detected(tag_uid)
@@ -271,7 +271,7 @@ class TestNfcApplicationServiceTagDetection:
         tag_uid = "04f7eda4df6181"
         self.mock_association_service.process_tag_detection.return_value = {
             'success': True,
-            'state': AssociationState.SUCCESS
+            'state': SessionState.SUCCESS
         }
 
         # Should not raise exception despite callback failure

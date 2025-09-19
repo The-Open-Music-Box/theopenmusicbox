@@ -11,10 +11,10 @@ from datetime import datetime, timedelta
 
 from app.src.core.application import Application
 from app.src.application.services.nfc_application_service import NfcApplicationService
-from app.src.domain.nfc.entities.association_session import AssociationState
+from app.src.domain.nfc.entities.association_session import SessionState
 from app.src.domain.nfc.value_objects.tag_identifier import TagIdentifier
 from app.src.domain.nfc.entities.nfc_tag import NfcTag
-from app.src.domain.nfc.repositories.nfc_memory_repository import NfcMemoryRepository
+from app.src.infrastructure.nfc.repositories.nfc_memory_repository import NfcMemoryRepository
 from app.src.domain.nfc.services.nfc_association_service import NfcAssociationService
 
 
@@ -56,7 +56,7 @@ class TestNfcWorkflowScenarios:
             playlist_id, timeout_seconds=60
         )
 
-        assert session.state == AssociationState.LISTENING
+        assert session.state == SessionState.LISTENING
         assert session.playlist_id == playlist_id
         assert not session.is_expired()
 
@@ -65,7 +65,7 @@ class TestNfcWorkflowScenarios:
         result = await self.nfc_association_service.process_tag_detection(tag_identifier)
 
         assert result['success'] is True
-        assert result['state'] == AssociationState.SUCCESS
+        assert result['state'] == SessionState.SUCCESS
         assert result['playlist_id'] == playlist_id
 
         # Step 5: Verify tag is associated and can trigger playlist
@@ -111,7 +111,7 @@ class TestNfcWorkflowScenarios:
 
         # Step 4: Verify conflict detection
         assert result['success'] is False
-        assert result['state'] == AssociationState.DUPLICATE
+        assert result['state'] == SessionState.DUPLICATE
         assert result['conflict_playlist_id'] == existing_playlist_id
         assert result['session_id'] == session.session_id
 
@@ -141,7 +141,7 @@ class TestNfcWorkflowScenarios:
         )
 
         session_id = session.session_id
-        assert session.state == AssociationState.LISTENING
+        assert session.state == SessionState.LISTENING
 
         # Step 2: Wait for timeout to occur
         await asyncio.sleep(1.5)
@@ -219,7 +219,7 @@ class TestNfcWorkflowScenarios:
         session = await self.nfc_association_service.start_association_session(playlist_id)
         session_id = session.session_id
 
-        assert session.state == AssociationState.LISTENING
+        assert session.state == SessionState.LISTENING
 
         # Step 2 & 3: Manually stop session
         stop_result = await self.nfc_association_service.stop_association_session(session_id)
@@ -233,7 +233,7 @@ class TestNfcWorkflowScenarios:
 
         # Session should either be removed or marked as stopped
         if stopped_session:
-            assert stopped_session.state == AssociationState.STOPPED
+            assert stopped_session.state == SessionState.STOPPED
 
     @pytest.mark.asyncio
     async def test_scenario_6_concurrent_association_sessions(self):
@@ -259,7 +259,7 @@ class TestNfcWorkflowScenarios:
         for playlist_id, _ in playlists:
             session = await self.nfc_association_service.start_association_session(playlist_id)
             sessions.append(session)
-            assert session.state == AssociationState.LISTENING
+            assert session.state == SessionState.LISTENING
 
         # Verify all sessions are active
         active_sessions = await self.nfc_association_service.get_active_sessions()
@@ -271,7 +271,7 @@ class TestNfcWorkflowScenarios:
             result = await self.nfc_association_service.process_tag_detection(tag_identifier)
 
             assert result['success'] is True
-            assert result['state'] == AssociationState.SUCCESS
+            assert result['state'] == SessionState.SUCCESS
             assert result['playlist_id'] == playlist_id
 
             # Verify tag is properly associated

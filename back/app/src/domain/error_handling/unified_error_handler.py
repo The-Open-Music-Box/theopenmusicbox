@@ -312,10 +312,8 @@ class UnifiedErrorHandler:
 
         return cleared_count
 
-    def handle_internal_error(self, error: Exception, operation: str):
-        """Handle internal server errors and return appropriate response."""
-        from fastapi.responses import JSONResponse
-
+    def handle_internal_error(self, error: Exception, operation: str) -> Dict[str, Any]:
+        """Handle internal server errors and return appropriate response data."""
         # Simple error response without dependencies
         error_response = {
             "success": False,
@@ -334,15 +332,13 @@ class UnifiedErrorHandler:
 
         self.handle_error(error, context)
 
-        return JSONResponse(content=error_response, status_code=500)
+        return {"content": error_response, "status_code": 500}
 
-    def handle_http_error(self, error: Exception, message: str):
-        """Handle HTTP errors and return appropriate response."""
-        from fastapi.responses import JSONResponse
-        from fastapi import HTTPException
-
+    def handle_http_error(self, error: Exception, message: str) -> Dict[str, Any]:
+        """Handle HTTP errors and return appropriate response data."""
         # Determine error type and status code
-        if isinstance(error, HTTPException):
+        if hasattr(error, 'status_code') and hasattr(error, 'detail'):
+            # HTTPException-like object
             status_code = error.status_code
             error_message = error.detail
         elif isinstance(error, (ValueError, TypeError)):
@@ -369,7 +365,7 @@ class UnifiedErrorHandler:
 
         self.handle_error(error, context)
 
-        return JSONResponse(content=error_response, status_code=status_code)
+        return {"content": error_response, "status_code": status_code}
 
     # === Internal Methods ===
 

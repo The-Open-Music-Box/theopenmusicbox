@@ -5,13 +5,35 @@
 """NFC adapter for domain-driven architecture."""
 
 import asyncio
-from typing import Optional, Callable
+from typing import Optional, Callable, Protocol
 
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from app.src.infrastructure.hardware.nfc import create_nfc_hardware, NFCHardwareInterface
-from app.src.config.nfc_config import NFCConfig
 from app.src.services.error.unified_error_decorator import handle_errors
+
+
+class NFCHardwareInterface(Protocol):
+    """Protocol defining the interface for NFC hardware implementations."""
+
+    def is_running(self) -> bool:
+        """Check if NFC hardware is running."""
+        ...
+
+    async def start_nfc_reader(self) -> None:
+        """Start the NFC reader."""
+        ...
+
+    async def stop_nfc_reader(self) -> None:
+        """Stop the NFC reader."""
+        ...
+
+    async def read_nfc(self):
+        """Read NFC tag asynchronously."""
+        ...
+
+    def cleanup(self) -> None:
+        """Cleanup NFC hardware resources."""
+        ...
 
 logger = get_logger(__name__)
 
@@ -150,31 +172,4 @@ class NFCHandlerAdapter:
         self._hardware.cleanup()
 
 
-async def get_nfc_handler(nfc_lock: Optional[asyncio.Lock] = None) -> NFCHandlerAdapter:
-    """Factory function to get NFC handler with new infrastructure.
-
-    Args:
-        nfc_lock: Optional asyncio lock for I2C bus synchronization
-
-    Returns:
-        NFCHandlerAdapter wrapping the appropriate hardware implementation
-    """
-    logger.log(LogLevel.INFO, "🏭 Creating NFC handler with new infrastructure...")
-
-    # Create NFC configuration
-    config = NFCConfig()
-
-    # Create hardware implementation using factory
-    hardware = await create_nfc_hardware(
-        bus_lock=nfc_lock,
-        config=config,
-        force_mock=False,  # Let factory decide based on environment
-    )
-
-    # Wrap hardware in adapter
-    adapter = NFCHandlerAdapter(hardware)
-
-    hardware_info = "Mock" if adapter._is_mock else "Real PN532"
-    logger.log(LogLevel.INFO, f"✅ NFC handler created with {hardware_info} hardware")
-
-    return adapter
+# Factory function moved to Infrastructure layer to respect DDD boundaries

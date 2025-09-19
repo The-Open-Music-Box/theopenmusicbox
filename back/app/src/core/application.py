@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict
 
 from app.src.config.nfc_config import NFCConfig
-from app.src.domain.nfc.nfc_adapter import get_nfc_handler
+from app.src.infrastructure.nfc.nfc_factory import NfcFactory
 
 # Application imports
 from app.src.monitoring import get_logger
@@ -243,7 +243,7 @@ class Application:
         if self._nfc_lock is None:
             self._nfc_lock = asyncio.Lock()
         # Initialize the NFC hardware handler
-        self._nfc_handler = await get_nfc_handler(self._nfc_lock)
+        self._nfc_handler = await NfcFactory.create_nfc_handler_adapter(self._nfc_lock)
         logger.log(
             LogLevel.INFO,
             f"NFC handler initialized: {type(self._nfc_handler).__name__}",
