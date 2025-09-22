@@ -13,7 +13,13 @@ import os
 from pathlib import Path
 from typing import Optional
 
-import pygame
+try:
+    import pygame
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
+    pygame = None
+
 from app.src.monitoring import get_logger
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 from app.src.monitoring.logging.log_level import LogLevel
@@ -36,6 +42,10 @@ class MacOSAudioBackend(BaseAudioBackend):
         """Initialize the macOS audio backend."""
         super().__init__(playback_subject)
         self._mixer_initialized = False
+
+        if not PYGAME_AVAILABLE:
+            logger.log(LogLevel.ERROR, "❌ pygame not available for macOS audio backend")
+            raise ImportError("pygame is required for macOS audio backend but not installed")
 
         # Set macOS-compatible pygame audio settings
         os.environ["SDL_AUDIODRIVER"] = "coreaudio"  # macOS native audio

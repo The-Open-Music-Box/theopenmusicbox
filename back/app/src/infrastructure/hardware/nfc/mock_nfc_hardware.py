@@ -140,13 +140,13 @@ class MockNFCHardware(NFCHardwareInterface):
 
     def _generate_mock_tag(self) -> Dict[str, Any]:
         """Generate mock NFC tag data."""
-        # Cycle through different mock tag IDs
+        # Cycle through different mock tag IDs (hexadecimal UIDs)
         mock_tags = [
-            "mock_tag_001",
-            "mock_tag_002",
-            "mock_tag_003",
-            "test_nfc_tag",
-            "demo_playlist_tag",
+            "abcd1234",
+            "efab5678",
+            "cafe9abc",
+            "deadbeef",
+            "fade1234",
         ]
 
         tag_index = (self._scan_counter // 50) % len(mock_tags)

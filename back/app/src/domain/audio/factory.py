@@ -133,7 +133,8 @@ class AudioDomainFactory:
         playback_subject = PlaybackSubject.get_instance()
 
         # Check if we should use mock hardware
-        use_mock = os.getenv("USE_MOCK_HARDWARE", "false").lower() == "true"
+        use_mock_env = os.getenv("USE_MOCK_HARDWARE", "false").lower()
+        use_mock = use_mock_env in ("true", "1", "yes", "on")
 
         if use_mock:
             logger.log(LogLevel.INFO, "🎭 Using mock audio backend (USE_MOCK_HARDWARE=true)")
@@ -148,13 +149,27 @@ class AudioDomainFactory:
         # Platform-specific backend selection
         if sys.platform == "darwin":
             logger.log(LogLevel.INFO, "🍎 Detected macOS platform")
-            from .backends.implementations.macos_audio_backend import MacOSAudioBackend
+            try:
+                from .backends.implementations.macos_audio_backend import MacOSAudioBackend
 
-            macos_backend = MacOSAudioBackend(playback_subject)
-            logger.log(
-                LogLevel.INFO, f"✅ Created macOS audio backend: {type(macos_backend).__name__}"
-            )
-            return AudioDomainFactory.create_backend_adapter(macos_backend)
+                macos_backend = MacOSAudioBackend(playback_subject)
+                logger.log(
+                    LogLevel.INFO, f"✅ Created macOS audio backend: {type(macos_backend).__name__}"
+                )
+                return AudioDomainFactory.create_backend_adapter(macos_backend)
+            except ImportError as e:
+                logger.log(
+                    LogLevel.WARNING,
+                    f"⚠️ macOS audio backend failed ({e}), falling back to mock"
+                )
+                from .backends.implementations.mock_audio_backend import MockAudioBackend
+
+                fallback_backend = MockAudioBackend(playback_subject)
+                logger.log(
+                    LogLevel.INFO,
+                    f"✅ Created fallback mock backend: {type(fallback_backend).__name__}",
+                )
+                return AudioDomainFactory.create_backend_adapter(fallback_backend)
 
         elif sys.platform == "linux":
             logger.log(LogLevel.INFO, "🐧 Detected Linux platform")
