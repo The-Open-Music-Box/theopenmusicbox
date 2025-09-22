@@ -9,7 +9,7 @@ Application services coordinate domain operations and handle use cases.
 They orchestrate calls to domain services, repositories, and external services.
 """
 
-from .playlist_application_service import PlaylistApplicationService
+from .playlist_application_service import DataApplicationService
 from .audio_application_service import AudioApplicationService
 
-__all__ = ["PlaylistApplicationService", "AudioApplicationService"]
+__all__ = ["DataApplicationService", "AudioApplicationService"]

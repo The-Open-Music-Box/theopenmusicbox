@@ -40,7 +40,6 @@ class AudioApplicationService:
         self._playlist_service = playlist_application_service
         self._state_manager = state_manager
 
-    @handle_service_errors("audio_application")
     async def play_playlist_use_case(self, playlist_id: str) -> Dict[str, Any]:
         """Use case: Start playing a playlist.
 
@@ -66,8 +65,8 @@ class AudioApplicationService:
         if self._audio_container and self._audio_container.is_initialized:
             audio_engine = self._audio_container.audio_engine
             # Convert to domain entity for audio engine
-            from app.src.domain.models.playlist import Playlist
-            from app.src.domain.models.track import Track
+            from app.src.domain.data.models.playlist import Playlist
+            from app.src.domain.data.models.track import Track
 
             tracks = []
             for track_data in playlist_data["tracks"]:
@@ -117,7 +116,6 @@ class AudioApplicationService:
                 "error_type": "service_unavailable",
             }
 
-    @handle_service_errors("audio_application")
     async def control_playback_use_case(self, action: str) -> Dict[str, Any]:
         """Use case: Control audio playback.
 
@@ -170,7 +168,6 @@ class AudioApplicationService:
                 "error_type": "service_unavailable",
             }
 
-    @handle_service_errors("audio_application")
     def get_playback_status_use_case(self) -> Dict[str, Any]:
         """Use case: Get current playback status.
 

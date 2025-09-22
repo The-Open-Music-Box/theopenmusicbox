@@ -55,7 +55,6 @@ class UploadApplicationService:
         # Cleanup task
         self._cleanup_task: Optional[asyncio.Task] = None
 
-    @handle_service_errors("upload_application")
     async def start_upload_service(self) -> Dict[str, Any]:
         """Start the upload service.
 
@@ -75,7 +74,6 @@ class UploadApplicationService:
             "supported_formats": self._metadata_extractor.get_supported_formats(),
         }
 
-    @handle_service_errors("upload_application")
     async def create_upload_session_use_case(
         self, filename: str, total_size: int, total_chunks: int, playlist_id: Optional[str] = None, playlist_path: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -125,7 +123,6 @@ class UploadApplicationService:
             result["warnings"] = validation_result["warnings"]
         return result
 
-    @handle_service_errors("upload_application")
     async def upload_chunk_use_case(
         self, session_id: str, chunk_index: int, chunk_data: bytes
     ) -> Dict[str, Any]:
@@ -183,7 +180,6 @@ class UploadApplicationService:
             result.update(completion_result)
         return result
 
-    @handle_service_errors("upload_application")
     async def get_upload_status_use_case(self, session_id: str) -> Dict[str, Any]:
         """Use case: Get upload session status.
 
@@ -202,7 +198,6 @@ class UploadApplicationService:
             }
         return {"status": "success", "session": session.to_dict()}
 
-    @handle_service_errors("upload_application")
     async def cancel_upload_use_case(self, session_id: str) -> Dict[str, Any]:
         """Use case: Cancel an upload session.
 
@@ -230,7 +225,6 @@ class UploadApplicationService:
             "session_id": session_id,
         }
 
-    @handle_service_errors("upload_application")
     async def list_active_uploads_use_case(self) -> Dict[str, Any]:
         """Use case: List all active upload sessions.
 
@@ -246,7 +240,6 @@ class UploadApplicationService:
             "count": len(active_sessions),
         }
 
-    @handle_service_errors("upload_application")
     async def _handle_upload_completion(self, session: UploadSession) -> Dict[str, Any]:
         """Handle completion of an upload session.
 
@@ -292,7 +285,6 @@ class UploadApplicationService:
         }
         return result
 
-    @handle_service_errors("upload_application")
     async def _periodic_cleanup(self) -> None:
         """Periodic cleanup of expired sessions."""
         while True:
