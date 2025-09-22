@@ -9,14 +9,14 @@ from typing import Dict, Any, Optional
 
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.error.unified_error_decorator import handle_errors
-from app.src.domain.models.playlist import Playlist
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
+from app.src.domain.data.models.playlist import Playlist
 
-from ..protocols.audio_backend_protocol import AudioBackendProtocol
-from ..protocols.audio_engine_protocol import AudioEngineProtocol
-from ..protocols.event_bus_protocol import EventBusProtocol
-from ..protocols.state_manager_protocol import StateManagerProtocol, PlaybackState
-from ..protocols.playlist_manager_protocol import PlaylistManagerProtocol
+from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
+from app.src.domain.protocols.audio_engine_protocol import AudioEngineProtocol
+from app.src.domain.protocols.event_bus_protocol import EventBusProtocol
+from app.src.domain.protocols.state_manager_protocol import StateManagerProtocol, PlaybackState
+# PlaylistManagerProtocol removed - use data domain services
 
 from ..events.audio_events import (
     TrackStartedEvent,
@@ -37,7 +37,6 @@ class AudioEngine(AudioEngineProtocol):
         backend: AudioBackendProtocol,
         event_bus: EventBusProtocol,
         state_manager: StateManagerProtocol,
-        playlist_manager: PlaylistManagerProtocol,
     ):
         """Initialize the audio engine.
 
@@ -45,12 +44,10 @@ class AudioEngine(AudioEngineProtocol):
             backend: Audio backend implementation
             event_bus: Event bus for notifications
             state_manager: State management
-            playlist_manager: Playlist management
         """
         self._backend = backend
         self._event_bus = event_bus
         self._state_manager = state_manager
-        self._playlist_manager = playlist_manager
         self._is_running = False
         self._startup_time: Optional[float] = None
 
@@ -99,6 +96,45 @@ class AudioEngine(AudioEngineProtocol):
         """Set up internal event subscriptions."""
         # We'll add event handlers here as needed
         pass
+
+    # MARK: - AudioEngineProtocol Implementation
+
+    @handle_errors("play_track_by_path")
+    async def play_track_by_path(self, file_path: str, track_id: Optional[str] = None) -> bool:
+        """Play a track by file path."""
+        try:
+            success = await self._backend.play(file_path)
+            if success:
+                # Fire event
+                await self._event_bus.publish(
+                    TrackStartedEvent("AudioEngine", file_path)
+                )
+            return success
+        except Exception as e:
+            await self._event_bus.publish(
+                ErrorEvent("AudioEngine", f"Failed to play track: {e}")
+            )
+            return False
+
+    @handle_errors("get_playback_state")
+    def get_playback_state(self) -> Dict[str, Any]:
+        """Get current playback state."""
+        return {
+            "is_playing": self._backend.is_playing() if hasattr(self._backend, 'is_playing') else False,
+            "volume": 50,  # Default volume
+            "backend_type": type(self._backend).__name__
+        }
+
+    @handle_errors("seek_to_position")
+    async def seek_to_position(self, position_ms: int) -> bool:
+        """Seek to a specific position."""
+        try:
+            return await self._backend.seek(position_ms)
+        except Exception as e:
+            await self._event_bus.publish(
+                ErrorEvent("AudioEngine", f"Failed to seek: {e}")
+            )
+            return False
 
     @handle_errors("start")
     async def start(self) -> None:

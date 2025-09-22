@@ -14,9 +14,9 @@ from typing import List, Tuple, Optional, Dict
 from dataclasses import dataclass
 from enum import Enum
 
-from ..models.playlist import Playlist
-from ..models.track import Track
-from app.src.services.error.unified_error_decorator import handle_service_errors
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_service_errors
 
 
 class ReorderingStrategy(Enum):

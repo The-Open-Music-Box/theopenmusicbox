@@ -7,8 +7,8 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from ..protocols.event_bus_protocol import AudioEvent
-from ..protocols.state_manager_protocol import PlaybackState
+from app.src.domain.protocols.event_bus_protocol import AudioEvent
+from app.src.domain.protocols.state_manager_protocol import PlaybackState
 
 
 @dataclass
@@ -106,3 +106,22 @@ class ErrorEvent(AudioEvent):
         super().__init__(source_component)
         self.error_message = error_message
         self.error_context = error_context or {}
+
+
+@dataclass
+class LogEvent(AudioEvent):
+    """Event fired for logging monitoring."""
+
+    def __init__(
+        self,
+        source_component: str,
+        logger_name: str,
+        level: str,
+        message: str,
+        timestamp: float
+    ):
+        super().__init__(source_component)
+        self.logger_name = logger_name
+        self.level = level
+        self.message = message
+        self.timestamp = timestamp

@@ -8,19 +8,18 @@ from typing import Any
 
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.error.unified_error_decorator import handle_errors
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
-from .protocols.audio_backend_protocol import AudioBackendProtocol
-from .protocols.audio_engine_protocol import AudioEngineProtocol
-from .protocols.playlist_manager_protocol import PlaylistManagerProtocol
-from .protocols.event_bus_protocol import EventBusProtocol
-from .protocols.state_manager_protocol import StateManagerProtocol
+from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
+from app.src.domain.protocols.audio_engine_protocol import AudioEngineProtocol
+# PlaylistManagerProtocol removed - use data domain services
+from app.src.domain.protocols.event_bus_protocol import EventBusProtocol
+from app.src.domain.protocols.state_manager_protocol import StateManagerProtocol
 
 from .engine.event_bus import EventBus
 from .engine.state_manager import StateManager
 from .engine.audio_engine import AudioEngine
-from .playlist.playlist_manager import PlaylistManager
-from .backends.backend_adapter import BackendAdapter
+from app.src.infrastructure.adapters.audio.backend_adapter import BackendAdapter
 
 logger = get_logger(__name__)
 
@@ -58,27 +57,13 @@ class AudioDomainFactory:
 
         return BackendAdapter(backend)
 
-    @staticmethod
-    def create_playlist_manager(
-        backend: AudioBackendProtocol, event_bus: EventBusProtocol = None
-    ) -> PlaylistManagerProtocol:
-        """Create a playlist manager.
-
-        Args:
-            backend: Audio backend
-            event_bus: Optional event bus
-
-        Returns:
-            PlaylistManagerProtocol: Playlist manager instance
-        """
-        return PlaylistManager(backend, event_bus)
+    # PlaylistManager removed - use data domain services
 
     @staticmethod
     def create_audio_engine(
         backend: AudioBackendProtocol,
         event_bus: EventBusProtocol = None,
         state_manager: StateManagerProtocol = None,
-        playlist_manager: PlaylistManagerProtocol = None,
     ) -> AudioEngineProtocol:
         """Create a complete audio engine.
 
@@ -86,7 +71,6 @@ class AudioDomainFactory:
             backend: Audio backend
             event_bus: Optional event bus (creates one if None)
             state_manager: Optional state manager (creates one if None)
-            playlist_manager: Optional playlist manager (creates one if None)
 
         Returns:
             AudioEngineProtocol: Complete audio engine
@@ -97,15 +81,12 @@ class AudioDomainFactory:
         if state_manager is None:
             state_manager = AudioDomainFactory.create_state_manager()
 
-        if playlist_manager is None:
-            playlist_manager = AudioDomainFactory.create_playlist_manager(backend, event_bus)
-
-        return AudioEngine(backend, event_bus, state_manager, playlist_manager)
+        return AudioEngine(backend, event_bus, state_manager)
 
     @staticmethod
     def create_complete_system(
         existing_backend: Any,
-    ) -> tuple[AudioEngineProtocol, AudioBackendProtocol, PlaylistManagerProtocol]:
+    ) -> tuple[AudioEngineProtocol, AudioBackendProtocol]:
         """Create a complete audio system from an existing backend.
 
         Args:
@@ -124,16 +105,15 @@ class AudioDomainFactory:
         # Create supporting components
         event_bus = AudioDomainFactory.create_event_bus()
         state_manager = AudioDomainFactory.create_state_manager()
-        playlist_manager = AudioDomainFactory.create_playlist_manager(backend, event_bus)
 
         # Create main engine
         audio_engine = AudioDomainFactory.create_audio_engine(
-            backend, event_bus, state_manager, playlist_manager
+            backend, event_bus, state_manager
         )
 
         logger.log(LogLevel.INFO, "Complete audio system created successfully")
 
-        return audio_engine, backend, playlist_manager
+        return audio_engine, backend
 
     @staticmethod
     @handle_errors("create_default_backend")
@@ -148,7 +128,7 @@ class AudioDomainFactory:
         import sys
         import os
 
-        from app.src.services.notification_service import PlaybackSubject
+        from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
 
         playback_subject = PlaybackSubject.get_instance()
 

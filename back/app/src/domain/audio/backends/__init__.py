@@ -1,6 +1,6 @@
 """Audio backend implementations."""
 
-from .backend_adapter import BackendAdapter
+from app.src.infrastructure.adapters.audio.backend_adapter import BackendAdapter
 
 __all__ = [
     "BackendAdapter",

@@ -10,8 +10,8 @@ from typing import Dict, List, Callable, Any, Type, TypeVar
 
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from ..protocols.event_bus_protocol import EventBusProtocol, AudioEvent
-from app.src.services.error.unified_error_decorator import handle_errors
+from app.src.domain.protocols.event_bus_protocol import EventBusProtocol, AudioEvent
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
 EventType = TypeVar("EventType", bound=AudioEvent)
 logger = get_logger(__name__)

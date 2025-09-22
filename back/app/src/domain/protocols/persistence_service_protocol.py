@@ -3,10 +3,12 @@
 # See the LICENSE file for details.
 
 """
-Database Service Protocol for Domain Layer
+Persistence Service Protocol for Domain Layer
 
-Pure domain interface for database operations following DDD principles.
-Infrastructure implementations must implement this protocol.
+Pure domain interface for data persistence operations following DDD principles.
+This abstraction ensures Domain remains persistence-ignorant while still being
+able to define contracts for data storage. Infrastructure implementations
+must implement this protocol.
 """
 
 from abc import ABC, abstractmethod
@@ -14,7 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from contextlib import contextmanager
 
 
-class DatabaseServiceProtocol(ABC):
+class PersistenceServiceProtocol(ABC):
     """Protocol for database operations in the domain layer.
 
     This is a pure domain interface that defines what database operations

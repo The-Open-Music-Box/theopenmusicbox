@@ -13,13 +13,13 @@ import sys
 from typing import Optional
 
 from app.src.config import config
-from app.src.services.notification_service import PlaybackSubject
+from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.error.unified_error_decorator import handle_errors
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
 from .unified_audio_player import UnifiedAudioPlayer
-from ...protocols.audio_backend_protocol import AudioBackendProtocol
+from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
 
 logger = get_logger(__name__)
 
@@ -39,7 +39,8 @@ def get_unified_audio_player(
         UnifiedAudioPlayer: A unified audio player with centralized playlist management
     """
     backend = _create_audio_backend(playback_subject)
-    return UnifiedAudioPlayer(backend, playback_subject)
+    # Note: playlist_controller will be injected later by Infrastructure layer
+    return UnifiedAudioPlayer(backend, playlist_controller=None, playback_subject=playback_subject)
 
 
 @handle_errors("_create_audio_backend")

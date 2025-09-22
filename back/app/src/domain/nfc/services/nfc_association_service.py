@@ -17,7 +17,7 @@ from app.src.monitoring.logging.log_level import LogLevel
 # Type checking imports to avoid circular dependencies
 if TYPE_CHECKING:
     from app.src.domain.repositories.playlist_repository_interface import PlaylistRepositoryProtocol
-from app.src.services.error.unified_error_decorator import handle_service_errors
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_service_errors
 
 logger = get_logger(__name__)
 
@@ -122,7 +122,6 @@ class NfcAssociationService:
 
         return results[0] if len(results) == 1 else {"multiple_sessions": results}
 
-    @handle_service_errors("nfc_association")
     async def _process_tag_for_session(
         self, tag: NfcTag, session: AssociationSession
     ) -> Dict[str, any]:

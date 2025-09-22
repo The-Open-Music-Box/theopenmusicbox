@@ -9,6 +9,6 @@ These define the contracts that infrastructure implementations must fulfill,
 following the Dependency Inversion Principle of Domain-Driven Design.
 """
 
-from .playlist_repository_interface import PlaylistRepositoryInterface
+from .playlist_repository_interface import PlaylistRepositoryProtocol
 
-__all__ = ["PlaylistRepositoryInterface"]
+__all__ = ["PlaylistRepositoryProtocol"]
