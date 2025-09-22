@@ -96,7 +96,7 @@ class TestNfcTag:
         """Test tag equality based on identifier."""
         tag_id1 = TagIdentifier(uid="abcd1234")
         tag_id2 = TagIdentifier(uid="abcd1234")
-        tag_id3 = TagIdentifier(uid="efgh5678")
+        tag_id3 = TagIdentifier(uid="efab5678")
         
         tag1 = NfcTag(identifier=tag_id1)
         tag2 = NfcTag(identifier=tag_id2)
@@ -110,7 +110,7 @@ class TestNfcTag:
         """Test tag hashing for use in sets/dicts."""
         tag_id1 = TagIdentifier(uid="abcd1234")
         tag_id2 = TagIdentifier(uid="abcd1234")
-        tag_id3 = TagIdentifier(uid="efgh5678")
+        tag_id3 = TagIdentifier(uid="efab5678")
         
         tag1 = NfcTag(identifier=tag_id1)
         tag2 = NfcTag(identifier=tag_id2)

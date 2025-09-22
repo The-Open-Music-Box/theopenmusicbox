@@ -185,7 +185,7 @@ class TestNfcAssociationService:
     @pytest.mark.asyncio
     async def test_dissociate_nonexistent_tag(self, association_service):
         """Test dissociating a non-existent tag."""
-        tag_id = TagIdentifier(uid="nonexistent")
+        tag_id = TagIdentifier(uid="beef1234")
         
         success = await association_service.dissociate_tag(tag_id)
         assert success is False
