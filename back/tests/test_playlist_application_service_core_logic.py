@@ -13,9 +13,9 @@ import pytest
 from unittest.mock import Mock, AsyncMock
 from typing import Dict, Any
 
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
-from app.src.application.services.playlist_application_service import PlaylistApplicationService
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
+from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 
 
 class TestPlaylistApplicationServiceCoreLogic:

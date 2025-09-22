@@ -17,7 +17,7 @@ import tempfile
 import os
 from typing import Dict, Any
 
-from app.src.application.services.playlist_application_service import PlaylistApplicationService
+from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 from app.src.infrastructure.adapters.pure_playlist_repository_adapter import PurePlaylistRepositoryAdapter
 from app.src.infrastructure.repositories.pure_sqlite_playlist_repository import PureSQLitePlaylistRepository
 

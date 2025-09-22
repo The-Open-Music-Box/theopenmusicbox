@@ -142,8 +142,8 @@ class TestPlaylistPersistenceIssue:
     @pytest.mark.asyncio
     async def test_repository_direct_save_and_find(self):
         """Test repository methods directly."""
-        from app.src.domain.models.playlist import Playlist
-        from app.src.domain.models.track import Track
+        from app.src.domain.data.models.playlist import Playlist
+        from app.src.domain.data.models.track import Track
 
         # Create domain entities
         playlist = Playlist(name="Direct Repository Test")
@@ -213,7 +213,7 @@ class TestPlaylistPersistenceIssue:
     @pytest.mark.asyncio
     async def test_application_service_path(self):
         """Test the exact path used by the application service."""
-        from app.src.application.services.playlist_application_service import PlaylistApplicationService
+        from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 
         # Create application service with our adapter
         app_service = PlaylistApplicationService(self.adapter)

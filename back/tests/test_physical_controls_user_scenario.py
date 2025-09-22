@@ -16,8 +16,8 @@ import random
 from app.src.controllers.physical_controls_manager import PhysicalControlsManager
 from app.src.infrastructure.hardware.controls.mock_controls_implementation import MockPhysicalControls
 from app.src.config.hardware_config import HardwareConfig
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
 

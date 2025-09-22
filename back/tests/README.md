@@ -173,7 +173,7 @@ Définies dans chaque fichier de test selon les besoins.
 **Avant** (2 scripts)
 ```bash
 ./run_business_logic_tests.sh     # Logique métier uniquement
-./run_tests_robust.sh             # Tests complets avec gestion warnings
+# ./run_tests_robust.sh           # Script supprimé - remplacé par run_tests.sh
 ```
 
 **Après** (1 script)

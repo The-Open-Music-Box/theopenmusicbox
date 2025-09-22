@@ -10,8 +10,8 @@ import pytest
 from unittest.mock import patch, Mock
 
 from app.src.domain.audio.factory import AudioDomainFactory
-from app.src.domain.audio.backends.backend_adapter import BackendAdapter
-from app.src.domain.audio.protocols.audio_backend_protocol import AudioBackendProtocol
+from app.src.infrastructure.adapters.audio.backend_adapter import BackendAdapter
+from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
 
 
 class TestBackendAdapterErrorPrevention:

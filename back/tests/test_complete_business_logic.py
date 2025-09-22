@@ -16,8 +16,8 @@ import sqlite3
 from datetime import datetime
 
 # Domain Models and Services
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 from app.src.domain.nfc.entities.nfc_tag import NfcTag
 from app.src.domain.nfc.value_objects.tag_identifier import TagIdentifier
 from app.src.domain.nfc.services.nfc_association_service import NfcAssociationService
@@ -27,7 +27,7 @@ from app.src.domain.upload.value_objects.file_metadata import FileMetadata
 from app.src.domain.upload.services.upload_validation_service import UploadValidationService
 
 # Application Services
-from app.src.application.services.playlist_application_service import PlaylistApplicationService
+from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 from app.src.application.services.nfc_application_service import NfcApplicationService
 from app.src.application.services.upload_application_service import UploadApplicationService
 

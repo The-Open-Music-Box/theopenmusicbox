@@ -17,8 +17,8 @@ from unittest.mock import Mock, AsyncMock, patch, MagicMock
 from app.src.domain.audio.engine.audio_engine import AudioEngine
 from app.src.domain.audio.engine.event_bus import EventBus
 from app.src.domain.audio.engine.state_manager import StateManager
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 
 
 class TestAudioEngine:

@@ -18,8 +18,8 @@ from app.src.controllers.audio_controller import AudioController
 from app.src.infrastructure.hardware.controls.mock_controls_implementation import MockPhysicalControls
 from app.src.domain.protocols.physical_controls_protocol import PhysicalControlEvent
 from app.src.config.hardware_config import HardwareConfig
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
 
@@ -488,7 +488,7 @@ class TestPhysicalControlsIntegrationWithAudio:
 
         # Create full stack with mocked audio backend
         from app.src.domain.audio.container import audio_domain_container
-        from app.src.domain.controllers.unified_controller import unified_controller
+        from app.src.application.controllers.unified_controller import unified_controller
 
         # Initialize controls manager
         controls_manager = PhysicalControlsManager(

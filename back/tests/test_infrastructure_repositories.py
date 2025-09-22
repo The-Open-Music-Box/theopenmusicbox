@@ -16,8 +16,8 @@ import os
 from pathlib import Path
 
 from app.src.infrastructure.repositories.pure_sqlite_playlist_repository import PureSQLitePlaylistRepository
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 
 
 class TestPureSQLitePlaylistRepository:
@@ -369,10 +369,10 @@ class TestPureSQLitePlaylistRepository:
         playlist.add_track(track)
         
         # Act - use repository as domain interface
-        from app.src.domain.repositories.playlist_repository_interface import PlaylistRepositoryInterface
+        from app.src.domain.repositories.playlist_repository_interface import PlaylistRepositoryProtocol
         
         # Verify repository implements the interface
-        assert isinstance(self.repository, PlaylistRepositoryInterface)
+        assert isinstance(self.repository, PlaylistRepositoryProtocol)
         
         # Act - perform domain operations
         saved = await self.repository.save(playlist)

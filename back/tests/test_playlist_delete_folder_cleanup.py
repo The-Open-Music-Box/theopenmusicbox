@@ -16,8 +16,8 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
 from app.src.infrastructure.adapters.pure_playlist_repository_adapter import PurePlaylistRepositoryAdapter
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 
 
 class TestPlaylistDeleteFolderCleanup:

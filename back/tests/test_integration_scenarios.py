@@ -13,14 +13,14 @@ import pytest
 from unittest.mock import Mock, AsyncMock, patch
 from typing import Dict, Any, List
 
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 from app.src.domain.services.track_reordering_service import (
     TrackReorderingService, 
     ReorderingCommand, 
     ReorderingStrategy
 )
-from app.src.application.services.playlist_application_service import PlaylistApplicationService
+from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 
 
 class TestPlaylistTrackIntegrationScenarios:

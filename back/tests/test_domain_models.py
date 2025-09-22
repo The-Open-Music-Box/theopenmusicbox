@@ -12,8 +12,8 @@ and follow DDD patterns correctly.
 import pytest
 from pathlib import Path
 
-from app.src.domain.models.track import Track
-from app.src.domain.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
 
 
 class TestTrackDomainEntity:

@@ -15,9 +15,9 @@ from unittest.mock import Mock, AsyncMock, patch
 from fastapi.testclient import TestClient
 
 from app.main import app
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
-from app.src.application.services.playlist_application_service import PlaylistApplicationService
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
+from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 from app.src.application.services.audio_application_service import AudioApplicationService
 
 

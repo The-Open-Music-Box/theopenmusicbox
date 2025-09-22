@@ -8,14 +8,14 @@ import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-from app.src.domain.controllers.unified_controller import UnifiedPlaylistController
+from app.src.application.controllers.unified_controller import UnifiedPlaylistController
 from app.src.domain.services.track_reordering_service import (
     TrackReorderingService,
     ReorderingStrategy,
     ReorderingCommand
 )
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 
 
 @pytest.mark.asyncio

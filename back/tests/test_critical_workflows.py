@@ -13,11 +13,11 @@ from unittest.mock import Mock, AsyncMock, patch
 import tempfile
 from pathlib import Path
 
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 from app.src.domain.nfc.entities.nfc_tag import NfcTag
 from app.src.domain.nfc.value_objects.tag_identifier import TagIdentifier
-from app.src.application.services.playlist_application_service import PlaylistApplicationService
+from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 from app.src.application.services.nfc_application_service import NfcApplicationService
 from app.src.services.player_state_service import PlayerStateService
 from app.src.services.state_manager import StateManager, StateEventType

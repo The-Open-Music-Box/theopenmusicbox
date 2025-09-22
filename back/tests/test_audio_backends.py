@@ -354,7 +354,7 @@ class TestAudioBackendProtocolCompliance:
     
     def test_mock_backend_implements_protocol(self):
         """Test that MockAudioBackend implements AudioBackendProtocol."""
-        from app.src.domain.audio.protocols.audio_backend_protocol import AudioBackendProtocol
+        from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
         
         backend = MockAudioBackend()
         assert isinstance(backend, AudioBackendProtocol)
@@ -371,7 +371,7 @@ class TestAudioBackendProtocolCompliance:
     
     def test_macos_backend_implements_protocol(self):
         """Test that MacOSAudioBackend implements AudioBackendProtocol."""
-        from app.src.domain.audio.protocols.audio_backend_protocol import AudioBackendProtocol
+        from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
         
         backend = MacOSAudioBackend()
         assert isinstance(backend, AudioBackendProtocol)

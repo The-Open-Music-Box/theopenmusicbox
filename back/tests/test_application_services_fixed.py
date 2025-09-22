@@ -9,10 +9,10 @@ Fixed tests for application services following Domain-Driven Design principles.
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 
-from app.src.application.services.playlist_application_service import PlaylistApplicationService
+from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 from app.src.application.services.audio_application_service import AudioApplicationService
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 
 
 class TestPlaylistApplicationService:

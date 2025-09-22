@@ -20,8 +20,8 @@ from app.src.infrastructure.repositories.pure_sqlite_playlist_repository import 
 from app.src.infrastructure.adapters.pure_playlist_repository_adapter import PurePlaylistRepositoryAdapter
 from app.src.infrastructure.database.sqlite_database_service import SQLiteDatabaseService
 from app.src.data.database_manager import DatabaseManager
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 
 
 class TestPureDDDRepository:
@@ -321,10 +321,10 @@ class TestPureDDDRepository:
     @pytest.mark.asyncio
     async def test_repository_implements_domain_interface(self):
         """Test that repository correctly implements domain interface."""
-        from app.src.domain.repositories.playlist_repository_interface import PlaylistRepositoryInterface
+        from app.src.domain.repositories.playlist_repository_interface import PlaylistRepositoryProtocol
 
         # Assert
-        assert isinstance(self.repository, PlaylistRepositoryInterface)
+        assert isinstance(self.repository, PlaylistRepositoryProtocol)
 
         # Verify all interface methods are available
         assert hasattr(self.repository, 'save')

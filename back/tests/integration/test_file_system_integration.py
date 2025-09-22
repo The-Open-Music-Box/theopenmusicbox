@@ -93,7 +93,7 @@ class TestFileSystemIntegration:
             assert file_path.parent == playlist_folder, "File should be in playlist folder"
 
         # 5. Test partial track deletion with file cleanup
-        from app.src.domain.controllers.unified_controller import unified_controller
+        from app.src.application.controllers.unified_controller import unified_controller
 
         delete_result = await unified_controller.delete_tracks(playlist_id, [2])  # Delete middle track
         assert delete_result.get("status") == "success"

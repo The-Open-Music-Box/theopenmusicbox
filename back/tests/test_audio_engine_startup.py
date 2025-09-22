@@ -25,8 +25,8 @@ import asyncio
 from app.src.domain.audio.engine.audio_engine import AudioEngine
 from app.src.domain.audio.container import AudioDomainContainer
 from app.src.domain.bootstrap import DomainBootstrap
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 
 
 class TestAudioEngineStartupRequirement:
@@ -194,7 +194,7 @@ class TestAudioEngineStartupRequirement:
         # This test would have caught the original problem!
 
         # Create real components
-        from app.src.application.services.playlist_application_service import PlaylistApplicationService
+        from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
         from app.src.infrastructure.adapters.playlist_repository_adapter import PlaylistRepositoryAdapter
         import tempfile
         import os
