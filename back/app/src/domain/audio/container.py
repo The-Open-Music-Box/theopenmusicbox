@@ -75,11 +75,15 @@ class AudioDomainContainer:
 
     async def stop(self) -> None:
         """Stop the audio system."""
-        if not self._is_initialized:
+        if not self._is_initialized or not self._audio_engine:
             return
 
-        await self._audio_engine.stop()
-        logger.log(LogLevel.INFO, "Audio domain stopped")
+        try:
+            await self._audio_engine.stop()
+            logger.log(LogLevel.INFO, "Audio domain stopped")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error stopping audio engine during shutdown: {e}")
+            # Don't re-raise during shutdown to prevent recursion
 
     @handle_errors("cleanup")
     def cleanup(self) -> None:

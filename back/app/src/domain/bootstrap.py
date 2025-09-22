@@ -34,6 +34,7 @@ class DomainBootstrap:
     def __init__(self):
         """Initialize the bootstrap."""
         self._is_initialized = False
+        self._is_stopping = False
 
     @handle_errors(operation_name="initialize", component="domain.bootstrap")
     def initialize(self, existing_backend: Any = None) -> None:
@@ -90,12 +91,20 @@ class DomainBootstrap:
     @handle_errors(operation_name="stop", component="domain.bootstrap")
     async def stop(self) -> None:
         """Stop all domain services."""
-        if not self._is_initialized:
+        if not self._is_initialized or self._is_stopping:
             return
-        # Note: unified_controller has been moved to application layer
-        if audio_domain_container.is_initialized:
-            await audio_domain_container.stop()
-        logger.log(LogLevel.DEBUG, "Domain services stopped")
+
+        self._is_stopping = True
+        try:
+            # Note: unified_controller has been moved to application layer
+            if audio_domain_container.is_initialized:
+                await audio_domain_container.stop()
+            logger.log(LogLevel.DEBUG, "Domain services stopped")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error stopping domain services: {e}")
+            # Don't re-raise during shutdown to prevent recursion
+        finally:
+            self._is_stopping = False
 
     @handle_errors(operation_name="cleanup", component="domain.bootstrap")
     def cleanup(self) -> None:

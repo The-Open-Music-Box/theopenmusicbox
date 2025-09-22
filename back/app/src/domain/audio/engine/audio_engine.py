@@ -50,6 +50,8 @@ class AudioEngine(AudioEngineProtocol):
         self._state_manager = state_manager
         self._is_running = False
         self._startup_time: Optional[float] = None
+        self._playlist_manager = None  # Initialize as None for safe operations
+        self._is_stopping = False  # Flag to prevent recursive shutdown
 
         # Validate state manager has required methods
         if not hasattr(state_manager, "set_state"):
@@ -67,6 +69,15 @@ class AudioEngine(AudioEngineProtocol):
         logger.log(
             LogLevel.INFO,
             f"AudioEngine initialized with {type(backend).__name__} and {type(state_manager).__name__}",
+        )
+
+    def _has_playlist_manager(self) -> bool:
+        """Check if playlist manager is available and has current playlist."""
+        return (
+            hasattr(self, '_playlist_manager')
+            and self._playlist_manager is not None
+            and hasattr(self._playlist_manager, 'current_playlist')
+            and self._playlist_manager.current_playlist is not None
         )
 
     @handle_errors("_safe_set_state")
@@ -151,16 +162,24 @@ class AudioEngine(AudioEngineProtocol):
     @handle_errors("stop")
     async def stop(self) -> None:
         """Stop the audio engine."""
-        if not self._is_running:
+        if not self._is_running or self._is_stopping:
             return
 
-        # Stop any current playback
-        await self.stop_playback()
-        # Cleanup backend
-        self._backend.cleanup()
-        self._is_running = False
-        self._safe_set_state(PlaybackState.STOPPED)
-        logger.log(LogLevel.INFO, "🎛️ AudioEngine stopped")
+        self._is_stopping = True
+        try:
+            # Stop any current playback
+            await self.stop_playback()
+            # Cleanup backend
+            if hasattr(self._backend, 'cleanup'):
+                self._backend.cleanup()
+            self._is_running = False
+            self._safe_set_state(PlaybackState.STOPPED)
+            logger.log(LogLevel.INFO, "🎛️ AudioEngine stopped")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error during audio engine stop: {e}")
+            # Don't re-raise during shutdown to prevent recursion
+        finally:
+            self._is_stopping = False
 
     @property
     def is_running(self) -> bool:
@@ -338,7 +357,7 @@ class AudioEngine(AudioEngineProtocol):
             # Try playlist manager first, then direct backend
             success = (
                 self._playlist_manager.pause()
-                if self._playlist_manager.current_playlist
+                if self._has_playlist_manager()
                 else self._backend.pause()
             )
 
@@ -365,7 +384,7 @@ class AudioEngine(AudioEngineProtocol):
             # Try playlist manager first, then direct backend
             success = (
                 self._playlist_manager.resume()
-                if self._playlist_manager.current_playlist
+                if self._has_playlist_manager()
                 else self._backend.resume()
             )
 
@@ -384,24 +403,30 @@ class AudioEngine(AudioEngineProtocol):
     @handle_errors("stop_playback")
     async def stop_playback(self) -> bool:
         """Stop current playback."""
-        if not self._is_running:
+        if not self._is_running or self._is_stopping:
             return False
 
-        old_state = self._safe_get_current_state()
-        # Try playlist manager first, then direct backend
-        success = (
-            self._playlist_manager.stop()
-            if self._playlist_manager.current_playlist
-            else self._backend.stop()
-        )
-        if success:
-            self._safe_set_state(PlaybackState.STOPPED)
-            if hasattr(self._state_manager, "update_position"):
-                self._state_manager.update_position(0.0)
-            await self._event_bus.publish(
-                PlaybackStateChangedEvent("AudioEngine", old_state, PlaybackState.STOPPED)
+        try:
+            old_state = self._safe_get_current_state()
+            # Try playlist manager first, then direct backend
+            success = (
+                self._playlist_manager.stop()
+                if self._has_playlist_manager()
+                else self._backend.stop()
             )
-        return success
+            if success:
+                self._safe_set_state(PlaybackState.STOPPED)
+                if hasattr(self._state_manager, "update_position"):
+                    self._state_manager.update_position(0.0)
+                await self._event_bus.publish(
+                    PlaybackStateChangedEvent("AudioEngine", old_state, PlaybackState.STOPPED)
+                )
+            return success
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error stopping playback: {e}")
+            # Still set stopped state on error
+            self._safe_set_state(PlaybackState.STOPPED)
+            return False
 
     async def set_volume(self, volume: int) -> bool:
         """Set playback volume."""

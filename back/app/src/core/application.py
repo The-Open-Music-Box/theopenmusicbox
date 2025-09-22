@@ -376,10 +376,31 @@ class Application:
                     logger.log(LogLevel.ERROR, f"❌ Error stopping NFC service: {e}")
 
             # Additional cleanup specific to Application
-            if hasattr(self, "_playlist_controller") and hasattr(
+            if hasattr(self, "_playlist_controller") and self._playlist_controller and hasattr(
                 self._playlist_controller, "cleanup"
             ):
-                await self._playlist_controller.cleanup()
+                cleanup_method = getattr(self._playlist_controller, "cleanup")
+                if cleanup_method:
+                    # Check if it's a coroutine function
+                    import inspect
+                    if inspect.iscoroutinefunction(cleanup_method):
+                        await cleanup_method()
+                    else:
+                        cleanup_method()
+                    logger.log(LogLevel.INFO, "✅ Playlist controller cleanup completed")
+                else:
+                    logger.log(LogLevel.WARNING, "⚠️ Playlist controller cleanup method is None")
+            else:
+                logger.log(LogLevel.WARNING, "⚠️ Playlist controller not available for cleanup")
+
+            # Clean up domain bootstrap
+            if hasattr(domain_bootstrap, "stop") and domain_bootstrap.is_initialized:
+                await domain_bootstrap.stop()
+                logger.log(LogLevel.INFO, "✅ Domain bootstrap stopped")
+
+            if hasattr(domain_bootstrap, "cleanup") and domain_bootstrap.is_initialized:
+                domain_bootstrap.cleanup()
+                logger.log(LogLevel.INFO, "✅ Domain bootstrap cleanup completed")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during application cleanup: {e}")
             logger.log(LogLevel.DEBUG, f"Cleanup error details: {traceback.format_exc()}")
