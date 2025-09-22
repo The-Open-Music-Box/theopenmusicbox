@@ -17,17 +17,19 @@ Suite à votre demande de centralisation, l'architecture a été refactorisée p
 │ ↓                          │    ↓                                  │
 │ playlist_routes_state.py    │    nfc_application_service.py         │
 │ start_playlist()            │    ↓                                  │
-│ ↓                          │    unified_controller.py              │
+│ ↓                          │    application/controllers/           │
+│                             │    unified_controller.py              │
 │                             │    handle_tag_scanned()               │
 │                             │    ↓                                  │
 │                             │ get_playlist_id_by_nfc_tag() ✅ NEW   │
 └─────────────────────────────┴───────────────────────────────────────┘
                              ↓
 ┌─────────────────────────────────────────────────────────────────────┐
-│                🔗 POINT DE CONVERGENCE UNIQUE                      │
-│                 playlist_application_service.py                    │
+│                🔗 POINT DE CONVERGENCE UNIQUE (DDD)                │
+│          application/services/playlist_application_service.py      │
+│                    (DataApplicationService)                        │
 │                                                                     │
-│           start_playlist_by_id(playlist_id) ✅ NEW                 │
+│           start_playlist_by_id(playlist_id) ✅                     │
 │                                                                     │
 │  UI: Direct call avec playlist_id                                  │
 │  NFC: get_playlist_id_by_nfc_tag() puis start_playlist_by_id()    │
@@ -38,7 +40,7 @@ Suite à votre demande de centralisation, l'architecture a été refactorisée p
 
 ### **1. `get_playlist_id_by_nfc_tag(nfc_tag_id: str) -> str`**
 
-**Fichier**: `/app/src/application/services/playlist_application_service.py:189`
+**Fichier**: `/app/src/application/services/playlist_application_service.py` (Classe: `DataApplicationService`)
 
 ```python
 async def get_playlist_id_by_nfc_tag(self, nfc_tag_id: str) -> str:
@@ -76,7 +78,7 @@ async def start_playlist_by_id(self, playlist_id: str, audio_service=None) -> Di
 
 ### **Avant (Logique Dupliquée)**
 
-**Fichier**: `unified_controller.py:118-140`
+**Fichier**: `application/controllers/unified_controller.py` (Ancien code)
 
 ```python
 # Create tracks first, then playlist with tracks
@@ -91,7 +93,7 @@ playlist = Playlist(name=..., tracks=tracks, ...)  # Duplication totale
 
 ### **Après (Architecture Centralisée)**
 
-**Fichier**: `unified_controller.py:110-125`
+**Fichier**: `application/controllers/unified_controller.py` (Architecture DDD)
 
 ```python
 # CENTRALIZED FLOW: Get playlist ID from NFC tag, then use unified start logic
