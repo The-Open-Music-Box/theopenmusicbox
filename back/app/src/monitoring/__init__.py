@@ -12,7 +12,6 @@ from typing import Optional
 from .config import monitoring_config
 from .core.logger import ImprovedLogger
 
-# from .core.error_handler import UnifiedErrorHandler  # Removed - using domain error handler
 from .specialized.event_monitor import EventMonitor
 
 # Global instances
@@ -38,7 +37,7 @@ def get_error_handler():
     Returns:
         Domain error handler instance
     """
-    from app.src.domain.error_handling import unified_error_handler
+    from app.src.infrastructure.error_handling import unified_error_handler
 
     return unified_error_handler
 

@@ -24,7 +24,7 @@ class UnifiedSerializationService:
 
     Élimine les duplications de sérialisation identifiées dans:
     - PlaylistRoutesState
-    - PlaylistApplicationService
+    - DataApplicationService
     - SQLitePlaylistRepository
     - UnifiedController
     - AudioController
@@ -116,13 +116,16 @@ class UnifiedSerializationService:
                 result["track_count"] = len(result["tracks"])
         # Format-specific adjustments
         if format == UnifiedSerializationService.FORMAT_API:
-            # API format includes additional metadata
+            # API format includes additional metadata required by frontend
             result["created_at"] = UnifiedSerializationService._format_datetime(
                 playlist_data.get("created_at")
             )
             result["updated_at"] = UnifiedSerializationService._format_datetime(
                 playlist_data.get("updated_at")
             )
+            # Add required frontend fields
+            result["type"] = "playlist"  # Required by frontend PlayList interface
+            result["last_played"] = playlist_data.get("last_played", 0)  # Default to 0 if not set
         elif format == UnifiedSerializationService.FORMAT_WEBSOCKET:
             # WebSocket format is more compact
             if not include_tracks:
@@ -203,13 +206,21 @@ class UnifiedSerializationService:
         }
         # Format-specific adjustments
         if format == UnifiedSerializationService.FORMAT_API:
-            # API includes all metadata
+            # API includes all metadata required by frontend
             result.update(
                 {
                     "file_path": track_data.get("file_path", ""),
                     "artist": track_data.get("artist"),
                     "album": track_data.get("album"),
                     "play_count": track_data.get("play_count", 0),
+                    # Add required frontend fields
+                    "created_at": UnifiedSerializationService._format_datetime(
+                        track_data.get("created_at")
+                    ),
+                    "updated_at": UnifiedSerializationService._format_datetime(
+                        track_data.get("updated_at")
+                    ),
+                    "server_seq": track_data.get("server_seq", 1),  # Default to 1 if not set
                 }
             )
         elif format == UnifiedSerializationService.FORMAT_WEBSOCKET:
@@ -400,3 +411,28 @@ class UnifiedSerializationService:
         }
 
         return format_mapping.get(context.lower(), UnifiedSerializationService.FORMAT_API)
+
+    @staticmethod
+    def _format_datetime(dt: Any) -> Optional[str]:
+        """
+        Format datetime for API compatibility.
+
+        Args:
+            dt: Datetime object, string, or None
+
+        Returns:
+            ISO8601 formatted string or None
+        """
+        if dt is None:
+            return None
+
+        if isinstance(dt, str):
+            # Already a string, return as-is (assume it's properly formatted)
+            return dt
+
+        if hasattr(dt, 'isoformat'):
+            # datetime object
+            return dt.isoformat()
+
+        # For other types, convert to string
+        return str(dt) if dt else None

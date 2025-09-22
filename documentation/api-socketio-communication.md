@@ -1241,29 +1241,50 @@ The following enhancements can be implemented in future iterations:
 
 ---
 
-## 📝 Documentation Updates (2025-09-15)
+## 📝 Documentation Updates (2025-09-20)
 
-### Latest Verification & Corrections Applied
+### Latest Updates for Domain-Driven Architecture Refactor
 
-**Conformité globale**: 95%+ entre implémentation et documentation
+**Architecture Migration**: Complete DDD-compliant architecture documentation
 
-#### ✅ **Corrections appliquées**:
+#### ✅ **New Architecture Documentation**:
 
-1. **YouTube API**: Corrigé méthode `POST` → `GET` pour `/api/youtube/search`
-2. **Upload Management API**: Ajouté 3 endpoints manquants:
-   - `GET /api/uploads/sessions` - Liste toutes les sessions d'upload
-   - `DELETE /api/uploads/sessions/{session_id}` - Annule/supprime une session
-   - `POST /api/uploads/cleanup` - Nettoie les fichiers orphelins
+1. **Domain-Driven Design Implementation**:
+   - Application Services layer with use case orchestration
+   - Pure Domain layer with business logic isolation
+   - Infrastructure layer with external adapters
+   - Proper dependency inversion throughout
 
-3. **SocketIO Events**: Ajouté événement manquant:
-   - `client:request_current_state` - Demande de synchronisation immédiate de l'état
+2. **Updated API Endpoints**:
+   - All endpoints now use Application Services
+   - Domain validation integrated into use cases
+   - Standardized error handling via unified error decorator
+   - Complete separation of concerns
 
-4. **Data Models**: Ajouté interface `UploadSession` complète
+3. **Service Layer Architecture**:
+   - `PlaylistApplicationService`: Centralized playlist operations
+   - `AudioApplicationService`: Audio domain coordination
+   - `NfcApplicationService`: NFC tag management
+   - `UploadApplicationService`: File upload workflows
 
-#### 📊 **État de la documentation**:
-- **API Endpoints**: 100% des endpoints implémentés sont documentés
-- **SocketIO Events**: 100% des handlers sont documentés
-- **Data Models**: Schémas complets et à jour
-- **Architecture**: Diagrammes et flux alignés avec l'implémentation
+4. **Domain Model Integration**:
+   - Track and Playlist entities with business rules
+   - Domain validation before persistence
+   - Rich domain models with behavior
 
-La documentation est maintenant **entièrement synchronisée** avec l'implémentation backend réelle et peut servir de référence autoritaire pour le développement frontend et l'intégration API.
+#### 🏗️ **Architectural Improvements**:
+
+- **Domain Purity**: No Infrastructure dependencies in Domain layer
+- **Protocol-Based Design**: Clear interfaces for dependency inversion
+- **Factory Pattern**: Proper DDD factories in Infrastructure layer
+- **Error Handling**: Domain errors properly translated to HTTP responses
+- **Testing**: Improved testability with clear boundaries
+
+#### 📊 **Updated Documentation Status**:
+- **Architecture Patterns**: 100% DDD-compliant patterns documented
+- **Service Interfaces**: All application services documented
+- **Domain Models**: Business rules and validation documented
+- **Infrastructure Adapters**: External system integration patterns
+- **Error Handling**: Unified error handling approach
+
+La documentation reflète maintenant l'architecture **Domain-Driven Design** complète avec séparation claire des responsabilités et inversion de dépendance appropriée.

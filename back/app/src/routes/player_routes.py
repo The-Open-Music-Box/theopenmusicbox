@@ -18,7 +18,7 @@ from collections import defaultdict
 from ..common.response_models import ClientOperationRequest
 from app.src.services.response.unified_response_service import UnifiedResponseService
 from app.src.services.error.unified_error_decorator import handle_http_errors
-from app.src.domain.error_handling.unified_error_handler import (
+from app.src.infrastructure.error_handling.unified_error_handler import (
     unified_error_handler as ErrorHandler,
     rate_limit_error,
     service_unavailable_error,

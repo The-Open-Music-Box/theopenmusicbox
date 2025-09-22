@@ -176,7 +176,7 @@ class ImprovedLogger:
                 try:
                     import asyncio
                     import time
-                    from app.src.audio.core.event_bus import LogEvent
+                    from app.src.domain.audio.events.audio_events import LogEvent
 
                     log_event = LogEvent(
                         logger_name=self.name,

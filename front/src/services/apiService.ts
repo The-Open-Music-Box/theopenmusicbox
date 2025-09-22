@@ -59,6 +59,8 @@ export const apiService = {
       const result = await playlistApi.getPlaylists(1, API_CONFIG.PLAYLISTS_FETCH_LIMIT)
       return result.items // Extract items from paginated response
     } catch (error) {
+      logger.warn('Primary playlist API failed, using fallback', { error: error instanceof Error ? error.message : String(error) })
+
       // If the new API format fails, fall back to legacy response format
       const response = await apiClient.get(API_ROUTES.PLAYLISTS, {
         params: { page: 1, limit: API_CONFIG.PLAYLISTS_FETCH_LIMIT }
@@ -73,6 +75,7 @@ export const apiService = {
       } else if (data?.items) {
         return data.items // Fallback to old "items" format
       } else {
+        logger.error('No valid playlists data found in response', { data })
         return []
       }
     }

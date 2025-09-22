@@ -2,62 +2,28 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""Custom Exception Classes for Audio System.
-
-This module defines custom exception classes used throughout the audio system
-for better error handling and debugging.
-"""
+"""Common exceptions for TheOpenMusicBox application."""
 
 
-class AudioError(Exception):
-    """Base exception for audio-related errors."""
+class BusinessLogicError(Exception):
+    """Exception raised when business logic rules are violated."""
 
-    pass
-
-
-class AudioResourceError(AudioError):
-    """Exception raised when audio resource operations fail."""
-
-    pass
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
 
 
-class AudioResourceBusyError(AudioResourceError):
-    """Exception raised when trying to access a resource that's already in use."""
+class ValidationError(Exception):
+    """Exception raised when data validation fails."""
 
-    pass
-
-
-class AudioDeviceError(AudioError):
-    """Exception raised when audio device operations fail."""
-
-    pass
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)
 
 
-class AudioFormatError(AudioError):
-    """Exception raised when audio format is not supported or invalid."""
+class NotFoundError(Exception):
+    """Exception raised when a requested resource is not found."""
 
-    pass
-
-
-class AudioBufferError(AudioError):
-    """Exception raised when audio buffer operations fail."""
-
-    pass
-
-
-class PlaylistError(Exception):
-    """Base exception for playlist-related errors."""
-
-    pass
-
-
-class PlaylistNotFoundError(PlaylistError):
-    """Exception raised when a playlist is not found."""
-
-    pass
-
-
-class TrackNotFoundError(PlaylistError):
-    """Exception raised when a track is not found."""
-
-    pass
+    def __init__(self, message: str):
+        self.message = message
+        super().__init__(message)

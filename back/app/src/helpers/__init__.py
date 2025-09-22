@@ -15,7 +15,7 @@ functionality used across the application.
 from .system_dependency_checker import SystemDependencyChecker
 
 # Import exceptions from domain layer for backwards compatibility
-from app.src.domain.error_handling.unified_error_handler import (
+from app.src.infrastructure.error_handling.unified_error_handler import (
     ErrorCategory,
     ErrorContext,
     ErrorSeverity

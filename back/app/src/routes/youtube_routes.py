@@ -18,6 +18,7 @@ from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.youtube import YouTubeService
 from app.src.utils.response_utils import ResponseUtils
 from app.src.services.error.unified_error_decorator import handle_http_errors
+from app.src.services.serialization.unified_serialization_service import UnifiedSerializationService
 
 logger = get_logger(__name__)
 
@@ -101,8 +102,9 @@ class YouTubeRoutes:
             service = YouTubeService(self.socketio, container.config)
             # Perform YouTube search
             search_results = await service.search_videos(query, max_results)
-            # TODO: Consider using UnifiedSerializationService for response_data
-            response = JSONResponse(content=response_data, status_code=200)
+            # Use UnifiedSerializationService for consistent response formatting
+            serialized_data = UnifiedSerializationService.serialize_response(search_results)
+            response = JSONResponse(content=serialized_data, status_code=200)
             # Add anti-cache headers
             response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             response.headers["Pragma"] = "no-cache"

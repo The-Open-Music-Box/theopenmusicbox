@@ -320,21 +320,21 @@ class StateManager:
         """Send playlists snapshot to client."""
         # Pure domain architecture - use application service
         from app.src.application.services.playlist_application_service import (
-            PlaylistApplicationService,
+            DataApplicationService,
         )
 
         # Get playlist repository and initialize application service
 
         from app.src.dependencies import get_playlist_repository_adapter
         playlist_repository = get_playlist_repository_adapter()
-        playlist_app_service = PlaylistApplicationService(playlist_repository)
+        playlist_app_service = DataApplicationService(playlist_repository)
         # Get all playlists via application service
         playlists_result = await playlist_app_service.get_all_playlists_use_case()
         if playlists_result["status"] == "success":
             playlists = playlists_result.get("playlists", [])
         else:
             # Pure domain architecture - use unified controller as fallback
-            from app.src.domain.controllers.unified_controller import unified_controller
+            from app.src.application.controllers.unified_controller import unified_controller
 
             playlists = (
                 await unified_controller.get_all_playlists()
@@ -358,21 +358,21 @@ class StateManager:
         """Send specific playlist snapshot to client."""
         # Pure domain architecture - use application service
         from app.src.application.services.playlist_application_service import (
-            PlaylistApplicationService,
+            DataApplicationService,
         )
 
         # Get playlist repository and initialize application service
 
         from app.src.dependencies import get_playlist_repository_adapter
         playlist_repository = get_playlist_repository_adapter()
-        playlist_app_service = PlaylistApplicationService(playlist_repository)
+        playlist_app_service = DataApplicationService(playlist_repository)
         # Get specific playlist via application service
         playlist_result = await playlist_app_service.get_playlist_use_case(playlist_id)
         if playlist_result["status"] == "success":
             playlist = playlist_result.get("playlist")
         else:
             # Pure domain architecture - use unified controller as fallback
-            from app.src.domain.controllers.unified_controller import unified_controller
+            from app.src.application.controllers.unified_controller import unified_controller
 
             # Note: unified_controller doesn't have get_playlist method, use app service directly
             playlist = None  # Graceful degradation

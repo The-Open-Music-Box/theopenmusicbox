@@ -42,7 +42,7 @@ class PhysicalControlsManager:
         """
         # Use unified controller if not provided
         if audio_controller is None:
-            from app.src.domain.controllers.unified_controller import unified_controller
+            from app.src.application.controllers.unified_controller import unified_controller
 
             audio_controller = unified_controller
 

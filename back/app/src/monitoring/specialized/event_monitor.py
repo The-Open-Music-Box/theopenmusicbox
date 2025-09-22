@@ -21,7 +21,9 @@ from ..core.logger import ImprovedLogger
 from ..config import monitoring_config
 
 try:
-    from app.src.audio.core.event_bus import AudioEvent, audio_event_bus, EventHandler
+    from app.src.domain.audio.engine.event_bus import audio_event_bus, EventBus
+    from app.src.domain.audio.events.audio_events import AudioEvent
+    from app.src.domain.protocols.event_bus_protocol import EventHandler
 
     EVENT_BUS_AVAILABLE = True
 except ImportError:
