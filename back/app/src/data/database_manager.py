@@ -6,7 +6,7 @@
 Pure DDD Database Manager
 
 Infrastructure service that provides database connectivity following DDD principles.
-Implements the domain's DatabaseServiceProtocol using SQLite.
+Implements the domain's PersistenceServiceProtocol using SQLite.
 """
 
 from app.src.infrastructure.database.sqlite_database_service import SQLiteDatabaseService

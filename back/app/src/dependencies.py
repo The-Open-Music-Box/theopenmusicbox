@@ -4,37 +4,27 @@
 
 """Dependency providers for FastAPI DI (Depends pattern).
 
-Provides config, container, audio, playback_subject, etc.
-Functions are used via Depends() in route handlers.
+This module provides clean dependency injection functions for FastAPI routes,
+using the DI Container to avoid circular dependencies.
 """
 
-# No direct FastAPI imports needed - functions are used via Depends() in routes
-
-from app.src.config import config as app_config
+from app.src.infrastructure.di.container import get_container
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
 
-# Safe imports (no circular dependencies)
-from app.src.services.state_manager import StateManager
-
 logger = get_logger(__name__)
 
-# MARK: - Configuration Dependencies
+# Get the global DI container
+container = get_container()
 
 
 def get_config():
     """Dependency provider for the global config singleton.
 
-    Note: Primarily used for FastAPI dependency injection overrides in tests.
-    For direct usage in application code, prefer using app_config directly.
-
     Returns:
         The global configuration object.
     """
-    return app_config
-
-
-# MARK: - Domain Architecture Dependencies
+    return container.get("config")
 
 
 def get_domain_bootstrap():
@@ -43,14 +33,7 @@ def get_domain_bootstrap():
     Returns:
         The domain bootstrap instance providing access to domain services.
     """
-    from app.src.domain.bootstrap import domain_bootstrap
-
-    if not domain_bootstrap.is_initialized:
-        logger.log(LogLevel.WARNING, "Domain bootstrap not initialized")
-    return domain_bootstrap
-
-
-# MARK: - Audio Dependencies
+    return container.get("domain_bootstrap")
 
 
 def get_audio_service():
@@ -59,65 +42,34 @@ def get_audio_service():
     Returns:
         The unified controller instance.
     """
-    from app.src.domain.controllers.unified_controller import unified_controller
+    return container.get("unified_controller")
 
-    return unified_controller
-
-
-# MARK: - Repository Dependencies
-
-# Global repository instances (singleton pattern)
-_playlist_repository_instance = None
-_playlist_repository_adapter_instance = None
 
 def get_playlist_repository():
-    """Retrieve the pure DDD playlist repository instance (singleton).
+    """Retrieve the pure DDD playlist repository instance.
 
     Returns:
         The pure DDD playlist repository implementation.
     """
-    global _playlist_repository_instance
+    return container.get("playlist_repository")
 
-    if _playlist_repository_instance is None:
-        from app.src.infrastructure.repositories.pure_sqlite_playlist_repository import (
-            PureSQLitePlaylistRepository,
-        )
-        _playlist_repository_instance = PureSQLitePlaylistRepository()
-        logger.log(LogLevel.INFO, "✅ Created singleton Pure DDD Playlist Repository instance")
-
-    return _playlist_repository_instance
 
 def get_playlist_repository_adapter():
-    """Retrieve the playlist repository adapter instance (singleton).
+    """Retrieve the playlist repository adapter instance.
 
     Returns:
         The playlist repository adapter for domain operations.
     """
-    global _playlist_repository_adapter_instance
-
-    if _playlist_repository_adapter_instance is None:
-        from app.src.infrastructure.adapters.pure_playlist_repository_adapter import (
-            PurePlaylistRepositoryAdapter,
-        )
-        _playlist_repository_adapter_instance = PurePlaylistRepositoryAdapter()
-        logger.log(LogLevel.INFO, "✅ Created singleton Pure DDD Repository Adapter instance")
-
-    return _playlist_repository_adapter_instance
+    return container.get("playlist_repository_adapter")
 
 
-# MARK: - Application Service Dependencies
-
-
-def get_playlist_application_service():
-    """Retrieve the playlist application service for use cases.
+def get_data_application_service():
+    """Retrieve the data application service for use cases.
 
     Returns:
-        The playlist application service instance.
+        The data application service instance.
     """
-    from app.src.application.services.playlist_application_service import PlaylistApplicationService
-
-    repository = get_playlist_repository_adapter()
-    return PlaylistApplicationService(playlist_repository=repository)
+    return container.get("data_application_service")
 
 
 def get_audio_application_service():
@@ -126,23 +78,32 @@ def get_audio_application_service():
     Returns:
         The audio application service instance.
     """
-    from app.src.application.services.audio_application_service import AudioApplicationService
-    from app.src.domain.audio.container import audio_domain_container
+    return container.get("audio_application_service")
 
-    # Initialize audio domain container if not already initialized
-    if not audio_domain_container.is_initialized:
-        from app.src.domain.bootstrap import domain_bootstrap
 
-        if not domain_bootstrap.is_initialized:
-            domain_bootstrap.initialize()
-        else:
-            logger.log(LogLevel.DEBUG, "Domain bootstrap initialized but audio container not ready")
+# Data Domain Dependencies
+def get_data_application_service():
+    """Retrieve the data application service for use cases.
 
-    # Get required dependencies
-    playlist_service = get_playlist_application_service()
+    Returns:
+        The data application service instance.
+    """
+    return container.get("data_application_service")
 
-    return AudioApplicationService(
-        audio_domain_container=audio_domain_container,
-        playlist_application_service=playlist_service,
-        state_manager=StateManager(),
-    )
+
+def get_data_playlist_service():
+    """Retrieve the data playlist service.
+
+    Returns:
+        The data playlist service instance.
+    """
+    return container.get("data_playlist_service")
+
+
+def get_data_track_service():
+    """Retrieve the data track service.
+
+    Returns:
+        The data track service instance.
+    """
+    return container.get("data_track_service")

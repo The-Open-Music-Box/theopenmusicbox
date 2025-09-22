@@ -92,6 +92,12 @@ class Application:
     async def _initialize_domain_architecture(self) -> None:
         """Initialize the pure domain-driven architecture."""
         logger.log(LogLevel.INFO, "🚀 Initializing PURE domain-driven architecture...")
+
+        # Register data domain services first
+        from app.src.infrastructure.di.data_container import register_data_domain_services
+        register_data_domain_services()
+        logger.log(LogLevel.INFO, "✅ Data domain services registered")
+
         # Get existing audio backend from container (if any)
         container_audio = None
         try:
@@ -113,7 +119,7 @@ class Application:
             logger.log(LogLevel.INFO, "✅ Pure Domain Application initialized successfully")
 
         # Get unified controller from pure domain architecture
-        from app.src.domain.controllers.unified_controller import unified_controller
+        from app.src.application.controllers.unified_controller import unified_controller
 
         self._playlist_controller = unified_controller
         logger.log(LogLevel.INFO, "✅ Unified controller obtained from pure domain architecture")

@@ -29,7 +29,7 @@ from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
 from app.src.routes.api_routes_state import init_api_routes_state
 from app.src.domain.bootstrap import domain_bootstrap
-from app.src.domain.error_handling.unified_error_handler import (
+from app.src.infrastructure.error_handling.unified_error_handler import (
     UnifiedErrorHandler,
     ErrorCategory,
     ErrorSeverity,
