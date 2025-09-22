@@ -5,7 +5,7 @@
 """
 SQLite Database Service Implementation
 
-Pure infrastructure implementation of DatabaseServiceProtocol.
+Pure infrastructure implementation of PersistenceServiceProtocol.
 Handles all SQLite-specific connection management, transactions, and operations.
 """
 
@@ -17,18 +17,18 @@ from pathlib import Path
 
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from app.src.domain.protocols.database_service_protocol import DatabaseServiceProtocol
+from app.src.domain.protocols.persistence_service_protocol import PersistenceServiceProtocol
 from app.src.data.connection_pool import ConnectionPool
 from app.src.services.error.unified_error_decorator import handle_infrastructure_errors
 
 logger = get_logger(__name__)
 
 
-class SQLiteDatabaseService(DatabaseServiceProtocol):
+class SQLiteDatabaseService(PersistenceServiceProtocol):
     """SQLite implementation of database service following DDD principles.
 
     This is a pure infrastructure service that implements the domain's
-    DatabaseServiceProtocol using SQLite and connection pooling.
+    PersistenceServiceProtocol using SQLite and connection pooling.
     """
 
     def __init__(self, database_path: str, pool_size: int = 5):

@@ -8,7 +8,7 @@ import asyncio
 from typing import Optional, Any
 
 from app.src.domain.nfc import NfcAssociationService, NfcHardwareProtocol, NfcRepositoryProtocol
-from app.src.domain.nfc.nfc_adapter import NFCHandlerAdapter
+from app.src.infrastructure.adapters.nfc.nfc_adapter import NFCHandlerAdapter
 from app.src.application.services.nfc_application_service import NfcApplicationService
 from app.src.infrastructure.hardware.nfc import create_nfc_hardware
 from app.src.config.nfc_config import NFCConfig
