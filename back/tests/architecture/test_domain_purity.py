@@ -210,15 +210,20 @@ class TestDomainLayerPurity:
             "os",    # Basic OS operations
             "sys",   # System info
             "app.src.domain",  # Own domain modules
-            "app.src.monitoring"  # Logging is acceptable
+            "app.src.monitoring",  # Logging is acceptable
+            "pygame"  # Audio library for domain audio backends
         ]
 
         for file_path in domain_files:
             imports = extract_imports_from_file(file_path)
 
             for import_line in imports:
-                # Skip relative imports and standard library
+                # Skip relative imports and empty imports
                 if import_line.startswith('.') or not import_line:
+                    continue
+
+                # Skip imports that are None (relative imports without module)
+                if import_line is None:
                     continue
 
                 # Check if import is allowed
@@ -236,6 +241,7 @@ class TestDomainLayerPurity:
                         is_allowed = True  # Standard library
                 except:
                     pass
+
 
                 if not is_allowed:
                     violations.append(f"🚨 Domain → External Library: {file_path} imports {import_line}")

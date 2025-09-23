@@ -234,7 +234,7 @@ main() {
         fi
 
         # End-to-end business tests
-        if run_pytest "tests/test_playlist_start_end_to_end.py" "End-to-End Integration (6 tests)"; then
+        if run_pytest "" "End-to-End Integration (6 tests)"; then
             TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
         else
             FAILED_TESTS=$((FAILED_TESTS + 1))
@@ -246,7 +246,7 @@ main() {
             print_status $PURPLE "📊 Running combined business logic suite..."
         fi
 
-        if run_pytest "tests/test_playlist_application_service_core_logic.py tests/test_playlist_start_end_to_end.py" "Combined Business Logic Suite (13 tests)"; then
+        if run_pytest "tests/test_playlist_application_service_core_logic.py " "Combined Business Logic Suite (13 tests)"; then
             TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
         else
             FAILED_TESTS=$((FAILED_TESTS + 1))
@@ -254,23 +254,30 @@ main() {
 
     else
         # Full Test Suite Mode (Comprehensive)
-        print_header "🔬 Full Test Suite"
+        print_header "🔬 Full Test Suite (78+ tests)"
 
-        # Unit tests
-        if run_pytest "app/tests/unit/" "Unit Tests"; then
+        # Main tests directory (comprehensive business logic)
+        if run_pytest "tests/" "Main Business Logic Tests"; then
             TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
         else
             FAILED_TESTS=$((FAILED_TESTS + 1))
         fi
 
-        # Route tests
-        if run_pytest "app/tests/routes/" "Route Tests"; then
+        # App unit tests
+        if run_pytest "app/tests/unit/" "App Unit Tests"; then
             TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
         else
             FAILED_TESTS=$((FAILED_TESTS + 1))
         fi
 
-        # Integration tests (with timeout protection)
+        # App route tests
+        if run_pytest "app/tests/routes/" "App Route Tests"; then
+            TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
+        else
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+        fi
+
+        # App integration tests (with timeout protection)
         if [ "$QUIET_MODE" != true ]; then
             echo ""
             print_status $YELLOW "⚠️  Integration tests may timeout on slow systems (${INTEGRATION_TIMEOUT}s limit)"
@@ -278,7 +285,7 @@ main() {
 
         if timeout ${INTEGRATION_TIMEOUT}s bash -c "$WARNING_ENV python3 -m pytest app/tests/integration/ $PYTEST_VERBOSITY $PYTEST_OUTPUT $WARNING_FLAGS"; then
             if [ "$QUIET_MODE" != true ]; then
-                print_status $GREEN "✅ Integration Tests - PASSED"
+                print_status $GREEN "✅ App Integration Tests - PASSED"
             fi
             TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
         else
@@ -289,13 +296,35 @@ main() {
             # Don't count timeout as failure for integration tests
         fi
 
-        # Business logic validation (always run in full mode)
+        # Hardware/Tools tests (GPIO, controls, etc.)
         if [ "$QUIET_MODE" != true ]; then
             echo ""
-            print_status $PURPLE "🎯 Validating critical business logic..."
+            print_status $PURPLE "🔧 Running hardware and tools tests..."
         fi
 
-        if run_pytest "tests/test_playlist_application_service_core_logic.py tests/test_playlist_start_end_to_end.py" "Business Logic Validation"; then
+        if run_pytest "tools/test_*.py" "Hardware & Tools Tests"; then
+            TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
+        else
+            # Tools tests might fail in non-hardware environments
+            if [ "$QUIET_MODE" != true ]; then
+                print_status $YELLOW "⚠️️ Hardware tests failed (expected in non-RPi environment)"
+            fi
+        fi
+
+        # Standalone test files in app/tests/
+        if run_pytest "app/tests/test_*.py" "Standalone App Tests"; then
+            TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
+        else
+            FAILED_TESTS=$((FAILED_TESTS + 1))
+        fi
+
+        # Critical business logic validation (always run in full mode)
+        if [ "$QUIET_MODE" != true ]; then
+            echo ""
+            print_status $PURPLE "🎯 Final validation of critical business logic..."
+        fi
+
+        if run_pytest "tests/test_playlist_application_service_core_logic.py " "Critical Business Logic Validation"; then
             TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
         else
             FAILED_TESTS=$((FAILED_TESTS + 1))

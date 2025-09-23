@@ -47,7 +47,7 @@ def extract_imports_from_file(file_path: str) -> List[str]:
         file_path: Path to Python file
 
     Returns:
-        List of imported module names
+        List of imported module names (excluding relative imports)
     """
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -61,7 +61,10 @@ def extract_imports_from_file(file_path: str) -> List[str]:
                 for alias in node.names:
                     imports.append(alias.name)
             elif isinstance(node, ast.ImportFrom):
-                if node.module:
+                # Skip relative imports (level > 0)
+                # Relative imports like "from .unified_audio_player import ..."
+                # are internal to the current package and shouldn't be flagged
+                if node.module and node.level == 0:
                     imports.append(node.module)
 
         return imports
@@ -111,9 +114,16 @@ def path_to_module_name(file_path: str, base_path: str = "app/src/") -> str:
     # Normalize path separators
     normalized_path = file_path.replace('\\', '/')
 
-    # Remove base path
-    if normalized_path.startswith(base_path):
-        normalized_path = normalized_path[len(base_path):]
+    # Find the base path in the normalized path
+    base_index = normalized_path.find(base_path)
+    if base_index != -1:
+        # Remove everything up to and including the base path
+        normalized_path = normalized_path[base_index + len(base_path):]
+    else:
+        # If base path not found, try to extract from the end
+        # Look for the app/src pattern
+        if '/app/src/' in normalized_path:
+            normalized_path = normalized_path.split('/app/src/')[-1]
 
     # Remove .py extension
     if normalized_path.endswith('.py'):
