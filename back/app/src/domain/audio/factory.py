@@ -19,7 +19,6 @@ from app.src.domain.protocols.state_manager_protocol import StateManagerProtocol
 from .engine.event_bus import EventBus
 from .engine.state_manager import StateManager
 from .engine.audio_engine import AudioEngine
-from app.src.infrastructure.adapters.audio.backend_adapter import BackendAdapter
 
 logger = get_logger(__name__)
 
@@ -39,23 +38,27 @@ class AudioDomainFactory:
 
     @staticmethod
     def create_backend_adapter(backend: Any) -> AudioBackendProtocol:
-        """Create a backend adapter for existing backends.
+        """Return the backend directly (domain backends already implement the protocol).
 
         Args:
-            backend: Existing backend implementation
+            backend: Domain backend implementation
 
         Returns:
-            AudioBackendProtocol: Adapted backend
+            AudioBackendProtocol: The backend itself
         """
-        # Avoid double-wrapping: if already a BackendAdapter, return as-is
-        if isinstance(backend, BackendAdapter):
+        # Domain backends already implement AudioBackendProtocol via BaseAudioBackend
+        if isinstance(backend, AudioBackendProtocol):
             logger.log(
                 LogLevel.DEBUG,
-                f"Backend is already a BackendAdapter, reusing: {type(backend).__name__}",
+                f"Backend already implements AudioBackendProtocol: {type(backend).__name__}",
             )
             return backend
 
-        return BackendAdapter(backend)
+        logger.log(
+            LogLevel.WARNING,
+            f"Backend {type(backend).__name__} doesn't implement AudioBackendProtocol",
+        )
+        return backend
 
     # PlaylistManager removed - use data domain services
 

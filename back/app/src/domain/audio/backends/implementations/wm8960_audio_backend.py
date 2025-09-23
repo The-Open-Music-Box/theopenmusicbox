@@ -9,6 +9,8 @@ It implements the AudioBackendProtocol interface and provides real hardware audi
 through the WM8960 codec using pygame for reliable audio format handling.
 """
 
+import os
+import asyncio
 import subprocess
 import time
 from pathlib import Path
@@ -60,18 +62,37 @@ class WM8960AudioBackend(BaseAudioBackend):
 
     @handle_errors("_init_pygame_simple")
     def _init_pygame_simple(self) -> bool:
-        """Initialize pygame mixer with simple default configuration."""
-        logger.log(LogLevel.INFO, "🔊 WM8960: Initializing pygame mixer with default configuration")
+        """Initialize pygame mixer with WM8960-specific ALSA configuration."""
+        logger.log(LogLevel.INFO, "🔊 WM8960: Initializing pygame mixer with WM8960 ALSA configuration")
+
+        # Detect the WM8960 device first if not already done
+        if not hasattr(self, '_audio_device'):
+            self._audio_device = self._detect_wm8960_device()
+
+        # Configure SDL to use ALSA with the specific WM8960 device
+        os.environ['SDL_AUDIODRIVER'] = 'alsa'
+        os.environ['SDL_AUDIODEV'] = self._audio_device
+
+        logger.log(LogLevel.INFO, f"🔊 WM8960: Configuring SDL with ALSA device: {self._audio_device}")
+
         # Clear any existing pygame state
         if pygame.mixer.get_init():
             pygame.mixer.quit()
-        # Use simple, reliable pygame initialization without ALSA complications
-        pygame.mixer.pre_init(frequency=22050, size=-16, channels=2, buffer=512)
+
+        # Use configuration optimized for WM8960 with explicit ALSA targeting
+        pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=4096)
         pygame.mixer.init()
-        logger.log(
-            LogLevel.INFO, "🔊 WM8960: pygame mixer initialized successfully (22050Hz, stereo)"
-        )
-        return True
+
+        # Verify initialization
+        if pygame.mixer.get_init():
+            init_info = pygame.mixer.get_init()
+            logger.log(
+                LogLevel.INFO, f"🔊 WM8960: pygame mixer initialized successfully with {init_info} on device {self._audio_device}"
+            )
+            return True
+        else:
+            logger.log(LogLevel.ERROR, "🔊 WM8960: pygame mixer failed to initialize")
+            return False
 
     @handle_errors("_detect_wm8960_device")
     def _detect_wm8960_device(self) -> str:
@@ -80,8 +101,13 @@ class WM8960AudioBackend(BaseAudioBackend):
         Returns:
             str: ALSA device identifier for WM8960
         """
-        # Try to get list of audio devices
-        result = subprocess.run(["aplay", "-l"], capture_output=True, text=True)
+        try:
+            # Try to get list of audio devices
+            result = subprocess.run(["aplay", "-l"], capture_output=True, text=True)
+        except FileNotFoundError:
+            # aplay not found (e.g., on macOS), use default
+            logger.log(LogLevel.INFO, "🔊 WM8960: aplay not found, using default device")
+            return config.hardware.alsa_device or "plughw:1,0"
         if result.returncode == 0:
             output = result.stdout
             # Look for WM8960 card
@@ -166,6 +192,20 @@ class WM8960AudioBackend(BaseAudioBackend):
                 if not self._init_pygame_simple():
                     logger.log(LogLevel.ERROR, "🔊 WM8960: Failed to initialize pygame mixer")
                     return False
+            else:
+                # Verify current initialization is using the correct device
+                current_init = pygame.mixer.get_init()
+                expected_device = getattr(self, '_audio_device', None)
+                current_device = os.environ.get('SDL_AUDIODEV', 'default')
+
+                if expected_device and current_device != expected_device:
+                    logger.log(
+                        LogLevel.INFO,
+                        f"🔊 WM8960: Reconfiguring pygame for correct device (current: {current_device}, expected: {expected_device})"
+                    )
+                    if not self._init_pygame_simple():
+                        logger.log(LogLevel.ERROR, "🔊 WM8960: Failed to reconfigure pygame mixer")
+                        return False
             return self._play_with_pygame(str(path))
 
     @handle_errors("_play_with_pygame")
@@ -186,8 +226,8 @@ class WM8960AudioBackend(BaseAudioBackend):
         )
         return True
 
-    @handle_errors("stop")
-    def stop(self) -> bool:
+    @handle_errors("stop_sync")
+    def stop_sync(self) -> bool:
         """Stop playback.
 
         Returns:
@@ -198,8 +238,8 @@ class WM8960AudioBackend(BaseAudioBackend):
         logger.log(LogLevel.INFO, "🔊 WM8960: Playback stopped")
         return True
 
-    @handle_errors("pause")
-    def pause(self) -> bool:
+    @handle_errors("pause_sync")
+    def pause_sync(self) -> bool:
         """Pause playback using pygame.mixer.music.pause().
 
         Returns:
@@ -220,8 +260,8 @@ class WM8960AudioBackend(BaseAudioBackend):
             else:
                 return False
 
-    @handle_errors("resume")
-    def resume(self) -> bool:
+    @handle_errors("resume_sync")
+    def resume_sync(self) -> bool:
         """Resume paused playback using pygame.mixer.music.unpause().
 
         Returns:
@@ -246,8 +286,8 @@ class WM8960AudioBackend(BaseAudioBackend):
             else:
                 return False
 
-    @handle_errors("get_position")
-    def get_position(self) -> float:
+    @handle_errors("get_position_sync")
+    def get_position_sync(self) -> float:
         """Get current playback position in seconds.
 
         Returns:
@@ -333,8 +373,8 @@ class WM8960AudioBackend(BaseAudioBackend):
                     seek_success = False
                     logger.log(LogLevel.WARNING, f"🔊 WM8960: Seek failed, playing from start: {e}")
 
-    @handle_errors("set_volume")
-    def set_volume(self, volume: int) -> bool:
+    @handle_errors("set_volume_sync")
+    def set_volume_sync(self, volume: int) -> bool:
         """Set playback volume through pygame and ALSA.
 
         Args:
@@ -406,6 +446,94 @@ class WM8960AudioBackend(BaseAudioBackend):
                     return False
 
             return self._is_playing
+
+    # Async methods required by AudioBackendProtocol
+    async def pause(self) -> bool:
+        """Async wrapper for pause method.
+
+        Returns:
+            bool: True if pause was successful
+        """
+        return self.pause_sync()
+
+    async def resume(self) -> bool:
+        """Async wrapper for resume method.
+
+        Returns:
+            bool: True if resume was successful
+        """
+        return self.resume_sync()
+
+    async def stop(self) -> bool:
+        """Async wrapper for stop method.
+
+        Returns:
+            bool: True if stop was successful
+        """
+        return self.stop_sync()
+
+    async def set_volume(self, volume: int) -> bool:
+        """Async wrapper for set_volume method.
+
+        Args:
+            volume: Volume level (0-100)
+
+        Returns:
+            bool: True if volume was set successfully
+        """
+        return self.set_volume_sync(volume)
+
+    async def get_position(self) -> Optional[int]:
+        """Get current playback position.
+
+        Returns:
+            int: Current position in milliseconds or None if not playing
+        """
+        position_s = self.get_position_sync()
+        if position_s > 0:
+            return int(position_s * 1000)
+        return None
+
+    async def play(self, file_path: str) -> bool:
+        """Async wrapper for play_file method.
+
+        Args:
+            file_path: Path to the audio file to play
+
+        Returns:
+            bool: True if playback started successfully
+        """
+        return await asyncio.get_event_loop().run_in_executor(None, self.play_file, file_path)
+
+    async def get_volume(self) -> int:
+        """Get current volume level.
+
+        Returns:
+            int: Current volume (0-100)
+        """
+        return self._volume
+
+    async def seek(self, position_ms: int) -> bool:
+        """Seek to a specific position.
+
+        Args:
+            position_ms: Position in milliseconds
+
+        Returns:
+            bool: True if seek was successful
+        """
+        position_s = position_ms / 1000.0
+        return self.set_position(position_s)
+
+    async def get_duration(self) -> Optional[int]:
+        """Get duration of current track.
+
+        Returns:
+            int: Duration in milliseconds or None if not available
+        """
+        # pygame doesn't provide easy duration access, return None for now
+        # This could be improved by using mutagen or similar library
+        return None
 
     @handle_errors("cleanup")
     def cleanup(self) -> None:

@@ -10,6 +10,7 @@ purely on audio playback, leaving playlist management to the PlaylistController.
 """
 
 import os
+import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -229,3 +230,23 @@ class MacOSAudioBackend(BaseAudioBackend):
             pygame.mixer.quit()
             self._mixer_initialized = False
         logger.log(LogLevel.INFO, "✓ macOS audio backend cleanup completed")
+
+    # Async protocol methods (wrap sync implementations)
+    async def play(self, file_path: str) -> bool:
+        """Async wrapper for play_file."""
+        return await asyncio.get_event_loop().run_in_executor(None, self.play_file, file_path)
+
+    async def get_volume(self) -> int:
+        """Get current volume level."""
+        with self._state_lock:
+            return self._volume
+
+    async def seek(self, position_ms: int) -> bool:
+        """Seek to a specific position (not implemented for pygame)."""
+        logger.log(LogLevel.WARNING, "⚠️ macOS: Seek not supported with pygame backend")
+        return False
+
+    async def get_duration(self) -> Optional[int]:
+        """Get duration of current track (not available in pygame)."""
+        logger.log(LogLevel.DEBUG, "macOS: Duration not available with pygame backend")
+        return None

@@ -4,10 +4,11 @@
 
 """Audio backend protocol for pure audio playback operations."""
 
-from typing import Protocol, Optional
+from typing import Protocol, Optional, runtime_checkable
 from abc import abstractmethod
 
 
+@runtime_checkable
 class AudioBackendProtocol(Protocol):
     """Protocol for pure audio backend operations.
 
