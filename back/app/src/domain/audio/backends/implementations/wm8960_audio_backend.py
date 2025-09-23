@@ -143,7 +143,8 @@ class WM8960AudioBackend(BaseAudioBackend):
                     if "card" in line:
                         card_num = line.split("card")[1].split(":")[0].strip()
                         if card_num.isdigit():
-                            device = f"hw:{card_num},0"
+                            # Use plughw for better format compatibility
+                            device = f"plughw:{card_num},0"
                             logger.log(LogLevel.INFO, f"🔊 WM8960: Fallback detected: {device}")
                             return device
         # Final fallback to config
