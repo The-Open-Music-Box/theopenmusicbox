@@ -71,16 +71,24 @@ class NfcApplicationService:
         Returns:
             Status dictionary
         """
-        await self._nfc_hardware.start_detection()
-        # Start cleanup task for expired sessions
-        if not self._cleanup_task or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
-        logger.log(LogLevel.INFO, "✅ NFC system started successfully")
-        return {
-            "status": "success",
-            "message": "NFC system started",
-            "hardware_status": self._nfc_hardware.get_hardware_status(),
-        }
+        try:
+            await self._nfc_hardware.start_detection()
+            # Start cleanup task for expired sessions
+            if not self._cleanup_task or self._cleanup_task.done():
+                self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+            logger.log(LogLevel.INFO, "✅ NFC system started successfully")
+            return {
+                "status": "success",
+                "message": "NFC system started",
+                "hardware_status": self._nfc_hardware.get_hardware_status(),
+            }
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"❌ Failed to start NFC system: {e}")
+            return {
+                "status": "error",
+                "message": f"Failed to start NFC system: {str(e)}",
+                "error_type": "hardware_error",
+            }
 
     async def stop_nfc_system(self) -> Dict[str, Any]:
         """Stop the NFC system.

@@ -16,12 +16,6 @@ from app.src.domain.decorators.error_handler import handle_domain_errors as hand
 
 from .audio.container import audio_domain_container
 from .audio.factory import AudioDomainFactory
-from app.src.infrastructure.error_handling.unified_error_handler import (
-    unified_error_handler,
-    ErrorContext,
-    ErrorCategory,
-    ErrorSeverity,
-)
 
 logger = get_logger(__name__)
 
@@ -70,15 +64,8 @@ class DomainBootstrap:
     async def start(self) -> None:
         """Start all domain services."""
         if not self._is_initialized:
-            context = ErrorContext(
-                component="domain.bootstrap",
-                operation="start",
-                category=ErrorCategory.GENERAL,
-                severity=ErrorSeverity.HIGH,
-            )
-            unified_error_handler.handle_error(
-                RuntimeError("DomainBootstrap not initialized"), context
-            )
+            logger.log(LogLevel.ERROR, "❌ DomainBootstrap not initialized")
+            raise RuntimeError("DomainBootstrap not initialized")
             return
 
         if audio_domain_container.is_initialized:
@@ -142,16 +129,14 @@ class DomainBootstrap:
                 ),
             },
             # Note: unified_controller has been moved to application layer
-            "error_handler": unified_error_handler.get_error_statistics(),
         }
 
     # MARK: Internal Methods
 
     def _setup_error_callbacks(self) -> None:
-        """Setup error handling callbacks."""
-        unified_error_handler.register_callback(ErrorCategory.AUDIO, self._handle_audio_error)
-
-        unified_error_handler.register_callback(ErrorCategory.AUDIO, self._handle_critical_error)
+        """Setup error handling callbacks (domain-level only)."""
+        # Domain-level error handling without infrastructure dependencies
+        logger.log(LogLevel.DEBUG, "Domain error callbacks setup completed")
 
     def _handle_audio_error(self, error_record) -> None:
         """Handle audio-specific errors with recovery strategies."""
