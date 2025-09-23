@@ -393,3 +393,86 @@ class TestStateManager:
         # Verify state manager still functions after cleanup
         await self.state_manager.broadcast_state_change("POST_CLEANUP", {"test": True})
         assert len(self.state_manager.get_broadcasted_events()) == 1
+
+    def test_current_playlist_management(self):
+        """Test current playlist getter and setter methods."""
+        # Initially no playlist should be set
+        assert self.state_manager.get_current_playlist() is None
+
+        # Set a test playlist
+        test_playlist = {
+            "id": "playlist_123",
+            "title": "Test Playlist",
+            "tracks": [
+                {"id": "track_1", "title": "Song 1"},
+                {"id": "track_2", "title": "Song 2"}
+            ]
+        }
+
+        self.state_manager.set_current_playlist(test_playlist)
+
+        # Verify playlist was set
+        current_playlist = self.state_manager.get_current_playlist()
+        assert current_playlist is not None
+        assert current_playlist["id"] == "playlist_123"
+        assert current_playlist["title"] == "Test Playlist"
+        assert len(current_playlist["tracks"]) == 2
+
+        # Test setting playlist to None
+        self.state_manager.set_current_playlist(None)
+        assert self.state_manager.get_current_playlist() is None
+
+    def test_current_track_number_management(self):
+        """Test current track number getter and setter methods."""
+        # Initially no track number should be set
+        assert self.state_manager.get_current_track_number() is None
+
+        # Set a track number
+        self.state_manager.set_current_track_number(3)
+        assert self.state_manager.get_current_track_number() == 3
+
+        # Test setting different track numbers
+        self.state_manager.set_current_track_number(1)
+        assert self.state_manager.get_current_track_number() == 1
+
+        self.state_manager.set_current_track_number(10)
+        assert self.state_manager.get_current_track_number() == 10
+
+        # Test setting track number to None
+        self.state_manager.set_current_track_number(None)
+        assert self.state_manager.get_current_track_number() is None
+
+    def test_playlist_and_track_integration(self):
+        """Test integration between playlist and track number management."""
+        # Set up a playlist with tracks
+        test_playlist = {
+            "id": "integration_playlist",
+            "title": "Integration Test",
+            "tracks": [
+                {"id": "track_1", "title": "First Song"},
+                {"id": "track_2", "title": "Second Song"},
+                {"id": "track_3", "title": "Third Song"}
+            ]
+        }
+
+        self.state_manager.set_current_playlist(test_playlist)
+        self.state_manager.set_current_track_number(2)
+
+        # Verify both are set correctly
+        current_playlist = self.state_manager.get_current_playlist()
+        current_track_number = self.state_manager.get_current_track_number()
+
+        assert current_playlist["id"] == "integration_playlist"
+        assert current_track_number == 2
+
+        # Verify we can access the current track from the playlist
+        current_track = current_playlist["tracks"][current_track_number - 1]  # Convert to 0-based
+        assert current_track["id"] == "track_2"
+        assert current_track["title"] == "Second Song"
+
+        # Test clearing both
+        self.state_manager.set_current_playlist(None)
+        self.state_manager.set_current_track_number(None)
+
+        assert self.state_manager.get_current_playlist() is None
+        assert self.state_manager.get_current_track_number() is None

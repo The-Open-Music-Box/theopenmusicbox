@@ -114,6 +114,8 @@ class StateManager(StateManagerProtocol):
         self._current_position: float = 0.0
         self._current_volume: int = 50
         self._last_error: Optional[str] = None
+        self._current_playlist: Optional[Dict[str, Any]] = None
+        self._current_track_number: Optional[int] = None
 
         logger.log(LogLevel.INFO, "StateManager initialized with focused components")
 
@@ -617,3 +619,37 @@ class StateManager(StateManagerProtocol):
     def get_last_error(self) -> Optional[str]:
         """Get last error message."""
         return self._last_error
+
+    def get_current_playlist(self) -> Optional[Dict[str, Any]]:
+        """Get current playlist information.
+
+        Returns:
+            Current playlist data or None if no playlist is loaded
+        """
+        return self._current_playlist
+
+    def set_current_playlist(self, playlist: Optional[Dict[str, Any]]) -> None:
+        """Set current playlist information.
+
+        Args:
+            playlist: Playlist data to set as current
+        """
+        self._current_playlist = playlist
+        logger.log(LogLevel.DEBUG, f"Current playlist updated: {playlist.get('title', 'Unknown') if playlist else 'None'}")
+
+    def get_current_track_number(self) -> Optional[int]:
+        """Get current track number in playlist.
+
+        Returns:
+            Current track number (1-based) or None if no track is playing
+        """
+        return self._current_track_number
+
+    def set_current_track_number(self, track_number: Optional[int]) -> None:
+        """Set current track number in playlist.
+
+        Args:
+            track_number: Track number to set (1-based)
+        """
+        self._current_track_number = track_number
+        logger.log(LogLevel.DEBUG, f"Current track number updated: {track_number}")
