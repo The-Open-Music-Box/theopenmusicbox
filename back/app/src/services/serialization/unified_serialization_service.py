@@ -139,7 +139,7 @@ class UnifiedSerializationService:
                 "title": result["title"],
                 "description": result["description"],
                 "nfc_tag_id": result["nfc_tag_id"],
-                "path": result.get("path", ""),  # Use path from data, don't regenerate
+                "path": playlist_data.get("path", ""),  # Use path from original data
                 "created_at": playlist_data.get("created_at"),
                 "updated_at": playlist_data.get("updated_at"),
             }

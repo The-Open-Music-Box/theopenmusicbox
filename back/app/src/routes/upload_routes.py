@@ -14,7 +14,7 @@ from fastapi import APIRouter, Request, Query
 from fastapi.responses import JSONResponse
 
 from ..common.response_models import create_success_response, create_error_response, ErrorType
-from ..common.error_handler import ErrorHandler
+from ..infrastructure.error_handling.unified_error_handler import UnifiedErrorHandler as ErrorHandler
 from app.src.monitoring import get_logger
 from app.src.services.error.unified_error_decorator import handle_errors
 from app.src.monitoring.logging.log_level import LogLevel
@@ -30,7 +30,7 @@ class UploadRoutes:
         self.app = app
         self.socketio = socketio
         self.router = APIRouter()
-        self.error_handler = ErrorHandler("tomb.upload_routes")
+        self.error_handler = ErrorHandler()
         self._register_routes()
 
     def _register_routes(self):

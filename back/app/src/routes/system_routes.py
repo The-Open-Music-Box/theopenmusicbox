@@ -53,7 +53,7 @@ class SystemRoutes:
 
             if not audio_controller:
                 return ResponseUtils.create_error_response("Audio controller not available", 503)
-            playback_state = audio_controller.get_playback_state()
+            playback_state = await audio_controller.get_playback_status()
             logger.log(
                 LogLevel.INFO,
                 f"API: Responding with playback state: {playback_state}",
