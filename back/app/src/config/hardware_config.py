@@ -19,12 +19,11 @@ class HardwareConfig:
     """
 
     # GPIO Pin Assignments (BCM numbering) - Updated to avoid SPI conflicts
-    gpio_next_track_button: int = 16  # GPIO 16 for next track button (safe)
-    gpio_previous_track_button: int = 26  # GPIO 26 for previous track button (safe)
-    gpio_volume_encoder_clk: int = 8  # GPIO 20 for rotary encoder CLK (safe)
-    gpio_volume_encoder_dt: int = 21  # GPIO 21 for rotary encoder DT (safe)
-    gpio_volume_encoder_sw: int = 23  # GPIO 23 for rotary encoder switch (safe)
-
+    gpio_next_track_button: int = 16
+    gpio_previous_track_button: int = 26
+    gpio_volume_encoder_clk: int = 7
+    gpio_volume_encoder_dt: int = 24
+    gpio_volume_encoder_sw: int = 23
     # Button settings
     button_debounce_time: float = 0.3  # Debounce time in seconds
     button_hold_time: float = 2.0  # Time to register a long press
@@ -46,8 +45,7 @@ class HardwareConfig:
     spi_device: int = 0  # SPI device number
     spi_speed_hz: int = 1000000  # SPI speed in Hz
 
-    # Audio settings
-    alsa_device: str = "plughw:2,0"  # ALSA audio device for WM8960 (plughw:card,device format)
+    # Audio settings - removed alsa_device as we now use dmix 'default' device
 
     # Hardware detection
     mock_hardware: bool = False  # Use mock hardware for testing

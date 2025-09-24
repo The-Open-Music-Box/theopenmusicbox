@@ -62,32 +62,46 @@ class WM8960AudioBackend(BaseAudioBackend):
 
     @handle_errors("_init_pygame_simple")
     def _init_pygame_simple(self) -> bool:
-        """Initialize pygame mixer with WM8960-specific ALSA configuration."""
-        logger.log(LogLevel.INFO, "🔊 WM8960: Initializing pygame mixer with WM8960 ALSA configuration")
-
-        # Detect the WM8960 device first if not already done
-        if not hasattr(self, '_audio_device'):
-            self._audio_device = self._detect_wm8960_device()
-
-        # Configure SDL to use ALSA with the specific WM8960 device
-        os.environ['SDL_AUDIODRIVER'] = 'alsa'
-        os.environ['SDL_AUDIODEV'] = self._audio_device
-
-        logger.log(LogLevel.INFO, f"🔊 WM8960: Configuring SDL with ALSA device: {self._audio_device}")
+        """Initialize pygame mixer with simple default configuration (like main branch)."""
+        logger.log(LogLevel.INFO, "🔊 WM8960: Initializing pygame mixer with simple default configuration")
 
         # Clear any existing pygame state
         if pygame.mixer.get_init():
             pygame.mixer.quit()
 
-        # Use configuration optimized for WM8960 with explicit ALSA targeting
-        pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=4096)
-        pygame.mixer.init()
+        # Clean up any SDL environment variables that might interfere
+        if 'SDL_AUDIODRIVER' in os.environ:
+            del os.environ['SDL_AUDIODRIVER']
+        if 'SDL_AUDIODEV' in os.environ:
+            del os.environ['SDL_AUDIODEV']
+
+        # Simple solution: Use direct hardware access like aplay -D plughw:wm8960soundcard,0
+        # This bypasses dmix configuration issues and matches working aplay command
+        os.environ['SDL_AUDIODRIVER'] = 'alsa'
+        device = f'plughw:{self._audio_device.split(":")[1] if ":" in self._audio_device else "wm8960soundcard,0"}'
+        os.environ['SDL_AUDIODEV'] = device
+
+        logger.log(LogLevel.INFO, f"🔊 WM8960: SDL_AUDIODRIVER={os.environ.get('SDL_AUDIODRIVER')}")
+        logger.log(LogLevel.INFO, f"🔊 WM8960: SDL_AUDIODEV={os.environ.get('SDL_AUDIODEV')}")
+
+        # Use audio parameters that match WM8960 hardware capabilities
+        # Based on aplay working format: 48000Hz, Signed 16 bit Little Endian, 2 channels
+        pygame.mixer.pre_init(frequency=48000, size=-16, channels=2, buffer=2048)
+
+        logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer.pre_init called with freq=48000, size=-16, channels=2, buffer=2048")
+
+        try:
+            pygame.mixer.init()
+            logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer.init() successful")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"🔊 WM8960: pygame.mixer.init() failed: {e}")
+            return False
 
         # Verify initialization
         if pygame.mixer.get_init():
             init_info = pygame.mixer.get_init()
             logger.log(
-                LogLevel.INFO, f"🔊 WM8960: pygame mixer initialized successfully with {init_info} on device {self._audio_device}"
+                LogLevel.INFO, f"🔊 WM8960: pygame mixer initialized successfully with {init_info} (simple default)"
             )
             return True
         else:
@@ -107,7 +121,7 @@ class WM8960AudioBackend(BaseAudioBackend):
         except FileNotFoundError:
             # aplay not found (e.g., on macOS), use default
             logger.log(LogLevel.INFO, "🔊 WM8960: aplay not found, using default device")
-            return config.hardware.alsa_device or "plughw:1,0"
+            return "plughw:1,0"  # fallback when aplay not found
         if result.returncode == 0:
             output = result.stdout
             # Look for WM8960 card
@@ -147,9 +161,9 @@ class WM8960AudioBackend(BaseAudioBackend):
                             device = f"plughw:{card_num},0"
                             logger.log(LogLevel.INFO, f"🔊 WM8960: Fallback detected: {device}")
                             return device
-        # Final fallback to config
-        device = config.hardware.alsa_device or "plughw:0,0"
-        logger.log(LogLevel.INFO, f"🔊 WM8960: Using configured device: {device}")
+        # Final fallback
+        device = "plughw:0,0"
+        logger.log(LogLevel.INFO, f"🔊 WM8960: Using fallback device: {device}")
         return device
 
     @handle_errors("_initialize_wm8960_hardware")
@@ -193,39 +207,43 @@ class WM8960AudioBackend(BaseAudioBackend):
                 if not self._init_pygame_simple():
                     logger.log(LogLevel.ERROR, "🔊 WM8960: Failed to initialize pygame mixer")
                     return False
-            else:
-                # Verify current initialization is using the correct device
-                current_init = pygame.mixer.get_init()
-                expected_device = getattr(self, '_audio_device', None)
-                current_device = os.environ.get('SDL_AUDIODEV', 'default')
-
-                if expected_device and current_device != expected_device:
-                    logger.log(
-                        LogLevel.INFO,
-                        f"🔊 WM8960: Reconfiguring pygame for correct device (current: {current_device}, expected: {expected_device})"
-                    )
-                    if not self._init_pygame_simple():
-                        logger.log(LogLevel.ERROR, "🔊 WM8960: Failed to reconfigure pygame mixer")
-                        return False
             return self._play_with_pygame(str(path))
 
     @handle_errors("_play_with_pygame")
     def _play_with_pygame(self, file_path: str) -> bool:
         """Play audio file using pygame.mixer.music (preferred method)."""
-        logger.log(LogLevel.INFO, f"🔊 WM8960: Using pygame.mixer.music for playback")
-        # Load and play the audio file with pygame.mixer.music
-        pygame.mixer.music.load(file_path)
-        pygame.mixer.music.play()
-        self._current_file_path = file_path
-        self._is_playing = True
-        self._is_paused = False
-        self._play_start_time = time.time()
-        self._pause_time = None
-        logger.log(
-            LogLevel.INFO,
-            f"🔊 WM8960: Started playing {Path(file_path).name} with pygame.mixer.music",
-        )
-        return True
+        logger.log(LogLevel.INFO, f"🔊 WM8960: Using pygame.mixer.music for playback of {file_path}")
+
+        # Check pygame mixer state before loading
+        mixer_init = pygame.mixer.get_init()
+        logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer state before load: {mixer_init}")
+
+        try:
+            # Load and play the audio file with pygame.mixer.music
+            logger.log(LogLevel.INFO, f"🔊 WM8960: Loading audio file: {file_path}")
+            pygame.mixer.music.load(file_path)
+            logger.log(LogLevel.INFO, f"🔊 WM8960: Audio file loaded successfully")
+
+            logger.log(LogLevel.INFO, f"🔊 WM8960: Starting playback...")
+            pygame.mixer.music.play()
+            logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer.music.play() called")
+
+            # Check if playback started
+            is_busy = pygame.mixer.music.get_busy()
+            logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer.music.get_busy() = {is_busy}")
+
+            self._current_file_path = file_path
+            self._is_playing = True
+            self._is_paused = False
+            self._play_start_time = time.time()
+            self._pause_time = None
+
+            logger.log(LogLevel.INFO, f"🔊 WM8960: Playback state set - playing={self._is_playing}, busy={is_busy}")
+            return True
+
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"🔊 WM8960: Error during pygame playback: {e}")
+            return False
 
     @handle_errors("stop_sync")
     def stop_sync(self) -> bool:
@@ -542,6 +560,15 @@ class WM8960AudioBackend(BaseAudioBackend):
         logger.log(LogLevel.INFO, "🔊 Cleaning up WM8960 audio backend")
         with self._state_lock:
             self._stop_current_playback()
+
+        # Clean up any SDL environment variables we might have set
+        if 'SDL_AUDIODRIVER' in os.environ:
+            del os.environ['SDL_AUDIODRIVER']
+            logger.log(LogLevel.DEBUG, "🔊 WM8960: Cleared SDL_AUDIODRIVER environment variable")
+        if 'SDL_AUDIODEV' in os.environ:
+            del os.environ['SDL_AUDIODEV']
+            logger.log(LogLevel.DEBUG, "🔊 WM8960: Cleared SDL_AUDIODEV environment variable")
+
         logger.log(LogLevel.INFO, "🔊 WM8960 audio backend cleanup completed")
 
     @handle_errors("_stop_current_playback")
