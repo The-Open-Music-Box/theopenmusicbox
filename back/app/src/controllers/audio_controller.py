@@ -864,6 +864,24 @@ class AudioController:
                 )
         # Fallback to controller's own playlist info
         elif hasattr(self, "_current_playlist") and self._current_playlist:
+            # Get current track from playlist tracks if not available from audio service
+            if current_track is None and len(self._current_playlist.tracks) > 0:
+                # Use the current track index, default to 0 if not set
+                track_index = getattr(self, "_current_track_index", 0) or 0
+                if 0 <= track_index < len(self._current_playlist.tracks):
+                    track = self._current_playlist.tracks[track_index]
+                    current_track = {
+                        "id": getattr(track, "id", None),
+                        "title": getattr(track, "title", f"Track {track_index + 1}"),
+                        "filename": getattr(track, "filename", "unknown"),
+                        "duration_ms": getattr(track, "duration_ms", None)
+                    }
+                    current_track_number = track_index + 1
+                    logger.log(
+                        LogLevel.INFO,
+                        f"✅ Constructed current_track from playlist fallback: {current_track['title']}",
+                    )
+
             playlist_info.update(
                 {
                     "playlist_id": getattr(self, "_current_playlist_id", None),
@@ -878,6 +896,8 @@ class AudioController:
                         else False
                     ),
                     "can_prev": current_track_number > 1 if current_track_number else False,
+                    # Update current_track in playlist_info
+                    "current_track": current_track,
                 }
             )
             logger.log(
