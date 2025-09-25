@@ -240,7 +240,38 @@ class NfcApplicationService:
         )
         # Process through association service
         result = await self._association_service.process_tag_detection(tag_identifier)
-        # Notify callbacks
+
+        # Check if result contains association events
+        if isinstance(result, dict) and "action" in result:
+            # This is a single association result
+            logger.log(
+                LogLevel.DEBUG,
+                f"🔔 Notifying {len(self._association_callbacks)} association callbacks with result: {result}",
+            )
+            for callback in self._association_callbacks:
+                callback(result)
+        elif isinstance(result, dict) and "multiple_sessions" in result:
+            # Multiple association results wrapped in a dict
+            for single_result in result["multiple_sessions"]:
+                if isinstance(single_result, dict) and "action" in single_result:
+                    logger.log(
+                        LogLevel.DEBUG,
+                        f"🔔 Notifying {len(self._association_callbacks)} association callbacks with result: {single_result}",
+                    )
+                    for callback in self._association_callbacks:
+                        callback(single_result)
+        elif isinstance(result, list):
+            # Multiple association results as a direct list (backup handling)
+            for single_result in result:
+                if isinstance(single_result, dict) and "action" in single_result:
+                    logger.log(
+                        LogLevel.DEBUG,
+                        f"🔔 Notifying {len(self._association_callbacks)} association callbacks with result: {single_result}",
+                    )
+                    for callback in self._association_callbacks:
+                        callback(single_result)
+
+        # Also notify tag detection callbacks (for compatibility)
         logger.log(
             LogLevel.DEBUG,
             f"🔔 Notifying {len(self._tag_detected_callbacks)} tag detection callbacks",
