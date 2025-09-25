@@ -9,7 +9,7 @@ from typing import Dict, Any, Optional
 
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from ..protocols.state_manager_protocol import StateManagerProtocol, PlaybackState
+from app.src.domain.protocols.state_manager_protocol import StateManagerProtocol, PlaybackState
 
 logger = get_logger(__name__)
 

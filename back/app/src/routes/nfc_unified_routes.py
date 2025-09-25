@@ -16,7 +16,7 @@ from typing import Optional
 
 from ..common.response_models import create_success_response, ClientOperationRequest
 from ..common.data_models import NFCAssociationModel
-from app.src.domain.error_handling.unified_error_handler import (
+from app.src.infrastructure.error_handling.unified_error_handler import (
     unified_error_handler,
     service_unavailable_error,
     bad_request_error,

@@ -10,14 +10,21 @@ purely on audio playback, leaving playlist management to the PlaylistController.
 """
 
 import os
+import asyncio
 from pathlib import Path
 from typing import Optional
 
-import pygame
+try:
+    import pygame
+    PYGAME_AVAILABLE = True
+except ImportError:
+    PYGAME_AVAILABLE = False
+    pygame = None
+
 from app.src.monitoring import get_logger
-from app.src.services.error.unified_error_decorator import handle_errors
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.notification_service import PlaybackSubject
+from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
 
 from .base_audio_backend import BaseAudioBackend
 
@@ -36,6 +43,10 @@ class MacOSAudioBackend(BaseAudioBackend):
         """Initialize the macOS audio backend."""
         super().__init__(playback_subject)
         self._mixer_initialized = False
+
+        if not PYGAME_AVAILABLE:
+            logger.log(LogLevel.ERROR, "❌ pygame not available for macOS audio backend")
+            raise ImportError("pygame is required for macOS audio backend but not installed")
 
         # Set macOS-compatible pygame audio settings
         os.environ["SDL_AUDIODRIVER"] = "coreaudio"  # macOS native audio
@@ -219,3 +230,23 @@ class MacOSAudioBackend(BaseAudioBackend):
             pygame.mixer.quit()
             self._mixer_initialized = False
         logger.log(LogLevel.INFO, "✓ macOS audio backend cleanup completed")
+
+    # Async protocol methods (wrap sync implementations)
+    async def play(self, file_path: str) -> bool:
+        """Async wrapper for play_file."""
+        return await asyncio.get_event_loop().run_in_executor(None, self.play_file, file_path)
+
+    async def get_volume(self) -> int:
+        """Get current volume level."""
+        with self._state_lock:
+            return self._volume
+
+    async def seek(self, position_ms: int) -> bool:
+        """Seek to a specific position (not implemented for pygame)."""
+        logger.log(LogLevel.WARNING, "⚠️ macOS: Seek not supported with pygame backend")
+        return False
+
+    async def get_duration(self) -> Optional[int]:
+        """Get duration of current track (not available in pygame)."""
+        logger.log(LogLevel.DEBUG, "macOS: Duration not available with pygame backend")
+        return None

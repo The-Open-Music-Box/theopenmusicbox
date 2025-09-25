@@ -2,7 +2,7 @@
 
 ## Vue d'ensemble
 
-TheOpenMusicBox utilise une **architecture server-authoritative** avec 8 services coordonnés pour gérer l'état du player et les mises à jour temps réel. Cette architecture évite la redondance en définissant des responsabilités claires pour chaque service.
+TheOpenMusicBox utilise une **architecture Domain-Driven Design (DDD)** avec une approche **server-authoritative**. L'architecture sépare clairement les couches Application, Domaine et Infrastructure, avec 8 services coordonnés pour gérer l'état du player et les mises à jour temps réel.
 
 ## Architecture Générale
 
@@ -29,7 +29,7 @@ graph TD
 ### 1. StateManager - Orchestrateur Central ✅ ACTIF
 
 **Fichier**: `app/src/services/state_manager.py`
-**Classe**: `StateManager` (anciennement `StreamlinedStateManager`)
+**Classe**: `StateManager`
 
 **Responsabilités**:
 - Coordination centrale de tous les événements temps réel
@@ -97,10 +97,10 @@ AudioController.get_playback_status() → position_ms, duration_ms, is_playing
 
 **Composants**:
 
-#### PlaybackSubject (En transition)
-- **État**: Stockage interne uniquement, plus d'émission WebSocket
-- **Transition**: StateManager gère maintenant toutes les émissions
-- **Maintien**: Compatibilité backward pendant transition
+#### PlaybackSubject (Déprécié)
+- **État**: Supprimé dans l'architecture DDD
+- **Remplacement**: StateManager gère toutes les émissions
+- **Migration**: Complètement migré vers StateManager
 
 #### DownloadNotifier (Actif)
 - **Usage**: Événements YouTube download
@@ -195,14 +195,15 @@ sequenceDiagram
 
 ## Initialisation des Services
 
-### Ordre de démarrage
-1. **main.py** → `init_api_routes_state()`
-2. **APIRoutesState** constructor
-3. **PlaylistRoutesState** constructor
+### Ordre de démarrage (Architecture DDD)
+1. **main.py** → `Application.initialize_async()`
+2. **DomainBootstrap** → Initialisation domaine
+3. **Application Services** → Services applicatifs DDD
 4. **StateManager** création avec composants internes
 5. **TrackProgressService** planification démarrage background
 6. **WebSocket handlers** enregistrement
-7. Services prêts pour requêtes
+7. **Infrastructure** → Services concrets (DB, Hardware)
+8. Services prêts pour requêtes
 
 ### Configuration
 ```python

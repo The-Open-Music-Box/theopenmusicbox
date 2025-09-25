@@ -25,6 +25,7 @@ from app.src.services.event_outbox import EventOutbox
 from app.src.services.client_subscription_manager import ClientSubscriptionManager
 from app.src.services.sequence_generator import SequenceGenerator
 from app.src.services.operation_tracker import OperationTracker
+from app.src.domain.protocols.state_manager_protocol import StateManagerProtocol, PlaybackState
 
 logger = get_logger(__name__)
 
@@ -76,7 +77,7 @@ def _convert_state_event_type_to_socket_event_type(
     return socket_event_type
 
 
-class StateManager:
+class StateManager(StateManagerProtocol):
     """
     Streamlined server-authoritative state manager.
 
@@ -85,6 +86,8 @@ class StateManager:
     - ClientSubscriptionManager: Room subscriptions
     - SequenceGenerator: Event ordering
     - OperationTracker: Deduplication
+
+    Implements StateManagerProtocol for domain compatibility.
     """
 
     def __init__(self, socketio_server=None):
@@ -103,6 +106,16 @@ class StateManager:
         # Cleanup task management
         self._cleanup_task: Optional[asyncio.Task] = None
         self._cleanup_interval = 300  # 5 minutes
+
+        # State management for protocol compliance
+        self._current_state = PlaybackState.STOPPED
+        self._current_track_info: Dict[str, Any] = {}
+        self._current_playlist_info: Dict[str, Any] = {}
+        self._current_position: float = 0.0
+        self._current_volume: int = 50
+        self._last_error: Optional[str] = None
+        self._current_playlist: Optional[Dict[str, Any]] = None
+        self._current_track_number: Optional[int] = None
 
         logger.log(LogLevel.INFO, "StateManager initialized with focused components")
 
@@ -320,21 +333,21 @@ class StateManager:
         """Send playlists snapshot to client."""
         # Pure domain architecture - use application service
         from app.src.application.services.playlist_application_service import (
-            PlaylistApplicationService,
+            DataApplicationService,
         )
 
         # Get playlist repository and initialize application service
 
         from app.src.dependencies import get_playlist_repository_adapter
         playlist_repository = get_playlist_repository_adapter()
-        playlist_app_service = PlaylistApplicationService(playlist_repository)
+        playlist_app_service = DataApplicationService(playlist_repository)
         # Get all playlists via application service
         playlists_result = await playlist_app_service.get_all_playlists_use_case()
         if playlists_result["status"] == "success":
             playlists = playlists_result.get("playlists", [])
         else:
             # Pure domain architecture - use unified controller as fallback
-            from app.src.domain.controllers.unified_controller import unified_controller
+            from app.src.application.controllers.unified_controller import unified_controller
 
             playlists = (
                 await unified_controller.get_all_playlists()
@@ -358,21 +371,21 @@ class StateManager:
         """Send specific playlist snapshot to client."""
         # Pure domain architecture - use application service
         from app.src.application.services.playlist_application_service import (
-            PlaylistApplicationService,
+            DataApplicationService,
         )
 
         # Get playlist repository and initialize application service
 
         from app.src.dependencies import get_playlist_repository_adapter
         playlist_repository = get_playlist_repository_adapter()
-        playlist_app_service = PlaylistApplicationService(playlist_repository)
+        playlist_app_service = DataApplicationService(playlist_repository)
         # Get specific playlist via application service
         playlist_result = await playlist_app_service.get_playlist_use_case(playlist_id)
         if playlist_result["status"] == "success":
             playlist = playlist_result.get("playlist")
         else:
             # Pure domain architecture - use unified controller as fallback
-            from app.src.domain.controllers.unified_controller import unified_controller
+            from app.src.application.controllers.unified_controller import unified_controller
 
             # Note: unified_controller doesn't have get_playlist method, use app service directly
             playlist = None  # Graceful degradation
@@ -549,3 +562,94 @@ class StateManager:
             "cleanup_task_running": self._cleanup_task is not None
             and not self._cleanup_task.done(),
         }
+
+    # StateManagerProtocol implementation
+    def get_current_state(self) -> PlaybackState:
+        """Get current playback state."""
+        return self._current_state
+
+    def set_state(self, state: PlaybackState) -> None:
+        """Set current playback state."""
+        self._current_state = state
+        logger.log(LogLevel.DEBUG, f"State updated to: {state.value}")
+
+    def get_state_dict(self) -> Dict[str, Any]:
+        """Get complete state as dictionary."""
+        return {
+            "state": self._current_state.value,
+            "track": self._current_track_info,
+            "playlist": self._current_playlist_info,
+            "position": self._current_position,
+            "volume": self._current_volume,
+            "error": self._last_error,
+        }
+
+    def update_track_info(self, track_info: Dict[str, Any]) -> None:
+        """Update current track information."""
+        self._current_track_info = track_info
+        logger.log(LogLevel.DEBUG, f"Track info updated: {track_info.get('title', 'Unknown')}")
+
+    def update_playlist_info(self, playlist_info: Dict[str, Any]) -> None:
+        """Update current playlist information."""
+        self._current_playlist_info = playlist_info
+        logger.log(LogLevel.DEBUG, f"Playlist info updated: {playlist_info.get('title', 'Unknown')}")
+
+    def update_position(self, position_seconds: float) -> None:
+        """Update current playback position."""
+        self._current_position = position_seconds
+
+    def update_volume(self, volume: int) -> None:
+        """Update current volume level."""
+        self._current_volume = volume
+        logger.log(LogLevel.DEBUG, f"Volume updated to: {volume}")
+
+    def set_error(self, error_message: str) -> None:
+        """Set error state with message."""
+        self._last_error = error_message
+        self._current_state = PlaybackState.ERROR
+        logger.log(LogLevel.ERROR, f"Error state set: {error_message}")
+
+    def clear_error(self) -> None:
+        """Clear error state."""
+        self._last_error = None
+        if self._current_state == PlaybackState.ERROR:
+            self._current_state = PlaybackState.STOPPED
+        logger.log(LogLevel.DEBUG, "Error state cleared")
+
+    def get_last_error(self) -> Optional[str]:
+        """Get last error message."""
+        return self._last_error
+
+    def get_current_playlist(self) -> Optional[Dict[str, Any]]:
+        """Get current playlist information.
+
+        Returns:
+            Current playlist data or None if no playlist is loaded
+        """
+        return self._current_playlist
+
+    def set_current_playlist(self, playlist: Optional[Dict[str, Any]]) -> None:
+        """Set current playlist information.
+
+        Args:
+            playlist: Playlist data to set as current
+        """
+        self._current_playlist = playlist
+        logger.log(LogLevel.DEBUG, f"Current playlist updated: {playlist.get('title', 'Unknown') if playlist else 'None'}")
+
+    def get_current_track_number(self) -> Optional[int]:
+        """Get current track number in playlist.
+
+        Returns:
+            Current track number (1-based) or None if no track is playing
+        """
+        return self._current_track_number
+
+    def set_current_track_number(self, track_number: Optional[int]) -> None:
+        """Set current track number in playlist.
+
+        Args:
+            track_number: Track number to set (1-based)
+        """
+        self._current_track_number = track_number
+        logger.log(LogLevel.DEBUG, f"Current track number updated: {track_number}")

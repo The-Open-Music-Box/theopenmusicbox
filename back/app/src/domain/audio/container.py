@@ -8,13 +8,13 @@ from typing import Optional, Any
 
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.error.unified_error_decorator import handle_errors
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
-from .protocols.audio_backend_protocol import AudioBackendProtocol
-from .protocols.audio_engine_protocol import AudioEngineProtocol
-from .protocols.playlist_manager_protocol import PlaylistManagerProtocol
-from .protocols.event_bus_protocol import EventBusProtocol
-from .protocols.state_manager_protocol import StateManagerProtocol
+from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
+from app.src.domain.protocols.audio_engine_protocol import AudioEngineProtocol
+# PlaylistManagerProtocol removed - use data domain services
+from app.src.domain.protocols.event_bus_protocol import EventBusProtocol
+from app.src.domain.protocols.state_manager_protocol import StateManagerProtocol
 
 from .factory import AudioDomainFactory
 
@@ -33,7 +33,7 @@ class AudioDomainContainer:
     def __init__(self):
         self._audio_engine: Optional[AudioEngineProtocol] = None
         self._backend: Optional[AudioBackendProtocol] = None
-        self._playlist_manager: Optional[PlaylistManagerProtocol] = None
+        # Playlist manager removed - use data domain services
         self._event_bus: Optional[EventBusProtocol] = None
         self._state_manager: Optional[StateManagerProtocol] = None
 
@@ -52,13 +52,12 @@ class AudioDomainContainer:
             return
 
         # Create complete audio system
-        audio_engine, backend, playlist_manager = AudioDomainFactory.create_complete_system(
+        audio_engine, backend = AudioDomainFactory.create_complete_system(
             existing_backend
         )
         # Store references
         self._audio_engine = audio_engine
         self._backend = backend
-        self._playlist_manager = playlist_manager
         self._event_bus = audio_engine.event_bus
         self._state_manager = audio_engine.state_manager
         self._is_initialized = True
@@ -76,11 +75,15 @@ class AudioDomainContainer:
 
     async def stop(self) -> None:
         """Stop the audio system."""
-        if not self._is_initialized:
+        if not self._is_initialized or not self._audio_engine:
             return
 
-        await self._audio_engine.stop()
-        logger.log(LogLevel.INFO, "Audio domain stopped")
+        try:
+            await self._audio_engine.stop()
+            logger.log(LogLevel.INFO, "Audio domain stopped")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Error stopping audio engine during shutdown: {e}")
+            # Don't re-raise during shutdown to prevent recursion
 
     @handle_errors("cleanup")
     def cleanup(self) -> None:
@@ -88,8 +91,7 @@ class AudioDomainContainer:
         if not self._is_initialized:
             return
 
-        if self._playlist_manager:
-            self._playlist_manager.cleanup()
+        # Playlist manager cleanup removed - use data domain services
         if self._backend:
             self._backend.cleanup()
         self._is_initialized = False
@@ -111,12 +113,7 @@ class AudioDomainContainer:
             raise RuntimeError("Container not initialized")
         return self._backend
 
-    @property
-    def playlist_manager(self) -> PlaylistManagerProtocol:
-        """Get the playlist manager."""
-        if not self._is_initialized:
-            raise RuntimeError("Container not initialized")
-        return self._playlist_manager
+    # Playlist manager property removed - use data domain services
 
     @property
     def event_bus(self) -> EventBusProtocol:

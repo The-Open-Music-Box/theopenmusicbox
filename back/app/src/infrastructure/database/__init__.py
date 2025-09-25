@@ -6,7 +6,7 @@
 Pure DDD Database Infrastructure Module
 
 This module contains database infrastructure components following DDD principles:
-- SQLiteDatabaseService: Pure infrastructure implementation of DatabaseServiceProtocol
+- SQLiteDatabaseService: Pure infrastructure implementation of PersistenceServiceProtocol
 - Clean separation between domain protocols and infrastructure implementations
 """
 

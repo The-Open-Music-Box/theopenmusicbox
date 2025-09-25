@@ -2,75 +2,88 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""Audio engine protocol for dependency injection."""
+"""Audio engine protocol for coordinating audio operations."""
 
-from typing import Protocol, Dict, Any
-from app.src.domain.models.playlist import Playlist
+from typing import Protocol, Optional, Dict, Any
+from abc import abstractmethod
 
 
 class AudioEngineProtocol(Protocol):
-    """Protocol defining the interface for the audio engine."""
+    """Protocol for audio engine operations.
 
-    async def start(self) -> None:
-        """Start the audio engine."""
+    Coordinates audio playback with system state and events.
+    Focused on audio orchestration without data management.
+    """
+
+    @abstractmethod
+    async def play_track_by_path(self, file_path: str, track_id: Optional[str] = None) -> bool:
+        """Play a track by file path.
+
+        Args:
+            file_path: Path to the audio file
+            track_id: Optional track ID for tracking
+
+        Returns:
+            True if playback started successfully
+        """
         ...
 
-    async def stop(self) -> None:
-        """Stop the audio engine."""
-        ...
-
-    @property
-    def is_running(self) -> bool:
-        """Check if engine is running."""
-        ...
-
-    # Playlist operations
-    async def load_playlist(self, playlist: Playlist) -> bool:
-        """Load a playlist for playback."""
-        ...
-
-    async def play_playlist(self, playlist: Playlist) -> bool:
-        """Load and start playing a playlist."""
-        ...
-
-    async def next_track(self) -> bool:
-        """Advance to next track."""
-        ...
-
-    async def previous_track(self) -> bool:
-        """Go to previous track."""
-        ...
-
-    async def play_track_by_index(self, index: int) -> bool:
-        """Play track by index."""
-        ...
-
-    # Playback control
-    async def play_file(self, file_path: str) -> bool:
-        """Play a single audio file."""
-        ...
-
+    @abstractmethod
     async def pause_playback(self) -> bool:
-        """Pause current playback."""
+        """Pause current playback.
+
+        Returns:
+            True if pause was successful
+        """
         ...
 
+    @abstractmethod
     async def resume_playback(self) -> bool:
-        """Resume paused playback."""
+        """Resume paused playback.
+
+        Returns:
+            True if resume was successful
+        """
         ...
 
+    @abstractmethod
     async def stop_playback(self) -> bool:
-        """Stop current playback."""
+        """Stop current playback.
+
+        Returns:
+            True if stop was successful
+        """
         ...
 
+    @abstractmethod
     async def set_volume(self, volume: int) -> bool:
-        """Set playback volume."""
+        """Set playback volume.
+
+        Args:
+            volume: Volume level (0-100)
+
+        Returns:
+            True if volume was set successfully
+        """
         ...
 
-    # State access
-    def get_state_dict(self) -> Dict[str, Any]:
-        """Get current state as dictionary."""
+    @abstractmethod
+    def get_playback_state(self) -> Dict[str, Any]:
+        """Get current playback state.
+
+        Returns:
+            Dictionary with current playback state
+        """
         ...
 
-    def get_engine_statistics(self) -> Dict[str, Any]:
-        """Get comprehensive engine statistics."""
+    @abstractmethod
+    async def seek_to_position(self, position_ms: int) -> bool:
+        """Seek to a specific position.
+
+        Args:
+            position_ms: Position in milliseconds
+
+        Returns:
+            True if seek was successful
+        """
         ...

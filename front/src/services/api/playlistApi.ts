@@ -39,6 +39,15 @@ export const playlistApi = {
     )
     const data = ApiResponseHandler.extractData(response)
 
+    // Validate that we have the expected data structure
+    if (!data || typeof data !== 'object') {
+      throw new Error(`API response.data is invalid: ${typeof data}`)
+    }
+
+    if (!Array.isArray(data.playlists)) {
+      throw new Error(`API response.data.playlists is not an array: ${typeof data.playlists}`)
+    }
+
     // Convert backend format to frontend PaginatedData format
     const result = {
       items: data.playlists,  // Backend uses "playlists", frontend expects "items"

@@ -4,12 +4,20 @@
 
 """NFC Factory for creating configured NFC services."""
 
+import asyncio
 from typing import Optional, Any
 
 from app.src.domain.nfc import NfcAssociationService, NfcHardwareProtocol, NfcRepositoryProtocol
+from app.src.infrastructure.adapters.nfc.nfc_adapter import NFCHandlerAdapter
 from app.src.application.services.nfc_application_service import NfcApplicationService
+from app.src.infrastructure.hardware.nfc import create_nfc_hardware
+from app.src.config.nfc_config import NFCConfig
 from .adapters.nfc_hardware_adapter import NfcHardwareAdapter, MockNfcHardwareAdapter
 from .repositories.nfc_memory_repository import NfcMemoryRepository
+from app.src.monitoring import get_logger
+from app.src.monitoring.logging.log_level import LogLevel
+
+logger = get_logger(__name__)
 
 
 class NfcFactory:
@@ -58,3 +66,33 @@ class NfcFactory:
             NFC application service with mock implementations
         """
         return NfcFactory.create_nfc_application_service(use_mock_hardware=True)
+
+    @staticmethod
+    async def create_nfc_handler_adapter(nfc_lock: Optional[asyncio.Lock] = None) -> NFCHandlerAdapter:
+        """Factory function to get NFC handler with new infrastructure.
+
+        Args:
+            nfc_lock: Optional asyncio lock for I2C bus synchronization
+
+        Returns:
+            NFCHandlerAdapter wrapping the appropriate hardware implementation
+        """
+        logger.log(LogLevel.INFO, "🏭 Creating NFC handler with new infrastructure...")
+
+        # Create NFC configuration
+        config = NFCConfig()
+
+        # Create hardware implementation using factory
+        hardware = await create_nfc_hardware(
+            bus_lock=nfc_lock,
+            config=config,
+            force_mock=False,  # Let factory decide based on environment
+        )
+
+        # Wrap hardware in adapter
+        adapter = NFCHandlerAdapter(hardware)
+
+        hardware_info = "Mock" if adapter._is_mock else "Real PN532"
+        logger.log(LogLevel.INFO, f"✅ NFC handler created with {hardware_info} hardware")
+
+        return adapter

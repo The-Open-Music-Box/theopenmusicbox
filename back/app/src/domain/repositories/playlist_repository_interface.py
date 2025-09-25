@@ -11,13 +11,13 @@ that infrastructure implementations must fulfill.
 
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from app.src.domain.models.playlist import Playlist
+from app.src.domain.data.models.playlist import Playlist
 
 
-class PlaylistRepositoryInterface(ABC):
-    """Interface for playlist repository operations.
+class PlaylistRepositoryProtocol(ABC):
+    """Protocol for playlist repository operations.
 
-    Following DDD principles, this interface belongs in the domain layer
+    Following DDD principles, this protocol belongs in the domain layer
     and defines the contract for playlist persistence without coupling
     to specific infrastructure implementations.
     """

@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Dict
 
 from app.src.config.nfc_config import NFCConfig
-from app.src.domain.nfc.nfc_adapter import get_nfc_handler
+from app.src.infrastructure.nfc.nfc_factory import NfcFactory
 
 # Application imports
 from app.src.monitoring import get_logger
@@ -92,6 +92,12 @@ class Application:
     async def _initialize_domain_architecture(self) -> None:
         """Initialize the pure domain-driven architecture."""
         logger.log(LogLevel.INFO, "🚀 Initializing PURE domain-driven architecture...")
+
+        # Register data domain services first
+        from app.src.infrastructure.di.data_container import register_data_domain_services
+        register_data_domain_services()
+        logger.log(LogLevel.INFO, "✅ Data domain services registered")
+
         # Get existing audio backend from container (if any)
         container_audio = None
         try:
@@ -113,7 +119,7 @@ class Application:
             logger.log(LogLevel.INFO, "✅ Pure Domain Application initialized successfully")
 
         # Get unified controller from pure domain architecture
-        from app.src.domain.controllers.unified_controller import unified_controller
+        from app.src.application.controllers.unified_controller import unified_controller
 
         self._playlist_controller = unified_controller
         logger.log(LogLevel.INFO, "✅ Unified controller obtained from pure domain architecture")
@@ -243,7 +249,7 @@ class Application:
         if self._nfc_lock is None:
             self._nfc_lock = asyncio.Lock()
         # Initialize the NFC hardware handler
-        self._nfc_handler = await get_nfc_handler(self._nfc_lock)
+        self._nfc_handler = await NfcFactory.create_nfc_handler_adapter(self._nfc_lock)
         logger.log(
             LogLevel.INFO,
             f"NFC handler initialized: {type(self._nfc_handler).__name__}",
@@ -370,10 +376,31 @@ class Application:
                     logger.log(LogLevel.ERROR, f"❌ Error stopping NFC service: {e}")
 
             # Additional cleanup specific to Application
-            if hasattr(self, "_playlist_controller") and hasattr(
+            if hasattr(self, "_playlist_controller") and self._playlist_controller and hasattr(
                 self._playlist_controller, "cleanup"
             ):
-                await self._playlist_controller.cleanup()
+                cleanup_method = getattr(self._playlist_controller, "cleanup")
+                if cleanup_method:
+                    # Check if it's a coroutine function
+                    import inspect
+                    if inspect.iscoroutinefunction(cleanup_method):
+                        await cleanup_method()
+                    else:
+                        cleanup_method()
+                    logger.log(LogLevel.INFO, "✅ Playlist controller cleanup completed")
+                else:
+                    logger.log(LogLevel.WARNING, "⚠️ Playlist controller cleanup method is None")
+            else:
+                logger.log(LogLevel.WARNING, "⚠️ Playlist controller not available for cleanup")
+
+            # Clean up domain bootstrap
+            if hasattr(domain_bootstrap, "stop") and domain_bootstrap.is_initialized:
+                await domain_bootstrap.stop()
+                logger.log(LogLevel.INFO, "✅ Domain bootstrap stopped")
+
+            if hasattr(domain_bootstrap, "cleanup") and domain_bootstrap.is_initialized:
+                domain_bootstrap.cleanup()
+                logger.log(LogLevel.INFO, "✅ Domain bootstrap cleanup completed")
         except Exception as e:
             logger.log(LogLevel.ERROR, f"Error during application cleanup: {e}")
             logger.log(LogLevel.DEBUG, f"Cleanup error details: {traceback.format_exc()}")

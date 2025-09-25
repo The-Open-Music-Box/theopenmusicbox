@@ -15,7 +15,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 
-from app.src.domain.error_handling.unified_error_handler import InvalidFileError
+from app.src.infrastructure.error_handling.unified_error_handler import InvalidFileError
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.upload_service import UploadService

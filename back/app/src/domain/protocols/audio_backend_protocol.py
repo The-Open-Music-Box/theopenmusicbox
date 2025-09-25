@@ -2,110 +2,116 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""Audio backend protocol for dependency injection."""
+"""Audio backend protocol for pure audio playback operations."""
 
-from typing import Protocol, Optional
+from typing import Protocol, Optional, runtime_checkable
+from abc import abstractmethod
 
 
+@runtime_checkable
 class AudioBackendProtocol(Protocol):
-    """Protocol defining the interface for audio backends."""
+    """Protocol for pure audio backend operations.
 
-    @property
-    def is_playing(self) -> bool:
-        """Check if audio is currently playing."""
-        ...
+    This protocol defines the contract for audio playback backends.
+    It is focused solely on audio playback control, without any
+    playlist or data management responsibilities.
+    """
 
-    @property
-    def is_paused(self) -> bool:
-        """Check if audio is currently paused."""
-        ...
-
-    @property
-    def is_busy(self) -> bool:
-        """Check if backend is busy processing."""
-        ...
-
-    def play_file(self, file_path: str) -> bool:
+    @abstractmethod
+    async def play(self, file_path: str) -> bool:
         """Play an audio file.
 
         Args:
             file_path: Path to the audio file
 
         Returns:
-            bool: True if playback started successfully
+            True if playback started successfully
         """
         ...
 
-    def pause(self) -> bool:
+    @abstractmethod
+    async def pause(self) -> bool:
         """Pause current playback.
 
         Returns:
-            bool: True if paused successfully
+            True if pause was successful
         """
         ...
 
-    def resume(self) -> bool:
+    @abstractmethod
+    async def resume(self) -> bool:
         """Resume paused playback.
 
         Returns:
-            bool: True if resumed successfully
+            True if resume was successful
         """
         ...
 
-    def stop(self) -> bool:
+    @abstractmethod
+    async def stop(self) -> bool:
         """Stop current playback.
 
         Returns:
-            bool: True if stopped successfully
+            True if stop was successful
         """
         ...
 
-    def set_volume(self, volume: int) -> bool:
+    @abstractmethod
+    async def set_volume(self, volume: int) -> bool:
         """Set playback volume.
 
         Args:
             volume: Volume level (0-100)
 
         Returns:
-            bool: True if volume was set successfully
+            True if volume was set successfully
         """
         ...
 
-    def get_volume(self) -> int:
+    @abstractmethod
+    async def get_volume(self) -> int:
         """Get current volume level.
 
         Returns:
-            int: Current volume (0-100)
+            Current volume (0-100)
         """
         ...
 
-    def get_position(self) -> float:
-        """Get current playback position in seconds.
-
-        Returns:
-            float: Current position in seconds
-        """
-        ...
-
-    def set_position(self, position_seconds: float) -> bool:
-        """Set playback position (seek).
+    @abstractmethod
+    async def seek(self, position_ms: int) -> bool:
+        """Seek to a specific position.
 
         Args:
-            position_seconds: Position to seek to in seconds
+            position_ms: Position in milliseconds
 
         Returns:
-            bool: True if seeking was successful
+            True if seek was successful
         """
         ...
 
-    def get_duration(self) -> Optional[float]:
-        """Get duration of current track in seconds.
+    @abstractmethod
+    async def get_position(self) -> Optional[int]:
+        """Get current playback position.
 
         Returns:
-            Optional[float]: Duration in seconds, None if not available
+            Current position in milliseconds or None if not playing
         """
         ...
 
-    def cleanup(self) -> None:
-        """Clean up backend resources."""
+    @abstractmethod
+    async def get_duration(self) -> Optional[int]:
+        """Get duration of current track.
+
+        Returns:
+            Duration in milliseconds or None if not available
+        """
+        ...
+
+    @abstractmethod
+    def is_playing(self) -> bool:
+        """Check if audio is currently playing.
+
+        Returns:
+            True if audio is playing
+        """
         ...

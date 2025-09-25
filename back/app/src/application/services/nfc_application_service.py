@@ -65,44 +65,57 @@ class NfcApplicationService:
         # Cleanup task
         self._cleanup_task: Optional[asyncio.Task] = None
 
-    @handle_service_errors("nfc_application")
     async def start_nfc_system(self) -> Dict[str, Any]:
         """Start the NFC system.
 
         Returns:
             Status dictionary
         """
-        await self._nfc_hardware.start_detection()
-        # Start cleanup task for expired sessions
-        if not self._cleanup_task or self._cleanup_task.done():
-            self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
-        logger.log(LogLevel.INFO, "✅ NFC system started successfully")
-        return {
-            "status": "success",
-            "message": "NFC system started",
-            "hardware_status": self._nfc_hardware.get_hardware_status(),
-        }
+        try:
+            await self._nfc_hardware.start_detection()
+            # Start cleanup task for expired sessions
+            if not self._cleanup_task or self._cleanup_task.done():
+                self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
+            logger.log(LogLevel.INFO, "✅ NFC system started successfully")
+            return {
+                "status": "success",
+                "message": "NFC system started",
+                "hardware_status": self._nfc_hardware.get_hardware_status(),
+            }
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"❌ Failed to start NFC system: {e}")
+            return {
+                "status": "error",
+                "message": f"Failed to start NFC system: {str(e)}",
+                "error_type": "hardware_error",
+            }
 
-    @handle_service_errors("nfc_application")
     async def stop_nfc_system(self) -> Dict[str, Any]:
         """Stop the NFC system.
 
         Returns:
             Status dictionary
         """
-        await self._nfc_hardware.stop_detection()
-        # Cancel cleanup task
-        if self._cleanup_task and not self._cleanup_task.done():
-            self._cleanup_task.cancel()
-            try:
-                await self._cleanup_task
-            except asyncio.CancelledError:
-                pass  # Expected when cancelling
+        try:
+            await self._nfc_hardware.stop_detection()
+            # Cancel cleanup task
+            if self._cleanup_task and not self._cleanup_task.done():
+                self._cleanup_task.cancel()
+                try:
+                    await self._cleanup_task
+                except asyncio.CancelledError:
+                    pass  # Expected when cancelling
 
-        logger.log(LogLevel.INFO, "✅ NFC system stopped successfully")
-        return {"status": "success", "message": "NFC system stopped"}
+            logger.log(LogLevel.INFO, "✅ NFC system stopped successfully")
+            return {"status": "success", "message": "NFC system stopped"}
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"Failed to stop NFC system: {e}")
+            return {
+                "status": "error",
+                "message": f"Failed to stop NFC system: {str(e)}",
+                "error_type": "hardware_error",
+            }
 
-    @handle_service_errors("nfc_application")
     async def start_association_use_case(
         self, playlist_id: str, timeout_seconds: int = 60
     ) -> Dict[str, Any]:
@@ -124,7 +137,6 @@ class NfcApplicationService:
             "session": session.to_dict(),
         }
 
-    @handle_service_errors("nfc_application")
     async def stop_association_use_case(self, session_id: str) -> Dict[str, Any]:
         """Use case: Stop an association session.
 
@@ -148,7 +160,6 @@ class NfcApplicationService:
                 "error_type": "not_found",
             }
 
-    @handle_service_errors("nfc_application")
     async def get_nfc_status_use_case(self) -> Dict[str, Any]:
         """Use case: Get comprehensive NFC system status.
 
@@ -167,7 +178,6 @@ class NfcApplicationService:
             "session_count": len(active_sessions),
         }
 
-    @handle_service_errors("nfc_application")
     async def dissociate_tag_use_case(self, tag_id: str) -> Dict[str, Any]:
         """Use case: Dissociate a tag from its playlist.
 
@@ -204,7 +214,6 @@ class NfcApplicationService:
         """
         self._association_callbacks.append(callback)
 
-    @handle_service_errors("nfc_application")
     def _on_tag_detected(self, tag_data) -> None:
         """Handle tag detection from hardware."""
         # Convert string or dict to TagIdentifier
@@ -224,7 +233,6 @@ class NfcApplicationService:
         """Handle tag removal from hardware."""
         logger.log(LogLevel.DEBUG, "📱 NFC tag removed")
 
-    @handle_service_errors("nfc_application")
     async def _handle_tag_detection(self, tag_identifier: TagIdentifier) -> None:
         """Handle detected tag processing."""
         logger.log(

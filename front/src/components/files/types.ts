@@ -57,10 +57,10 @@ export interface Track {
   // Statistics
   play_count: number;
   
-  // Timestamps
-  created_at: string;            // ISO8601 format
-  updated_at?: string;           // ISO8601 format
-  
+  // Timestamps (can be null from backend)
+  created_at: string | null;     // ISO8601 format or null
+  updated_at?: string | null;    // ISO8601 format or null
+
   // State synchronization
   server_seq: number;
 
@@ -79,7 +79,8 @@ export interface PlayList extends BaseContent {
   last_played: number; // Unix timestamp in milliseconds
   tracks: Track[];
   track_count?: number; // Add track_count field for unified store compatibility
-  created_at?: string;
+  created_at?: string | null;  // Can be null from backend
+  updated_at?: string | null;  // Can be null from backend
   nfc_tag_id?: string; // NFC tag association (optionnel)
 }
 

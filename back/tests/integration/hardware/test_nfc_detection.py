@@ -9,7 +9,7 @@ from pathlib import Path
 app_path = Path(__file__).parent / "app"
 sys.path.insert(0, str(app_path))
 
-from app.src.domain.nfc.nfc_adapter import get_nfc_handler
+from app.src.infrastructure.nfc.nfc_factory import NfcFactory
 from app.src.monitoring.logging.log_level import LogLevel
 from app.src.monitoring import get_logger
 
@@ -21,7 +21,7 @@ async def test_nfc_detection():
     
     # Create NFC handler
     nfc_lock = asyncio.Lock()
-    nfc_handler = await get_nfc_handler(nfc_lock)
+    nfc_handler = await NfcFactory.create_nfc_handler_adapter(nfc_lock)
     
     # Test callback counter
     detection_count = 0

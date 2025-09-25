@@ -16,7 +16,7 @@ from datetime import datetime
 
 from ..common.data_models import PlayerStateModel, TrackModel, PlaybackState
 from ..monitoring import get_error_handler
-from app.src.domain.error_handling.unified_error_handler import service_unavailable_error
+from app.src.infrastructure.error_handling.unified_error_handler import service_unavailable_error
 from .state_manager import StateEventType
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel

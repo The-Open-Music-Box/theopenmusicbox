@@ -23,7 +23,7 @@ from fastapi import (
 )
 from socketio import AsyncServer
 
-from app.src.domain.controllers.unified_controller import (
+from app.src.application.controllers.unified_controller import (
     unified_controller as PlaylistControllerState,
 )
 from app.src.controllers.upload_controller import UploadController
@@ -105,7 +105,7 @@ class PlaylistRoutesState:
                 LogLevel.WARNING, "⚠️ AudioController initialized without domain audio engine"
             )
 
-        from app.src.domain.error_handling.unified_error_handler import unified_error_handler
+        from app.src.infrastructure.error_handling.unified_error_handler import unified_error_handler
 
         self.error_handler = unified_error_handler
 
@@ -202,20 +202,13 @@ class PlaylistRoutesState:
         @self.router.get("")
         @self.router.get("/")
         async def list_playlists_index(
-            limit: int = Query(..., description="Number of playlists to return (required)"),
-            cursor: Optional[str] = None,
-            sort: str = "updated_at.desc",
-            # Legacy compatibility parameters
-            page: Optional[int] = None,
-            page_size: Optional[int] = None,
+            page: int = Query(1, description="Page number"),
+            limit: int = Query(50, description="Number of playlists to return"),
             request: Request = None,
         ):
-            """Get all playlists with complete data including tracks."""
+            """Get all playlists with pagination."""
             try:
-                # Clean architecture - always use legacy mode with full playlist data
-                page = page or 1
-                page_size = page_size or limit  # limit is required, no fallback
-                playlists = await self.playlist_controller.get_all_playlists(page, page_size)
+                playlists = await self.playlist_controller.get_all_playlists(page, limit)
 
                 if playlists is None:
                     playlists = []
@@ -229,12 +222,12 @@ class PlaylistRoutesState:
                 )
 
                 total_count = len(serialized_playlists)
-                total_pages = (total_count + page_size - 1) // page_size
+                total_pages = (total_count + limit - 1) // limit
 
                 data = {
                     "playlists": serialized_playlists,
                     "page": page,
-                    "limit": page_size,
+                    "limit": limit,
                     "total": total_count,
                     "total_pages": total_pages,
                 }
@@ -583,8 +576,8 @@ class PlaylistRoutesState:
                 )
                 if playlist_data:
                     # Convert dictionary to Playlist object for AudioController compatibility
-                    from app.src.domain.models.playlist import Playlist
-                    from app.src.domain.models.track import Track
+                    from app.src.domain.data.models.playlist import Playlist
+                    from app.src.domain.data.models.track import Track
 
                     # Create Track objects from dictionary data
                     tracks = []

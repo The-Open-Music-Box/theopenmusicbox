@@ -11,7 +11,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=root
+User=admin
 WorkingDirectory=/home/admin/tomb
 
 # Environment settings

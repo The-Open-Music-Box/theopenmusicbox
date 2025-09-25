@@ -51,9 +51,9 @@ export interface Track {
   // Statistics
   play_count: number;
   
-  // Timestamps
-  created_at: string;            // ISO8601 format
-  updated_at?: string;           // ISO8601 format
+  // Timestamps (can be null from backend)
+  created_at: string | null;     // ISO8601 format or null
+  updated_at?: string | null;    // ISO8601 format or null
   
   // State synchronization
   server_seq: number;
@@ -65,16 +65,22 @@ export interface Playlist {
   title: string;                 // Resolved to 'title' everywhere (no more name/title confusion)
   description: string;           // Now required with default empty string
   
+  // Type identifier
+  type: 'playlist';
+
   // NFC integration
   nfc_tag_id?: string;
-  
+
   // Tracks
   tracks: Track[];
   track_count: number;           // Always matches tracks.length
+
+  // Playback state
+  last_played: number;           // Unix timestamp in milliseconds
   
-  // Timestamps
-  created_at: string;            // ISO8601 format
-  updated_at?: string;           // ISO8601 format
+  // Timestamps (can be null from backend)
+  created_at: string | null;     // ISO8601 format or null
+  updated_at?: string | null;    // ISO8601 format or null
   
   // State synchronization
   server_seq: number;

@@ -1,7 +1,5 @@
 """Audio backend implementations."""
 
-from .backend_adapter import BackendAdapter
+# Domain backend implementations - no infrastructure dependencies
 
-__all__ = [
-    "BackendAdapter",
-]
+__all__ = []

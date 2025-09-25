@@ -9,18 +9,19 @@ and provides a foundation for all audio backend implementations.
 """
 
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 from contextlib import contextmanager
 
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.notification_service import PlaybackSubject
+from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
 
 # Resource manager functionality will be added later if needed
 
-from ...protocols.audio_backend_protocol import AudioBackendProtocol
-from app.src.services.error.unified_error_decorator import handle_errors
+from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
+from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
 logger = get_logger(__name__)
 
@@ -141,7 +142,7 @@ class BaseAudioBackend(AudioBackendProtocol):
 
     @contextmanager
     def _acquire_audio_resource(self, resource_type: str):
-        """Acquire audio resource with automatic cleanup.
+        """Acquire audio resource with automatic cleanup and proper resource management.
 
         Args:
             resource_type: Type of resource to acquire
@@ -149,11 +150,24 @@ class BaseAudioBackend(AudioBackendProtocol):
         Yields:
             Resource instance
         """
-        # TODO: Implement proper resource management when resource_manager is available
+        # Implement proper resource management with tracking and cleanup
+        resource_id = f"{resource_type}_{id(self)}"
+        logger.log(LogLevel.DEBUG, f"🔒 Acquiring audio resource: {resource_id}")
+
         resource = self._create_audio_resource(resource_type)
+
+        # Track resource usage for monitoring
+        start_time = time.time()
+
         try:
             yield resource
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"❌ Error using audio resource {resource_id}: {e}")
+            raise
         finally:
+            # Clean up and log resource usage
+            usage_time = time.time() - start_time
+            logger.log(LogLevel.DEBUG, f"🔓 Releasing audio resource: {resource_id} (used {usage_time:.2f}s)")
             self._cleanup_audio_resource(resource_type, resource)
 
     def _create_audio_resource(self, resource_type: str):

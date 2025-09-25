@@ -26,6 +26,8 @@ class MockStateManager:
         self._acknowledgments: List[Dict[str, Any]] = []
         self._subscribers: List[Callable] = []
         self._client_operations: Dict[str, Dict[str, Any]] = {}
+        self._current_playlist: Optional[Dict[str, Any]] = None
+        self._current_track_number: Optional[int] = None
 
     async def broadcast_state_change(self, event_type: str, data: Dict[str, Any]) -> None:
         """Mock state change broadcasting.
@@ -213,3 +215,37 @@ class MockStateManager:
         self._acknowledgments.clear()
         self._subscribers.clear()
         self._client_operations.clear()
+        self._current_playlist = None
+        self._current_track_number = None
+
+    def get_current_playlist(self) -> Optional[Dict[str, Any]]:
+        """Get current playlist information.
+
+        Returns:
+            Current playlist data or None if no playlist is loaded
+        """
+        return self._current_playlist
+
+    def set_current_playlist(self, playlist: Optional[Dict[str, Any]]) -> None:
+        """Set current playlist information.
+
+        Args:
+            playlist: Playlist data to set as current
+        """
+        self._current_playlist = playlist
+
+    def get_current_track_number(self) -> Optional[int]:
+        """Get current track number in playlist.
+
+        Returns:
+            Current track number (1-based) or None if no track is playing
+        """
+        return self._current_track_number
+
+    def set_current_track_number(self, track_number: Optional[int]) -> None:
+        """Set current track number in playlist.
+
+        Args:
+            track_number: Track number to set (1-based)
+        """
+        self._current_track_number = track_number

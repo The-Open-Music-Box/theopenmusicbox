@@ -12,10 +12,10 @@ and implement use cases without containing business logic.
 import pytest
 from unittest.mock import Mock, AsyncMock, patch
 
-from app.src.application.services.playlist_application_service import PlaylistApplicationService
+from app.src.application.services.playlist_application_service import DataApplicationService as PlaylistApplicationService
 from app.src.application.services.audio_application_service import AudioApplicationService
-from app.src.domain.models.playlist import Playlist
-from app.src.domain.models.track import Track
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
 
 
 class TestPlaylistApplicationService:
@@ -23,7 +23,7 @@ class TestPlaylistApplicationService:
     
     def setup_method(self):
         """Set up test dependencies."""
-        self.mock_repository = Mock()
+        self.mock_repository = AsyncMock()
         self.mock_file_service = Mock()
         self.service = PlaylistApplicationService(
             playlist_repository=self.mock_repository,
@@ -37,7 +37,7 @@ class TestPlaylistApplicationService:
         playlist_id = "test-playlist-123"
         
         # Mock the actual method used by the service
-        self.mock_repository.create_playlist = Mock(return_value=playlist_id)
+        self.mock_repository.create_playlist = AsyncMock(return_value=playlist_id)
         
         # Act
         result = await self.service.create_playlist_use_case("Test Playlist", "Test Description")
@@ -71,7 +71,7 @@ class TestPlaylistApplicationService:
     async def test_create_playlist_use_case_repository_error(self):
         """Test handling repository errors during playlist creation."""
         # Arrange
-        self.mock_repository.create_playlist = Mock(side_effect=Exception("Database error"))
+        self.mock_repository.create_playlist = AsyncMock(side_effect=Exception("Database error"))
         
         # Act
         result = await self.service.create_playlist_use_case("Test Playlist", "Description")
@@ -88,18 +88,19 @@ class TestPlaylistApplicationService:
         mock_playlist_data = {
             "id": "retrieve-123",
             "title": "Retrieved Playlist",
+            "name": "Retrieved Playlist",
             "description": "Test description",
             "tracks": [
                 {
                     "track_number": 1,
-                    "title": "Track 1", 
+                    "title": "Track 1",
                     "filename": "t1.mp3",
                     "file_path": "/t1.mp3"
                 }
             ]
         }
         
-        self.mock_repository.get_playlist_by_id = Mock(return_value=mock_playlist_data)
+        self.mock_repository.get_playlist_by_id = AsyncMock(return_value=mock_playlist_data)
         
         # Act
         result = await self.service.get_playlist_use_case("retrieve-123")
@@ -110,13 +111,13 @@ class TestPlaylistApplicationService:
         assert result["playlist"]["name"] == "Retrieved Playlist"
         assert len(result["playlist"]["tracks"]) == 1
         
-        self.mock_repository.find_by_id.assert_called_once_with("retrieve-123")
+        self.mock_repository.get_playlist_by_id.assert_called_once_with("retrieve-123")
     
     @pytest.mark.asyncio
     async def test_get_playlist_use_case_not_found(self):
         """Test playlist retrieval when not found."""
         # Arrange
-        self.mock_repository.find_by_id = AsyncMock(return_value=None)
+        self.mock_repository.get_playlist_by_id = AsyncMock(return_value=None)
         
         # Act
         result = await self.service.get_playlist_use_case("nonexistent")
@@ -130,56 +131,68 @@ class TestPlaylistApplicationService:
     async def test_add_track_to_playlist_use_case_success(self):
         """Test successful track addition."""
         # Arrange
-        with patch.object(self.service, 'get_playlist_use_case') as mock_get_playlist:
-            mock_get_playlist.return_value = {
-                "status": "success",
-                "playlist": {"id": "playlist-123", "name": "Test"}
-            }
-            
-            with patch('app.src.services.playlist_service.PlaylistService') as mock_legacy:
-                mock_instance = Mock()
-                mock_legacy.return_value = mock_instance
-                mock_instance.add_track_to_playlist.return_value = {"success": True}
-                
-                track_data = {
-                    "track_number": 1,
-                    "title": "New Track",
-                    "filename": "new.mp3",
-                    "file_path": "/music/new.mp3"
-                }
-                
-                # Act
-                result = await self.service.add_track_to_playlist_use_case("playlist-123", track_data)
-                
-                # Assert
-                assert result["status"] == "success"
-                assert result["playlist_id"] == "playlist-123"
-                mock_instance.add_track_to_playlist.assert_called_once()
+        mock_playlist_data = {
+            "id": "playlist-123",
+            "title": "Test Playlist",
+            "name": "Test Playlist",
+            "description": "Test",
+            "tracks": []
+        }
+
+        # Mock get playlist
+        self.mock_repository.get_playlist_by_id = AsyncMock(return_value=mock_playlist_data)
+
+        # Mock add track (called when adding track)
+        self.mock_repository.add_track = AsyncMock(return_value=True)
+
+        track_data = {
+            "track_number": 1,
+            "title": "New Track",
+            "filename": "new.mp3",
+            "file_path": "/music/new.mp3"
+        }
+
+        # Act
+        result = await self.service.add_track_to_playlist_use_case("playlist-123", track_data)
+
+        # Assert
+        assert result["status"] == "success"
+        assert result["playlist_id"] == "playlist-123"
+        assert "track" in result
+
+        # Verify repository was called
+        self.mock_repository.get_playlist_by_id.assert_called_with("playlist-123")
+        assert self.mock_repository.get_playlist_by_id.call_count >= 1
+        self.mock_repository.add_track.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_add_track_invalid_data(self):
         """Test adding invalid track data."""
         # Arrange
-        with patch.object(self.service, 'get_playlist_use_case') as mock_get_playlist:
-            mock_get_playlist.return_value = {
-                "status": "success",
-                "playlist": {"id": "playlist-123"}
-            }
-            
-            # Invalid track data (negative track number)
-            invalid_track_data = {
-                "track_number": -1,
-                "title": "",
-                "filename": "",
-                "file_path": ""
-            }
-            
-            # Act
-            result = await self.service.add_track_to_playlist_use_case("playlist-123", invalid_track_data)
-            
-            # Assert
-            assert result["status"] == "error"
-            assert result["error_type"] == "validation_error"
+        mock_playlist_data = {
+            "id": "playlist-123",
+            "title": "Test Playlist",
+            "name": "Test Playlist",
+            "description": "Test",
+            "tracks": []
+        }
+
+        self.mock_repository.get_playlist_by_id = AsyncMock(return_value=mock_playlist_data)
+
+        # Invalid track data (negative track number)
+        invalid_track_data = {
+            "track_number": -1,
+            "title": "",
+            "filename": "",
+            "file_path": ""
+        }
+
+        # Act
+        result = await self.service.add_track_to_playlist_use_case("playlist-123", invalid_track_data)
+
+        # Assert
+        assert result["status"] == "error"
+        assert result["error_type"] == "validation_error"
     
     @pytest.mark.asyncio
     async def test_get_all_playlists_use_case(self):
@@ -211,8 +224,8 @@ class TestAudioApplicationService:
     def setup_method(self):
         """Set up test dependencies."""
         self.mock_audio_container = Mock()
-        self.mock_playlist_service = Mock()
-        self.mock_state_manager = Mock()
+        self.mock_playlist_service = AsyncMock()
+        self.mock_state_manager = AsyncMock()
         self.service = AudioApplicationService(
             audio_domain_container=self.mock_audio_container,
             playlist_application_service=self.mock_playlist_service,
@@ -235,34 +248,32 @@ class TestAudioApplicationService:
                 }
             ]
         }
-        
+
         mock_audio_engine = AsyncMock()
         mock_audio_engine.set_playlist.return_value = True
-        
+
         self.mock_audio_container.is_initialized = True
         self.mock_audio_container.audio_engine = mock_audio_engine
-        
-        with patch('app.src.application.services.playlist_application_service.PlaylistApplicationService') as mock_playlist_service:
-            mock_instance = Mock()
-            mock_playlist_service.return_value = mock_instance
-            mock_instance.get_playlist_use_case = AsyncMock(return_value={
-                "status": "success",
-                "playlist": playlist_data
-            })
-            
-            # Act
-            result = await self.service.play_playlist_use_case("playlist-123")
-            
-            # Assert
-            assert result["status"] == "success"
-            assert result["playlist_id"] == "playlist-123"
-            assert result["track_count"] == 1
-            
-            mock_audio_engine.set_playlist.assert_called_once()
-            # Verify playlist domain entity was created
-            call_args = mock_audio_engine.set_playlist.call_args[0][0]
-            assert isinstance(call_args, Playlist)
-            assert call_args.name == "Test Playlist"
+
+        # Mock playlist service to return success
+        self.mock_playlist_service.get_playlist_use_case.return_value = {
+            "status": "success",
+            "playlist": playlist_data
+        }
+
+        # Act
+        result = await self.service.play_playlist_use_case("playlist-123")
+
+        # Assert
+        assert result["status"] == "success"
+        assert result["playlist_id"] == "playlist-123"
+        assert result["track_count"] == 1
+
+        mock_audio_engine.set_playlist.assert_called_once()
+        # Verify playlist domain entity was created
+        call_args = mock_audio_engine.set_playlist.call_args[0][0]
+        assert isinstance(call_args, Playlist)
+        assert call_args.name == "Test Playlist"
     
     @pytest.mark.asyncio
     async def test_play_playlist_empty_playlist_error(self):
@@ -273,22 +284,20 @@ class TestAudioApplicationService:
             "name": "Empty Playlist",
             "tracks": []
         }
-        
-        with patch('app.src.application.services.playlist_application_service.PlaylistApplicationService') as mock_playlist_service:
-            mock_instance = Mock()
-            mock_playlist_service.return_value = mock_instance
-            mock_instance.get_playlist_use_case = AsyncMock(return_value={
-                "status": "success",
-                "playlist": empty_playlist_data
-            })
-            
-            # Act
-            result = await self.service.play_playlist_use_case("empty-123")
-            
-            # Assert
-            assert result["status"] == "error"
-            assert result["error_type"] == "validation_error"
-            assert "Cannot play empty playlist" in result["message"]
+
+        # Mock playlist service to return empty playlist
+        self.mock_playlist_service.get_playlist_use_case.return_value = {
+            "status": "success",
+            "playlist": empty_playlist_data
+        }
+
+        # Act
+        result = await self.service.play_playlist_use_case("empty-123")
+
+        # Assert
+        assert result["status"] == "error"
+        assert result["error_type"] == "validation_error"
+        assert "Cannot play empty playlist" in result["message"]
     
     @pytest.mark.asyncio
     async def test_control_playback_use_case_play(self):
@@ -319,8 +328,7 @@ class TestAudioApplicationService:
         assert result["error_type"] == "validation_error"
         assert "Unknown playback action" in result["message"]
     
-    @pytest.mark.asyncio
-    async def test_get_playback_status_use_case(self):
+    def test_get_playback_status_use_case(self):
         """Test getting playback status."""
         # Arrange
         mock_state = {
@@ -329,16 +337,16 @@ class TestAudioApplicationService:
             "current_track": {"title": "Current Song"},
             "volume": 75
         }
-        
+
         mock_audio_engine = Mock()
         mock_audio_engine.get_state_dict.return_value = mock_state
-        
+
         self.mock_audio_container.is_initialized = True
         self.mock_audio_container.audio_engine = mock_audio_engine
-        
+
         # Act
-        result = await self.service.get_playback_status_use_case()
-        
+        result = self.service.get_playback_status_use_case()
+
         # Assert
         assert result["status"] == "success"
         assert result["playback_status"]["is_playing"] is True
