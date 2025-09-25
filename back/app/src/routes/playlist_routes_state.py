@@ -641,25 +641,14 @@ class PlaylistRoutesState:
 
                 # CRITICAL FIX: Broadcast player state after successful playlist start
                 try:
-                    # Debug: Log audio controller state before building player state
-                    controller_status = await self.audio_controller.get_playback_status()
-                    controller_playlist_info = self.audio_controller.get_current_playlist_info()
-                    logger.log(LogLevel.INFO, f"🔍 AudioController status: {controller_status}")
-                    logger.log(LogLevel.INFO, f"🔍 AudioController playlist info: {controller_playlist_info}")
-
                     current_player_state = await self.player_state_service.build_current_player_state()
-                    player_data = current_player_state.model_dump()
-                    logger.log(LogLevel.INFO, f"🔍 Built player state: {player_data}")
-
                     await self.state_manager.broadcast_state_change(
                         StateEventType.PLAYER_STATE,
-                        player_data
+                        current_player_state.model_dump()
                     )
                     logger.log(LogLevel.INFO, "✅ État du player diffusé après démarrage de playlist")
                 except Exception as e:
                     logger.log(LogLevel.WARNING, f"⚠️ Échec diffusion état player: {str(e)}")
-                    import traceback
-                    logger.log(LogLevel.ERROR, f"Stack trace: {traceback.format_exc()}")
 
                 # Return HTTP response for successful playlist start
                 return UnifiedResponseService.success(
