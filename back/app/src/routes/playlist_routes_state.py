@@ -639,6 +639,30 @@ class PlaylistRoutesState:
                         f"Could not retrieve playlist data for state tracking: {playlist_id}",
                     )
 
+                # CRITICAL FIX: Broadcast player state after successful playlist start
+                try:
+                    current_player_state = await self.player_state_service.build_current_player_state()
+                    await self.state_manager.broadcast_state_change(
+                        StateEventType.PLAYER_STATE,
+                        current_player_state.model_dump()
+                    )
+                    logger.log(LogLevel.INFO, "✅ État du player diffusé après démarrage de playlist")
+                except Exception as e:
+                    logger.log(LogLevel.WARNING, f"⚠️ Échec diffusion état player: {str(e)}")
+
+                # Return HTTP response for successful playlist start
+                return UnifiedResponseService.success(
+                    message=f"Playlist '{playlist_data.get('title') if playlist_data else playlist_id}' started successfully",
+                    data=result
+                )
+            else:
+                # Handle failure case
+                logger.log(LogLevel.ERROR, f"❌ Failed to start playlist: {result.get('message', 'Unknown error')}")
+                return UnifiedResponseService.error(
+                    message=result.get("message", "Failed to start playlist"),
+                    error_type=result.get("error_type", "playlist_start_failed")
+                )
+
         # NFC association routes (integrate with existing NFC system)
         @self.router.post("/nfc/{nfc_tag_id}/associate/{playlist_id}")
         @handle_http_errors()
