@@ -69,7 +69,9 @@ def _create_audio_backend(
         backend = MacOSAudioBackend(playback_subject)
         logger.log(LogLevel.INFO, "✅ macOS Audio Backend initialized successfully")
         return backend
-        # Try to initialize hardware audio backend (WM8960 for Raspberry Pi)
+
+    else:
+        # Try to initialize hardware audio backend (WM8960 for Raspberry Pi/Linux)
         try:
             from .wm8960_audio_backend import WM8960AudioBackend
 
