@@ -21,6 +21,7 @@ from app.src.infrastructure.nfc.nfc_factory import NfcFactory
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_errors
+from app.src.services.broadcasting.unified_broadcasting_service import UnifiedBroadcastingService
 
 # Domain-driven architecture imports (PURE DDD - No Legacy)
 from app.src.domain.bootstrap import domain_bootstrap
@@ -65,6 +66,9 @@ class Application:
         # These will be properly initialized in initialize_async
         self._nfc_handler = None
         self._nfc_app_service = None
+
+        # Initialize broadcasting service for Socket.IO events (will be set during initialization)
+        self._broadcasting_service = None
 
         # Domain controller will be set during domain initialization
         self._playlist_controller = None
@@ -303,10 +307,86 @@ class Application:
         """Handle NFC association events from application service.
 
         Args:
-            event_data: Association event data
+            event_data: Association event data with keys like action, session_id, playlist_id, tag_id, session_state
         """
         # Log association events for debugging
-        logger.log(LogLevel.DEBUG, f"NFC association event: {event_data}")
+        logger.log(LogLevel.INFO, f"🔔 Broadcasting NFC association event: {event_data}")
+
+        # Extract event data
+        action = event_data.get("action", "unknown")
+        session_id = event_data.get("session_id")
+        playlist_id = event_data.get("playlist_id")
+        tag_id = event_data.get("tag_id")
+        session_state = event_data.get("session_state", "unknown")
+
+        # Map domain action to frontend state
+        association_state = self._map_action_to_state(action, session_state)
+
+        # Broadcast NFC association event via Socket.IO
+        asyncio.create_task(self._broadcast_nfc_association_event(
+            association_state=association_state,
+            playlist_id=playlist_id,
+            tag_id=tag_id,
+            session_id=session_id,
+            event_data=event_data
+        ))
+
+    def _map_action_to_state(self, action: str, session_state: str) -> str:
+        """Map domain action to frontend association state.
+
+        Args:
+            action: Domain action (association_success, duplicate_association, etc.)
+            session_state: Session state value
+
+        Returns:
+            Frontend state string
+        """
+        if action == "association_success":
+            return "completed"
+        elif action == "duplicate_association":
+            return "error"
+        elif session_state == "TIMEOUT":
+            return "timeout"
+        elif session_state == "LISTENING":
+            return "waiting"
+        else:
+            return "error"
+
+    async def _broadcast_nfc_association_event(
+        self,
+        association_state: str,
+        playlist_id: str = None,
+        tag_id: str = None,
+        session_id: str = None,
+        event_data: Dict = None
+    ) -> None:
+        """Broadcast NFC association event via Socket.IO.
+
+        Args:
+            association_state: Frontend association state
+            playlist_id: Playlist ID
+            tag_id: Tag ID
+            session_id: Session ID
+            event_data: Original event data for additional info
+        """
+        try:
+            if not self._broadcasting_service:
+                logger.log(LogLevel.WARNING, "⚠️ Broadcasting service not available, skipping NFC association broadcast")
+                return
+
+            success = await self._broadcasting_service.broadcast_nfc_association(
+                association_state=association_state,
+                playlist_id=playlist_id,
+                tag_id=tag_id,
+                session_id=session_id
+            )
+            if success:
+                logger.log(LogLevel.INFO, f"✅ Successfully broadcasted NFC association state: {association_state}")
+            else:
+                logger.log(LogLevel.WARNING, f"⚠️ Failed to broadcast NFC association state: {association_state}")
+        except Exception as e:
+            logger.log(LogLevel.ERROR, f"❌ Error broadcasting NFC association event: {e}")
+            logger.log(LogLevel.DEBUG, f"Event data: {event_data}")
 
     # MARK: - Internal Event Handlers
     def _handle_nfc_error(self, error):
