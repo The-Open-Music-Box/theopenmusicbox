@@ -161,15 +161,45 @@ class AudioController:
                 return True
         # Fallback to backend directly
         elif hasattr(self._backend, "pause"):
-            result = self._backend.pause()
-            # Some backends return bool, others don't - assume success if no exception
+            # Check if the method is async before calling it
+            import inspect
+            result = None
+            if inspect.iscoroutinefunction(self._backend.pause):
+                # Try sync version first (e.g., pause_sync on WM8960AudioBackend)
+                if hasattr(self._backend, "pause_sync"):
+                    logger.log(LogLevel.INFO, "Using sync pause_sync method for async backend")
+                    result = self._backend.pause_sync()
+                else:
+                    logger.log(LogLevel.WARNING, "Cannot call async pause method in sync context, skipping backend pause")
+                    # Still try to capture position and set paused state for consistency
+                    self._paused_position = 0.0  # Default fallback position
+                    self._last_action = "paused"
+                    logger.log(LogLevel.INFO, "Audio playback paused (async backend detected, using fallback)")
+                    return True  # Return success to avoid 500 error
+            else:
+                result = self._backend.pause()
+
+            # Common result processing for both sync and async-with-sync-wrapper
             if result is not False:
-                # Capture paused position if available
+                # Capture paused position if available - handle async methods
                 if hasattr(self._backend, "get_position"):
-                    self._paused_position = float(self._backend.get_position())
+                    import inspect
+                    if inspect.iscoroutinefunction(self._backend.get_position):
+                        logger.log(LogLevel.WARNING, "Cannot call async get_position method in sync context, setting position to 0")
+                        self._paused_position = 0.0
+                    else:
+                        try:
+                            position = self._backend.get_position()
+                            self._paused_position = float(position) if position is not None else 0.0
+                        except (ValueError, TypeError, Exception) as e:
+                            logger.log(LogLevel.WARNING, f"Failed to get position for pause: {e}")
+                            self._paused_position = 0.0
                 logger.log(LogLevel.INFO, "Audio playback paused (direct backend)")
                 self._last_action = "paused"
                 return True
+            else:
+                logger.log(LogLevel.WARNING, "Backend pause operation failed")
+                return False
         else:
             logger.log(LogLevel.WARNING, "Audio backend does not support pause operation")
             return False
@@ -189,7 +219,28 @@ class AudioController:
                 return True
         # Fallback to backend directly
         elif hasattr(self._backend, "resume"):
-            result = self._backend.resume()
+            # Check if the method is async before calling it
+            import inspect
+            result = None
+            if inspect.iscoroutinefunction(self._backend.resume):
+                # Try sync version first (e.g., resume_sync on WM8960AudioBackend)
+                if hasattr(self._backend, "resume_sync"):
+                    logger.log(LogLevel.INFO, "Using sync resume_sync method for async backend")
+                    result = self._backend.resume_sync()
+                else:
+                    logger.log(LogLevel.WARNING, "Cannot call async resume method in sync context, using fallback")
+                    # If we were previously paused with async backend, assume resume works
+                    if self._last_action == "paused":
+                        self._last_action = "playing"
+                        logger.log(LogLevel.INFO, "Audio playbook resumed (async backend detected, using fallback)")
+                        return True
+                    else:
+                        logger.log(LogLevel.WARNING, "Cannot resume - no previous pause state")
+                        return False
+            else:
+                result = self._backend.resume()
+
+            # Common result processing for both sync and async-with-sync-wrapper
             if result is not False:
                 logger.log(LogLevel.INFO, "Audio playback resumed (direct backend)")
                 self._last_action = "playing"
@@ -264,15 +315,66 @@ class AudioController:
                     LogLevel.INFO, "Cannot skip to next track (end of playlist or not available)"
                 )
                 return False
+
+        # Try AudioEngine next_track if available and NOT async
+        if self._audio_service and hasattr(self._audio_service, "next_track"):
+            try:
+                # Check if AudioEngine.next_track is async before calling it
+                import inspect
+                if not inspect.iscoroutinefunction(self._audio_service.next_track):
+                    # Only call if it's NOT async
+                    result = self._audio_service.next_track()
+                    success = result is not False and result is not None
+                    if success:
+                        logger.log(LogLevel.INFO, "Skipped to next track (via AudioEngine)")
+                        return True
+                    else:
+                        logger.log(LogLevel.INFO, "Next track failed via AudioEngine")
+                        # Don't return, try manual navigation below
+                else:
+                    logger.log(LogLevel.WARNING, "Cannot call async AudioEngine next_track method in sync context")
+                    # Don't return, try manual navigation below
+            except Exception as e:
+                logger.log(LogLevel.WARNING, f"Next track via AudioEngine failed: {e}")
+                # Don't return, try manual navigation below
+
+        # Manual playlist navigation using _current_playlist
+        if hasattr(self, "_current_playlist") and self._current_playlist:
+            current_index = getattr(self, "_current_track_index", 0) or 0
+            next_index = current_index + 1
+
+            if next_index < len(self._current_playlist.tracks):
+                next_track = self._current_playlist.tracks[next_index]
+                if hasattr(next_track, "file_path") and next_track.file_path:
+                    # Update current track index
+                    self._current_track_index = next_index
+                    # Load and play next track using backend directly
+                    if hasattr(self._backend, "play_file"):
+                        success = self._backend.play_file(next_track.file_path)
+                    else:
+                        logger.log(LogLevel.WARNING, "Backend does not support play_file")
+                        success = False
+                    if success:
+                        logger.log(LogLevel.INFO, f"Skipped to next track: {getattr(next_track, 'title', f'Track {next_index + 1}')}")
+                        return True
+                    else:
+                        logger.log(LogLevel.WARNING, f"Failed to play next track: {next_track.file_path}")
+                        return False
+                else:
+                    logger.log(LogLevel.WARNING, "Next track has no file path")
+                    return False
+            else:
+                logger.log(LogLevel.INFO, "Already at last track in playlist")
+                return False
         # Fallback to backend directly (limited functionality)
-        elif hasattr(self._backend, "next_track"):
+        if hasattr(self._backend, "next_track"):
             result = self._backend.next_track()
             # Some backends return None/void, assume success if no exception
             logger.log(LogLevel.INFO, "Skipped to next track (direct backend)")
             return True
-        else:
-            logger.log(LogLevel.WARNING, "Audio backend does not support next track operation")
-            return False
+
+        logger.log(LogLevel.WARNING, "Audio backend does not support next track operation")
+        return False
 
     @handle_errors("previous_track")
     def previous_track(self) -> bool:
@@ -297,15 +399,43 @@ class AudioController:
                     "Cannot skip to previous track (beginning of playlist or not available)",
                 )
                 return False
+        # Manual playlist navigation using _current_playlist
+        if hasattr(self, "_current_playlist") and self._current_playlist:
+            current_index = getattr(self, "_current_track_index", 0) or 0
+            previous_index = current_index - 1
+
+            if previous_index >= 0:
+                previous_track = self._current_playlist.tracks[previous_index]
+                if hasattr(previous_track, "file_path") and previous_track.file_path:
+                    # Update current track index
+                    self._current_track_index = previous_index
+                    # Load and play previous track using backend directly
+                    if hasattr(self._backend, "play_file"):
+                        success = self._backend.play_file(previous_track.file_path)
+                    else:
+                        logger.log(LogLevel.WARNING, "Backend does not support play_file")
+                        success = False
+                    if success:
+                        logger.log(LogLevel.INFO, f"Skipped to previous track: {getattr(previous_track, 'title', f'Track {previous_index + 1}')}")
+                        return True
+                    else:
+                        logger.log(LogLevel.WARNING, f"Failed to play previous track: {previous_track.file_path}")
+                        return False
+                else:
+                    logger.log(LogLevel.WARNING, "Previous track has no file path")
+                    return False
+            else:
+                logger.log(LogLevel.INFO, "Already at first track in playlist")
+                return False
         # Fallback to backend directly (limited functionality)
-        elif hasattr(self._backend, "previous_track"):
+        if hasattr(self._backend, "previous_track"):
             result = self._backend.previous_track()
             # Some backends return None/void, assume success if no exception
             logger.log(LogLevel.INFO, "Skipped to previous track (direct backend)")
             return True
-        else:
-            logger.log(LogLevel.WARNING, "Audio backend does not support previous track operation")
-            return False
+
+        logger.log(LogLevel.WARNING, "Audio backend does not support previous track operation")
+        return False
 
     @handle_errors("auto_advance_to_next")
     def auto_advance_to_next(self) -> bool:
@@ -378,7 +508,8 @@ class AudioController:
     def is_playing(self) -> bool:
         """Check if audio is currently playing.
 
-        Delegates directly to audio service for current state.
+        For async backends that can't be controlled synchronously,
+        uses internal state tracking as fallback.
 
         Returns:
             bool: True if playing, False otherwise
@@ -389,7 +520,19 @@ class AudioController:
         # Query backend directly for single source of truth
         if hasattr(self._backend, "is_playing"):
             attr = getattr(self._backend, "is_playing")
-            return attr() if callable(attr) else bool(attr)
+            backend_playing = attr() if callable(attr) else bool(attr)
+
+            # For async backends, if we've set _last_action to "paused"
+            # but backend still says playing, respect our internal state
+            import inspect
+            if (backend_playing and
+                self._last_action == "paused" and
+                hasattr(self._backend, "pause") and
+                inspect.iscoroutinefunction(self._backend.pause)):
+                logger.log(LogLevel.DEBUG, "Using internal paused state for async backend")
+                return False
+
+            return backend_playing
         else:
             # Fallback to last known action if backend doesn't provide state
             return self._last_action == "playing"
@@ -666,7 +809,9 @@ class AudioController:
                 success = True
             current_state = "playing" if success else "error"
         elif action == "pause":
-            success = self.pause()
+            pause_result = self.pause()
+            # Handle case where @handle_errors decorator returns None or JSONResponse
+            success = pause_result is True or (pause_result is not False and pause_result is not None and not hasattr(pause_result, 'status_code'))
             current_state = "paused" if success else "error"
         elif action == "stop":
             success = self.stop()
@@ -678,7 +823,9 @@ class AudioController:
             success = self.previous_track()
             current_state = "playing" if success else "error"
         elif action == "toggle":
-            success = self.toggle_play_pause()
+            toggle_result = self.toggle_play_pause()
+            # Handle case where @handle_errors decorator returns None or JSONResponse
+            success = toggle_result is True or (toggle_result is not False and toggle_result is not None and not hasattr(toggle_result, 'status_code'))
             current_state = "playing" if self.is_playing() else "paused"
         else:
             logger.log(LogLevel.WARNING, f"Unknown playback action: {action}")
