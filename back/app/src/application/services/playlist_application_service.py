@@ -301,7 +301,7 @@ class DataApplicationService:
             },
         }
 
-    def start_playlist_by_id(self, playlist_id: str, audio_service=None) -> Dict[str, Any]:
+    async def start_playlist_by_id(self, playlist_id: str, audio_service=None) -> Dict[str, Any]:
         """CENTRALIZED: Start playing a playlist by ID (used by both UI and NFC flows).
 
         This is the single point of convergence for playlist starting logic.
@@ -318,7 +318,7 @@ class DataApplicationService:
                 - error_type: str type of error if failed (not_found, empty_playlist, etc.)
                 - details: Dict with additional information
         """
-        return self.start_playlist_with_details(playlist_id, audio_service)
+        return await self.start_playlist_with_details(playlist_id, audio_service)
 
     async def start_playlist_with_details(self, playlist_id: str, audio_service) -> Dict[str, Any]:
         """Use case: Start playing a playlist with detailed error handling.

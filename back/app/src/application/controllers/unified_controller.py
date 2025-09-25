@@ -124,8 +124,9 @@ class UnifiedPlaylistController:
             logger.log(LogLevel.WARNING, f"⚠️ No playlist ID found for NFC tag: {nfc_tag_uid}")
             return False
         # Use centralized start-by-ID method (same as UI flow)
+        # Pass audio_engine instead of audio_controller for proper playlist handling
         result = await self._playlist_app_service.start_playlist_by_id(
-            playlist_id, self._audio_controller
+            playlist_id, self._audio_engine
         )
         if result.get("success"):
             logger.log(
