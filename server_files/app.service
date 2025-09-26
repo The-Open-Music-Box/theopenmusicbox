@@ -1,0 +1,34 @@
+# Copyright (c) 2025 Jonathan Piette
+# This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
+# See the LICENSE file for details.
+# This file must be placed in /etc/systemd/system/app.service
+
+[Unit]
+Description=TMB Application Service
+After=network.target
+
+[Service]
+Type=simple
+User=admin
+WorkingDirectory=/home/admin/tomb
+
+# Environment settings
+# Include all necessary binary paths for the application
+Environment=PATH=/home/admin/tomb/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=FORCE_COLOR=1
+Environment=COLORTERM=truecolor
+
+# Main application startup command
+ExecStart=/home/admin/tomb/venv/bin/python start_app.py
+
+# Restart settings in case of failure
+Restart=on-failure
+RestartSec=5
+
+# Logging settings
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
