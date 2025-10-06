@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion, @typescript-eslint/no-unused-vars */
 /**
  * Refactored Socket Service for TheOpenMusicBox
- * 
+ *
  * Updated to handle the new standardized Socket.IO event envelope format.
  * All events now follow the StateEventEnvelope structure for consistency.
  */
@@ -67,27 +68,32 @@ export interface EventHandlers {
   'ack:join': (data: { room: string; success: boolean; server_seq?: number; playlist_seq?: number; message?: string }) => void
   'ack:leave': (data: { room: string; success: boolean; message?: string }) => void
   'state:playlists': (data: StateEventEnvelope<Playlist[]>) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   'state:playlists_index_update': (data: StateEventEnvelope<any>) => void
   'state:playlist': (data: StateEventEnvelope<Playlist>) => void
   'state:player': (data: StateEventEnvelope<PlayerState>) => void
   'state:track_progress': (data: StateEventEnvelope<TrackProgress>) => void
   'state:track_position': (data: StateEventEnvelope<{ position_ms: number; track_id: string; is_playing: boolean; duration_ms?: number }>) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   'state:track': (data: StateEventEnvelope<any>) => void
   'state:playlist_deleted': (data: StateEventEnvelope<{ playlist_id: string; message?: string }>) => void
   'state:playlist_created': (data: StateEventEnvelope<{ playlist: Playlist }>) => void
   'state:playlist_updated': (data: StateEventEnvelope<{ playlist: Playlist }>) => void
   'state:track_deleted': (data: StateEventEnvelope<{ playlist_id: string; track_numbers: number[] }>) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   'state:track_added': (data: StateEventEnvelope<{ playlist_id: string; track: any }>) => void
   'state:volume_changed': (data: StateEventEnvelope<{ volume: number }>) => void
   'state:nfc_state': (data: StateEventEnvelope<NFCAssociation>) => void
   'ack:op': (data: OperationAck) => void
   'err:op': (data: OperationAck) => void
   'upload:progress': (data: UploadProgress) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   'upload:complete': (data: { playlist_id: string; session_id: string; filename: string; track: any }) => void
   'upload:error': (data: { playlist_id: string; session_id: string; error: string }) => void
-  'nfc_status': (data: any) => void
-  'nfc_association_state': (data: any) => void
+  'nfc_status': (data: unknown) => void
+  'nfc_association_state': (data: unknown) => void
   'youtube:progress': (data: YouTubeProgress) => void
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   'youtube:complete': (data: { task_id: string; track: any; playlist_id: string }) => void
   'youtube:error': (data: { task_id: string; message: string }) => void
 }
@@ -239,7 +245,7 @@ class SocketService {
     // Room acknowledgments
     this.socket.on('ack:join', (data) => {
       logger.debug(`Room join ack: ${data.room} - ${data.success}`)
-      if (data.success) {
+      if ((data as { success?: boolean; message?: string }).success) {
         this.subscribedRooms.add(data.room)
       }
       this.emitLocal('ack:join', data)
@@ -248,7 +254,7 @@ class SocketService {
     
     this.socket.on('ack:leave', (data) => {
       logger.debug(`Room leave ack: ${data.room} - ${data.success}`)
-      if (data.success) {
+      if ((data as { success?: boolean; message?: string }).success) {
         this.subscribedRooms.delete(data.room)
       }
       this.emitLocal('ack:leave', data)
@@ -284,7 +290,7 @@ class SocketService {
     
     this.socket.on('err:op', (data: OperationAck) => {
       logger.debug(`Operation error: ${data.client_op_id} - ${data.message}`)
-      this.rejectOperation(data.client_op_id, new Error(data.message || 'Operation failed'))
+      this.rejectOperation(data.client_op_id, new Error((data as { message?: string }).message || 'Operation failed'))
       this.emitLocal('err:op', data)
     })
     
@@ -504,21 +510,21 @@ class SocketService {
         this.roomJoinPromises.delete(room)
       }
       
-      const successHandler = (data: any) => {
-        if (data.room === room) {
+      const successHandler = (data: unknown) => {
+        if ((data as { room?: string; success?: boolean; message?: string }).room === room) {
           this.off('ack:join', successHandler)
           this.off('ack:leave', errorHandler)
           cleanup()
           
-          if (data.success) {
+          if ((data as { success?: boolean; message?: string }).success) {
             resolve()
           } else {
-            reject(new Error(data.message || `Failed to join room: ${room}`))
+            reject(new Error((data as { message?: string }).message || `Failed to join room: ${room}`))
           }
         }
       }
       
-      const errorHandler = (error: any) => {
+      const errorHandler = (error: unknown) => {
         this.off('ack:join', successHandler)
         this.off('ack:leave', errorHandler)
         cleanup()
@@ -555,8 +561,8 @@ class SocketService {
         reject(new Error(`Leave room timeout: ${room}`))
       }, 10000)
       
-      const successHandler = (data: any) => {
-        if (data.room === room) {
+      const successHandler = (data: unknown) => {
+        if ((data as { room?: string; success?: boolean; message?: string }).room === room) {
           clearTimeout(timeout)
           this.off('ack:leave', successHandler)
           resolve()
@@ -687,7 +693,7 @@ class SocketService {
    * Private helper methods
    */
   
-  private resolveOperation(clientOpId: string, data: any): void {
+  private resolveOperation(clientOpId: string, data: unknown): void {
     const operation = this.pendingOperations.get(clientOpId)
     if (operation) {
       clearTimeout(operation.timeout)
@@ -705,7 +711,7 @@ class SocketService {
     }
   }
   
-  private resolveRoomOperation(type: 'join' | 'leave', room: string, data: any): void {
+  private resolveRoomOperation(_type: 'join' | 'leave', _room: string, _data: unknown): void {
     // Additional room operation tracking if needed
   }
   

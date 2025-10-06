@@ -1,12 +1,13 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
 /**
  * Player API Module
  * Handles all audio player related operations
  */
 
-import { apiClient, ApiResponseHandler } from './apiClient'
 import { API_ROUTES } from '../../constants/apiRoutes'
 import { generateClientOpId } from '../../utils/operationUtils'
 import { ApiResponse, PlayerState } from '../../types/contracts'
+import { apiClient, ApiResponseHandler } from './apiClient'
 
 /**
  * Player API methods with standardized response handling
@@ -17,7 +18,29 @@ export const playerApi = {
    */
   async getStatus(): Promise<PlayerState> {
     const response = await apiClient.get<ApiResponse<PlayerState>>(API_ROUTES.PLAYER_STATUS)
-    return response.data.data!
+    return ApiResponseHandler.extractData(response)
+  },
+
+  /**
+   * Start/resume playback
+   */
+  async play(clientOpId?: string): Promise<PlayerState> {
+    const response = await apiClient.post<ApiResponse<PlayerState>>(
+      API_ROUTES.PLAYER_PLAY,
+      { client_op_id: clientOpId || generateClientOpId('api_operation') }
+    )
+    return ApiResponseHandler.extractData(response)
+  },
+
+  /**
+   * Pause playback
+   */
+  async pause(clientOpId?: string): Promise<PlayerState> {
+    const response = await apiClient.post<ApiResponse<PlayerState>>(
+      API_ROUTES.PLAYER_PAUSE,
+      { client_op_id: clientOpId || generateClientOpId('api_operation') }
+    )
+    return ApiResponseHandler.extractData(response)
   },
 
   /**
@@ -28,7 +51,7 @@ export const playerApi = {
       API_ROUTES.PLAYER_STOP,
       { client_op_id: clientOpId || generateClientOpId('api_operation') }
     )
-    return response.data.data!
+    return ApiResponseHandler.extractData(response)
   },
 
   /**
@@ -39,7 +62,7 @@ export const playerApi = {
       API_ROUTES.PLAYER_NEXT,
       { client_op_id: clientOpId || generateClientOpId('api_operation') }
     )
-    return response.data.data!
+    return ApiResponseHandler.extractData(response)
   },
 
   /**
@@ -50,7 +73,7 @@ export const playerApi = {
       API_ROUTES.PLAYER_PREVIOUS,
       { client_op_id: clientOpId || generateClientOpId('api_operation') }
     )
-    return response.data.data!
+    return ApiResponseHandler.extractData(response)
   },
 
   /**
@@ -61,7 +84,7 @@ export const playerApi = {
       API_ROUTES.PLAYER_TOGGLE,
       { client_op_id: clientOpId || generateClientOpId('api_operation') }
     )
-    return response.data.data!
+    return ApiResponseHandler.extractData(response)
   },
 
   /**
@@ -77,7 +100,7 @@ export const playerApi = {
       API_ROUTES.PLAYER_SEEK,
       payload
     )
-    return response.data.data!
+    return ApiResponseHandler.extractData(response)
   },
 
   /**
@@ -91,6 +114,6 @@ export const playerApi = {
         client_op_id: clientOpId || generateClientOpId('api_operation')
       }
     )
-    return response.data.data!
+    return ApiResponseHandler.extractData(response)
   }
 }

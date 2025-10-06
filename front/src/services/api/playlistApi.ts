@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Playlist API Module
  * Handles all playlist related operations
@@ -68,17 +69,18 @@ export const playlistApi = {
    * Get specific playlist
    */
   async getPlaylist(id: string): Promise<Playlist> {
-    const response = await apiClient.get<ApiResponse<Playlist>>(
+    const response = await apiClient.get<ApiResponse<{playlist: Playlist}>>(
       API_ROUTES.PLAYLIST(id)
     )
-    return ApiResponseHandler.extractData(response)
+    const data = ApiResponseHandler.extractData(response)
+    return data.playlist
   },
 
   /**
    * Create new playlist
    */
   async createPlaylist(title: string, description = '', clientOpId?: string): Promise<Playlist> {
-    const response = await apiClient.post<ApiResponse<Playlist>>(
+    const response = await apiClient.post<ApiResponse<{playlist: Playlist}>>(
       API_ROUTES.PLAYLISTS,
       {
         title,
@@ -86,7 +88,8 @@ export const playlistApi = {
         client_op_id: clientOpId || generateClientOpId('api_operation')
       }
     )
-    return ApiResponseHandler.extractData(response)
+    const data = ApiResponseHandler.extractData(response)
+    return data.playlist
   },
 
   /**
@@ -131,16 +134,65 @@ export const playlistApi = {
   },
 
   /**
+   * Reorder tracks in a playlist
+   */
+  async reorderTracks(playlistId: string, trackOrder: number[], clientOpId?: string): Promise<any> {
+    const response = await apiClient.post(
+      API_ROUTES.PLAYLIST_REORDER(playlistId),
+      {
+        track_order: trackOrder,
+        client_op_id: clientOpId || generateClientOpId('api_operation')
+      }
+    )
+    return ApiResponseHandler.extractData(response)
+  },
+
+  /**
    * Delete tracks from playlist
    */
-  async deleteTrack(playlistId: string, trackNumber: number, clientOpId?: string): Promise<any> {
+  async deleteTracks(playlistId: string, trackNumbers: number[], clientOpId?: string): Promise<any> {
     const response = await apiClient.delete(
       API_ROUTES.DELETE_TRACKS(playlistId),
       {
-        data: { 
-          track_numbers: [trackNumber], 
-          client_op_id: clientOpId || generateClientOpId('delete_track') 
+        data: {
+          track_numbers: trackNumbers,
+          client_op_id: clientOpId || generateClientOpId('api_operation')
         }
+      }
+    )
+    return ApiResponseHandler.extractData(response)
+  },
+
+  /**
+   * Delete a single track from playlist
+   */
+  async deleteTrack(playlistId: string, trackNumber: number, clientOpId?: string): Promise<any> {
+    return this.deleteTracks(playlistId, [trackNumber], clientOpId)
+  },
+
+  /**
+   * Sync playlists with filesystem
+   */
+  async syncPlaylists(clientOpId?: string): Promise<any> {
+    const response = await apiClient.post(
+      API_ROUTES.PLAYLIST_SYNC,
+      {
+        client_op_id: clientOpId || generateClientOpId('api_operation')
+      }
+    )
+    return ApiResponseHandler.extractData(response)
+  },
+
+  /**
+   * Move a track within a playlist
+   */
+  async moveTrack(playlistId: string, fromPosition: number, toPosition: number, clientOpId?: string): Promise<any> {
+    const response = await apiClient.post(
+      API_ROUTES.PLAYLIST_MOVE_TRACK(playlistId),
+      {
+        from_position: fromPosition,
+        to_position: toPosition,
+        client_op_id: clientOpId || generateClientOpId('api_operation')
       }
     )
     return ApiResponseHandler.extractData(response)

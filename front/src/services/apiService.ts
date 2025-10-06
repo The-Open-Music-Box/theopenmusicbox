@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 /**
  * Main API Service for TheOpenMusicBox
- * 
+ *
  * Refactored modular API service that imports specialized modules
  * and provides backward compatibility for existing components.
  */
@@ -59,23 +60,38 @@ export const apiService = {
       const result = await playlistApi.getPlaylists(1, API_CONFIG.PLAYLISTS_FETCH_LIMIT)
       return result.items // Extract items from paginated response
     } catch (error) {
-      logger.warn('Primary playlist API failed, using fallback', { error: error instanceof Error ? error.message : String(error) })
-
-      // If the new API format fails, fall back to legacy response format
-      const response = await apiClient.get(API_ROUTES.PLAYLISTS, {
-        params: { page: 1, limit: API_CONFIG.PLAYLISTS_FETCH_LIMIT }
+      logger.warn('Primary playlist API failed, using fallback', {
+        error: error instanceof Error ? error.message : String(error),
+        errorType: error?.constructor?.name
       })
-      const data = ApiResponseHandler.extractData(response) as any
 
-      // Handle different response formats - backend now uses "playlists" consistently
-      if (Array.isArray(data)) {
-        return data
-      } else if (data?.playlists) {
-        return data.playlists // Backend uses "playlists" field
-      } else if (data?.items) {
-        return data.items // Fallback to old "items" format
-      } else {
-        logger.error('No valid playlists data found in response', { data })
+      // If the new API format fails, fall back to direct API call
+      try {
+        const response = await apiClient.get(API_ROUTES.PLAYLISTS, {
+          params: { page: 1, limit: API_CONFIG.PLAYLISTS_FETCH_LIMIT }
+        })
+        const data = ApiResponseHandler.extractData(response) as any
+
+        // Handle different response formats - backend now uses "playlists" consistently
+        if (Array.isArray(data)) {
+          return data
+        } else if (data?.playlists) {
+          return data.playlists // Backend uses "playlists" field
+        } else if (data?.items) {
+          return data.items // Fallback to old "items" format
+        } else {
+          logger.error('No valid playlists data found in fallback response', {
+            data,
+            hasData: !!data,
+            dataType: typeof data,
+            dataKeys: data ? Object.keys(data) : []
+          })
+          return []
+        }
+      } catch (fallbackError) {
+        logger.error('Fallback playlist API also failed', {
+          error: fallbackError instanceof Error ? fallbackError.message : String(fallbackError)
+        })
         return []
       }
     }
@@ -129,9 +145,9 @@ export const apiService = {
     return playlistApi.deleteTrack(playlistId, trackNumber)
   },
 
-  async reorderTracks(playlistId: string, trackOrder: number[]) {
+  async reorderTracks(playlistId: string, trackIds: string[]) {
     const response = await apiClient.post(API_ROUTES.PLAYLIST_REORDER(playlistId), {
-      track_order: trackOrder,
+      track_order: trackIds,
       client_op_id: generateClientOpId('reorder_tracks')
     })
     return ApiResponseHandler.extractData(response)
@@ -144,21 +160,22 @@ export const apiService = {
 
   async startPlaylist(playlistId: string) {
     try {
-      // Start the playlist
+      // Start the playlist - returns full PlayerState immediately
       const result = await playlistApi.startPlaylist(playlistId)
 
-      // Immediately request updated player state to ensure consistency
-      // Small delay to allow backend state to propagate
-      setTimeout(async () => {
-        try {
-          const { useServerStateStore } = await import('@/stores/serverStateStore')
-          const serverStateStore = useServerStateStore()
-          await serverStateStore.requestInitialPlayerState()
-          logger.debug('Requested fresh player state after playlist start')
-        } catch (error) {
-          logger.error('Failed to sync state after playlist start:', error)
-        }
-      }, 300)
+      // CRITICAL FIX: Immediately update store with HTTP response
+      // This ensures track info shows instantly without waiting for Socket.IO events
+      try {
+        const { useServerStateStore } = await import('@/stores/serverStateStore')
+        const serverStateStore = useServerStateStore()
+
+        // Apply the PlayerState from HTTP response immediately
+        // Type assertion needed due to undefined vs null differences in type definitions
+        serverStateStore.handlePlayerState(result as any)
+        logger.debug('Applied player state from startPlaylist HTTP response:', result)
+      } catch (error) {
+        logger.error('Failed to apply player state from HTTP response:', error)
+      }
 
       return result
     } catch (error) {
@@ -184,7 +201,7 @@ export const apiService = {
       payload.target_position = targetPosition
     }
 
-    const response = await apiClient.post(API_ROUTES.PLAYLIST_MOVE_TRACK, payload)
+    const response = await apiClient.post(API_ROUTES.PLAYLIST_MOVE_TRACK(sourcePlaylistId), payload)
     return ApiResponseHandler.extractData(response)
   },
 

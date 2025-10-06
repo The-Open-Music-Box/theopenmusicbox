@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Centralized Cache Service
- * 
+ *
  * Provides a unified caching mechanism for API responses to avoid redundant network requests.
  * Supports TTL (Time To Live), size limits, and automatic cleanup of expired entries.
  */

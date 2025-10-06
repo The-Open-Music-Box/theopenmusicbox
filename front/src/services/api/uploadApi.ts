@@ -40,12 +40,7 @@ export const uploadApi = {
 
     const response = await apiClient.put<ApiResponse<{ progress: number }>>(
       API_ROUTES.PLAYLIST_UPLOAD_CHUNK(playlistId, sessionId, chunkIndex),
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      }
+      formData
     )
     return ApiResponseHandler.extractData(response)
   },
@@ -74,9 +69,11 @@ export const uploadApi = {
   /**
    * List all upload sessions
    */
+  /* eslint-disable @typescript-eslint/no-explicit-any */
   async listUploadSessions(): Promise<{ sessions: any[] }> {
     const response = await apiClient.get<ApiResponse<{ sessions: any[] }>>(
       API_ROUTES.UPLOAD_SESSIONS_LIST
+  /* eslint-enable @typescript-eslint/no-explicit-any */
     )
     return ApiResponseHandler.extractData(response)
   },

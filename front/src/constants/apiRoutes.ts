@@ -32,10 +32,12 @@ export const API_ROUTES = {
   PLAYLIST_TRACK: (playlistId: string, trackNumber: number) =>
     `/api/playlists/${playlistId}/play/${trackNumber}`,
   PLAYLIST_SYNC: '/api/playlists/sync',
-  PLAYLIST_MOVE_TRACK: '/api/playlists/move-track',
+  PLAYLIST_MOVE_TRACK: (id: string) => `/api/playlists/${id}/move-track`,
 
   // Player routes (server-authoritative)
   PLAYER_STATUS: '/api/player/status',
+  PLAYER_PLAY: '/api/player/play',
+  PLAYER_PAUSE: '/api/player/pause',
   PLAYER_STOP: '/api/player/stop',
   PLAYER_NEXT: '/api/player/next',
   PLAYER_PREVIOUS: '/api/player/previous',

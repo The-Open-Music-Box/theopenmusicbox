@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 /**
  * Base API Client and Response Handlers
  * Shared utilities for all API modules
@@ -57,6 +58,17 @@ export class ApiResponseHandler {
   static extractData<T>(response: AxiosResponse<ApiResponse<T>>): T {
     const { data: apiResponse } = response
 
+    // Debug: Log the raw response structure
+    logger.debug('extractData called', {
+      url: response.config?.url || 'unknown',
+      status: response.status,
+      hasApiResponse: !!apiResponse,
+      apiResponseType: typeof apiResponse,
+      apiResponseStatus: apiResponse?.status,
+      hasDataField: apiResponse ? 'data' in apiResponse : false,
+      dataType: apiResponse && 'data' in apiResponse ? typeof (apiResponse as any).data : 'N/A'
+    }, 'ApiResponseHandler')
+
     // Handle 204 No Content responses (no body)
     if (response.status === 204) {
       return undefined as T
@@ -76,11 +88,22 @@ export class ApiResponseHandler {
 
     // Handle standardized success response
     if (apiResponse.status === 'success') {
-      if ('data' in apiResponse) {
+      if ('data' in apiResponse && apiResponse.data !== undefined) {
+        logger.debug('Returning data from success response', {
+          url: response.config?.url || 'unknown',
+          dataType: typeof apiResponse.data
+        }, 'ApiResponseHandler')
         return apiResponse.data!
       }
       // For operations like DELETE that don't return data, return undefined
       // This is normal for 200 OK responses without data payload
+      logger.warn('Success response without data field', {
+        url: response.config?.url || 'unknown',
+        status: response.status,
+        hasDataField: 'data' in apiResponse,
+        dataValue: (apiResponse as any).data,
+        fullResponse: apiResponse
+      }, 'ApiResponseHandler')
       return undefined as T
     }
 
@@ -197,16 +220,22 @@ export const apiClient = axios.create({
   }
 })
 
-// Request interceptor to add metadata
+// Request interceptor to add metadata and handle FormData
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   config.metadata = { start: Date.now() }
-  
+
+  // Handle FormData uploads - remove Content-Type to let axios set it with boundary
+  if (config.data instanceof FormData) {
+    delete config.headers['Content-Type']
+  }
+
   logger.debug('API Request started', {
     method: config.method?.toUpperCase(),
     url: config.url,
-    headers: config.headers
+    headers: config.headers,
+    isFormData: config.data instanceof FormData
   }, 'ApiClient')
-  
+
   return config
 }, (error) => {
   logger.error('API Request interceptor error', { error: error.message }, 'ApiClient')

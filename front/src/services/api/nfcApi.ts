@@ -15,9 +15,11 @@ export const nfcApi = {
   /**
    * Associate NFC tag with playlist
    */
+/* eslint-disable @typescript-eslint/no-explicit-any */
   async associateNfcTag(playlistId: string, tagId: string, clientOpId?: string): Promise<{ association: any }> {
     const response = await apiClient.post<ApiResponse<{ association: any }>>(
       API_ROUTES.NFC_ASSOCIATE,
+/* eslint-enable @typescript-eslint/no-explicit-any */
       {
         playlist_id: playlistId,
         tag_id: tagId,

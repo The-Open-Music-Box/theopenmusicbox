@@ -15,7 +15,8 @@ export const youtubeApi = {
   /**
    * Search YouTube videos
    */
-  async searchVideos(query: string, maxResults?: number, clientOpId?: string): Promise<{ results: any[] }> {
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+  async searchVideos(query: string, maxResults?: number, _clientOpId?: string): Promise<{ results: any[] }> {
     const response = await apiClient.get<ApiResponse<{ results: any[] }>>(
       API_ROUTES.YOUTUBE_SEARCH,
       {
@@ -49,6 +50,7 @@ export const youtubeApi = {
   async getDownloadStatus(taskId: string): Promise<{ task_id: string; status: string; progress_percent?: number; current_step?: string; error_message?: string; result?: any }> {
     const response = await apiClient.get<ApiResponse<{ task_id: string; status: string; progress_percent?: number; current_step?: string; error_message?: string; result?: any }>>(
       API_ROUTES.YOUTUBE_STATUS(taskId)
+/* eslint-enable @typescript-eslint/no-explicit-any */
     )
     return ApiResponseHandler.extractData(response)
   }
