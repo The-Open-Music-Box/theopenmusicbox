@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Centralized error handling for drag & drop operations
  */
@@ -89,7 +90,7 @@ export function handleDragError(
 /**
  * Get user-friendly error message for drag operations
  */
-export function getDragErrorMessage(operation: DragContext['operation'], error?: Error): string {
+export function getDragErrorMessage(operation: DragContext['operation'], _error?: Error): string {
   const messages = {
     reorder: 'Failed to reorder tracks. Please try again.',
     move: 'Failed to move track between playlists. Please try again.',

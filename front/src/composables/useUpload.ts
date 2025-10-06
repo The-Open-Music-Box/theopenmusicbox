@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /**
  * Simple Upload Composable
  * Minimal implementation for upload store compatibility

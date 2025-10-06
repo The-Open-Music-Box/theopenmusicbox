@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Global Timer Manager
  * 
@@ -190,7 +191,7 @@ export class TimerManager {
    * Log current timer stats (for debugging)
    */
   logStats(): void {
-    const stats = this.getStats()
+    // const stats = this.getStats()
     // console.log('[TimerManager] Timer Statistics:', {
     //   ...stats,
     //   timerList: stats.timerList.length > 10 

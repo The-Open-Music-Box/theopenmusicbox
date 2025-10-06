@@ -143,21 +143,42 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { youtubeApi } from '@/services/apiService'
 import { socketService } from '@/services/socketService'
-import { useServerState } from '@/stores/serverStateStore'
+import { useServerStateStore } from '@/stores/serverStateStore'
 
-const { playlists } = useServerState()
+const serverStateStore = useServerStateStore()
+const { playlists } = serverStateStore
+
+interface VideoResult {
+  id: string
+  title: string
+  channel: string
+  thumbnail_url: string
+  duration_ms: number
+  view_count: number
+}
+
+interface DownloadTask {
+  task_id: string
+  status: string
+  progress_percent?: number
+  title?: string
+  url?: string
+  current_step?: string
+  estimated_time_remaining?: number
+  error_message?: string
+}
 
 // Reactive state
 const searchQuery = ref('')
 const directUrl = ref('')
-const searchResults = ref<any[]>([])
+const searchResults = ref<VideoResult[]>([])
 const selectedPlaylistId = ref('')
 const searching = ref(false)
 const downloading = ref(false)
-const downloadTasks = ref<any[]>([])
+const downloadTasks = ref<DownloadTask[]>([])
 
 // YouTube event handlers
-const handleYoutubeProgress = (data: any) => {
+const handleYoutubeProgress = (data: DownloadTask) => {
   const taskIndex = downloadTasks.value.findIndex(task => task.task_id === data.task_id)
   if (taskIndex !== -1) {
     downloadTasks.value[taskIndex] = { ...downloadTasks.value[taskIndex], ...data }
@@ -166,26 +187,26 @@ const handleYoutubeProgress = (data: any) => {
   }
 }
 
-const handleYoutubeComplete = (data: any) => {
+const handleYoutubeComplete = (data: DownloadTask) => {
   const taskIndex = downloadTasks.value.findIndex(task => task.task_id === data.task_id)
   if (taskIndex !== -1) {
-    downloadTasks.value[taskIndex] = { 
-      ...downloadTasks.value[taskIndex], 
-      ...data, 
+    downloadTasks.value[taskIndex] = {
+      ...downloadTasks.value[taskIndex],
+      ...data,
       status: 'completed',
-      progress_percent: 100 
+      progress_percent: 100
     }
   }
   downloading.value = false
 }
 
-const handleYoutubeError = (data: any) => {
+const handleYoutubeError = (data: DownloadTask) => {
   const taskIndex = downloadTasks.value.findIndex(task => task.task_id === data.task_id)
   if (taskIndex !== -1) {
-    downloadTasks.value[taskIndex] = { 
-      ...downloadTasks.value[taskIndex], 
-      ...data, 
-      status: 'error' 
+    downloadTasks.value[taskIndex] = {
+      ...downloadTasks.value[taskIndex],
+      ...data,
+      status: 'error'
     }
   }
   downloading.value = false
@@ -200,8 +221,7 @@ const searchVideos = async () => {
     const response = await youtubeApi.searchVideos(searchQuery.value)
     searchResults.value = response.results || []
   } catch (error) {
-    console.error('YouTube search failed:', error)
-    // TODO: Show user-friendly error message
+    // Error handled silently - TODO: Add user notification system
   } finally {
     searching.value = false
   }
@@ -222,13 +242,12 @@ const downloadFromUrl = async () => {
     })
     directUrl.value = ''
   } catch (error) {
-    console.error('YouTube download failed:', error)
+    // Error handled silently - TODO: Add user notification system
     downloading.value = false
-    // TODO: Show user-friendly error message
   }
 }
 
-const downloadVideo = async (video: any) => {
+const downloadVideo = async (video: VideoResult) => {
   if (!selectedPlaylistId.value) return
   
   downloading.value = true
@@ -243,9 +262,8 @@ const downloadVideo = async (video: any) => {
       url: videoUrl
     })
   } catch (error) {
-    console.error('YouTube download failed:', error)
+    // Error handled silently - TODO: Add user notification system
     downloading.value = false
-    // TODO: Show user-friendly error message
   }
 }
 

@@ -26,6 +26,10 @@
             <i class="fas fa-wifi"></i>
           </div>
           <p>{{ $t('nfc.associate.waiting') }}</p>
+          <div v-if="playlistTitle" class="playlist-info">
+            <strong>{{ $t('nfc.associate.forPlaylist') }}:</strong>
+            <div class="playlist-title">{{ playlistTitle }}</div>
+          </div>
           <div v-if="countdown > 0" class="countdown">
             {{ $t('nfc.associate.timeout', { seconds: countdown }) }}
           </div>
@@ -123,6 +127,7 @@ import { NfcAssociationStateData, NfcTagDuplicateData } from '@/types/socket'
 interface Props {
   visible: boolean
   playlistId: string
+  playlistTitle?: string
 }
 
 const props = defineProps<Props>()
@@ -141,6 +146,7 @@ const message = ref('')
 const countdown = ref(0)
 const isOverrideMode = ref(false)
 const existingPlaylistInfo = ref<{ id: string; title: string } | null>(null)
+const detectedTagId = ref<string | null>(null)  // Store the tag_id when duplicate is detected
 
 // Countdown timer
 let countdownInterval: ReturnType<typeof setInterval> | null = null
@@ -176,11 +182,9 @@ function stopCountdown() {
 function setupSocketHandlers() {
   socketService.on(SOCKET_EVENTS.NFC_ASSOCIATION_STATE, (data: unknown) => {
     const stateData = data as NfcAssociationStateData
-    console.log('NFC association state received', { data: stateData, currentPlaylist: props.playlistId })
 
     // Only process events for our current playlist
     if (stateData.playlist_id !== props.playlistId) {
-      console.log('Ignoring NFC event for different playlist:', stateData.playlist_id)
       return
     }
 
@@ -194,12 +198,10 @@ function setupSocketHandlers() {
         }
         break
       case 'success':
-        console.log('✅ NFC ASSOCIATION SUCCESS EVENT RECEIVED!', stateData)
         state.value = 'success'
         message.value = stateData.message || t('nfc.associate.success')
         stopCountdown()
         stopAssociationPolling()
-        console.log('NFC association successful, will close dialog in 3 seconds')
         // Emit success event to parent for playlist update
         emit('success', props.playlistId)
         // Auto-close dialog after showing success for 3 seconds
@@ -210,6 +212,7 @@ function setupSocketHandlers() {
       case 'duplicate':
         state.value = 'already_associated'
         existingPlaylistInfo.value = stateData.existing_playlist || null
+        detectedTagId.value = stateData.tag_id || null  // Store tag_id for override
         message.value = stateData.message || t('nfc.associate.duplicate')
         break
       case 'timeout':
@@ -232,11 +235,9 @@ function setupSocketHandlers() {
 
   socketService.on('nfc_tag_duplicate', (data: unknown) => {
     const duplicateData = data as NfcTagDuplicateData
-    console.log('NFC tag duplicate detected', { data: duplicateData })
     existingPlaylistInfo.value = duplicateData.existing_playlist
   })
 
-  console.log('NFC Socket handlers setup complete')
 }
 
 function cleanupSocketHandlers() {
@@ -250,20 +251,16 @@ let associationPollInterval: ReturnType<typeof setInterval> | null = null
 function startAssociationPolling() {
   if (associationPollInterval) return
   
-  console.log('Starting NFC association status polling')
   associationPollInterval = setInterval(async () => {
     try {
       const status = await apiService.getNfcStatus()
-      console.log('NFC status poll:', status)
       
       // Check if there's an active session for our playlist
       if (status.active_sessions && status.active_sessions.length > 0) {
         const ourSession = status.active_sessions.find(s => s.playlist_id === props.playlistId)
         if (ourSession) {
-          console.log('Found our association session:', ourSession)
           
           if (ourSession.state === 'success' && state.value === 'waiting') {
-            console.log('✅ POLLING DETECTED SUCCESS - closing dialog')
             state.value = 'success'
             message.value = t('nfc.associate.success')
             stopAssociationPolling()
@@ -279,7 +276,7 @@ function startAssociationPolling() {
         }
       }
     } catch (error) {
-      console.error('Failed to poll NFC status:', error)
+    // Error handled silently
     }
   }, 1000)
 }
@@ -288,19 +285,16 @@ function stopAssociationPolling() {
   if (associationPollInterval) {
     clearInterval(associationPollInterval)
     associationPollInterval = null
-    console.log('Stopped NFC association status polling')
   }
 }
 
 // User actions
 async function startAssociation() {
-  console.log('Starting NFC association for playlist:', props.playlistId)
   state.value = 'waiting'
   try {
     // Use proper REST API call instead of Socket.IO event
     // Note: nfc_association_state events are emitted globally, so no room joining needed
     const result = await apiService.startNfcAssociation(props.playlistId)
-    console.log('NFC association started, result:', result)
     
     // Set up timeout countdown if we have expiration info
     if (result && result.timeout_ms) {
@@ -312,35 +306,34 @@ async function startAssociation() {
     startAssociationPolling()
     
   } catch (error) {
-    console.error('Failed to start NFC association:', error)
+    // Error handled silently
     state.value = 'error'
   }
 }
 
 async function cancelAssociation() {
-  console.log('Cancelling NFC association')
   try {
     // Use proper REST API call instead of Socket.IO event
     await apiService.cancelNfcObservation()
   } catch (error) {
-    console.error('Failed to cancel NFC association:', error)
+    // Error handled silently
   }
   state.value = 'cancelled'
 }
 
 function retryAssociation() {
-  console.log('Retrying NFC association')
   state.value = 'idle'
   message.value = ''
   existingPlaylistInfo.value = null
+  detectedTagId.value = null
   isOverrideMode.value = false
 }
 
 function replaceAssociation() {
-  console.log('Replacing NFC tag association')
   isOverrideMode.value = true
   socketService.emit('override_nfc_tag', {
-    playlist_id: props.playlistId
+    playlist_id: props.playlistId,
+    tag_id: detectedTagId.value  // Send the stored tag_id for immediate processing
   })
   state.value = 'waiting'
 }
@@ -352,14 +345,13 @@ function handleBackdropClick() {
 }
 
 async function handleClose() {
-  console.log('Closing NFC association dialog')
 
   // Stop any ongoing association
   if (state.value === 'waiting') {
     try {
       await apiService.cancelNfcObservation()
     } catch (error) {
-      console.error('Failed to cancel NFC observation on cleanup:', error)
+    // Error handled silently
     }
   }
 
@@ -371,6 +363,7 @@ async function handleClose() {
   message.value = ''
   isOverrideMode.value = false
   existingPlaylistInfo.value = null
+  detectedTagId.value = null
   stopCountdown()
 
   emit('update:visible', false)
@@ -383,7 +376,7 @@ async function checkAssociationState() {
       playlist_id: props.playlistId
     })
   } catch (error) {
-    console.error('Failed to check NFC association state:', error)
+    // Error handled silently
   }
 }
 
@@ -502,6 +495,22 @@ watch(() => props.visible, (newVisible) => {
   font-size: 14px;
   color: #666;
   margin: 8px 0;
+}
+
+.playlist-info {
+  background: #e0f2fe;
+  padding: 12px;
+  border-radius: 6px;
+  margin: 16px 0;
+  font-size: 14px;
+  text-align: center;
+}
+
+.playlist-title {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 8px;
+  color: #0369a1;
 }
 
 .existing-playlist-info {

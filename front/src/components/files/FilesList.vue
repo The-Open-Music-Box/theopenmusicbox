@@ -212,6 +212,7 @@
     <NfcAssociateDialog
       :visible="showNfcDialog"
       :playlistId="selectedPlaylistId"
+      :playlistTitle="selectedPlaylistTitle"
       @success="handleNfcSuccess"
       @update:visible="showNfcDialog = $event"
     />
@@ -409,6 +410,7 @@ const openPlaylists = ref<string[]>([])
 // NFC dialog state and logic
 const showNfcDialog = ref(false)
 const selectedPlaylistId = ref<string | null>(null)
+const selectedPlaylistTitle = ref<string | null>(null)
 
 /**
  * Handle successful NFC tag association
@@ -417,12 +419,12 @@ const selectedPlaylistId = ref<string | null>(null)
  */
 const handleNfcSuccess = async (playlistId: string) => {
   logger.debug('NFC association success', { playlistId })
-  
+
   try {
     // Force sync the unified store to ensure NFC tag data is updated
     await unifiedStore.forceSync()
     logger.debug('Forced sync after NFC association success', { playlistId })
-    
+
     showFeedback('success', t('file.nfcAssociationSuccess'))
   } catch (error) {
     logger.error('Failed to sync after NFC association', { playlistId, error })
@@ -433,6 +435,9 @@ const handleNfcSuccess = async (playlistId: string) => {
 
 function openNfcDialog(id: string) {
   selectedPlaylistId.value = id
+  // Find the playlist title from localPlaylists
+  const playlist = localPlaylists.value.find(p => p.id === id)
+  selectedPlaylistTitle.value = playlist?.title || null
   showNfcDialog.value = true
 }
 

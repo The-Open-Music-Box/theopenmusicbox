@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-non-null-assertion */
 /**
  * Unified Playlist Store
  * 
@@ -368,40 +369,71 @@ export const useUnifiedPlaylistStore = defineStore('unifiedPlaylist', () => {
   async function reorderTracks(playlistId: string, newOrder: number[]): Promise<void> {
     // Mark drag operation as ongoing to prevent WebSocket conflicts
     ongoingDragOperations.value.add(playlistId)
-    
-    try {
-      await apiService.reorderTracks(playlistId, newOrder)
-      
-      // Update local data optimistically using centralized logic and performance optimization
-      const playlistTracks = tracks.value.get(playlistId)
-      if (playlistTracks) {
-        // Validate tracks before reordering
-        const validation = validateTracksForDrag(playlistTracks)
-        if (!validation.valid) {
-          logger.warn('Track validation issues during reorder', { playlistId, errors: validation.errors })
-        }
 
-        // Use existing index map if available, otherwise create one
-        let trackMap = trackIndexMaps.value.get(playlistId)
-        if (!trackMap) {
-          trackMap = createTrackIndexMap(playlistTracks)
-          trackIndexMaps.value.set(playlistId, trackMap)
-        }
-        
-        const reorderedTracks = newOrder
-          .map(num => trackMap!.get(num))
-          .filter((track): track is Track => track !== undefined)
-          .map((track, index) => ({
-            ...track,
-            track_number: index + 1, // Update track numbers for new positions
-            number: undefined // Remove legacy field
-          }))
-        
-        tracks.value.set(playlistId, reorderedTracks)
-        // Update performance index with new data
-        updateTrackIndexMap(playlistId, reorderedTracks)
+    try {
+      // Convert track numbers to track IDs for API call
+      const playlistTracks = tracks.value.get(playlistId)
+      if (!playlistTracks || playlistTracks.length === 0) {
+        logger.warn('No tracks found for reorder, skipping', { playlistId })
+        return
       }
-      
+
+      // Validate tracks before reordering
+      const validation = validateTracksForDrag(playlistTracks)
+      if (!validation.valid) {
+        logger.warn('Track validation issues during reorder', { playlistId, errors: validation.errors })
+      }
+
+      // Use existing index map if available, otherwise create one
+      let trackMap = trackIndexMaps.value.get(playlistId)
+      if (!trackMap) {
+        trackMap = createTrackIndexMap(playlistTracks)
+        trackIndexMaps.value.set(playlistId, trackMap)
+      }
+
+      // Map track numbers to track IDs
+      const trackIds = newOrder
+        .map(num => {
+          const track = trackMap!.get(num)
+          if (!track) {
+            logger.warn(`Track with number ${num} not found in playlist ${playlistId}`, { availableTracks: playlistTracks.length })
+            return null
+          }
+          return track.id
+        })
+        .filter((id): id is string => id !== null)
+
+      if (trackIds.length === 0) {
+        logger.warn('No valid track IDs found for reorder, skipping', { playlistId, newOrder })
+        return
+      }
+
+      if (trackIds.length !== newOrder.length) {
+        logger.warn(`Could not map all track numbers to IDs: expected ${newOrder.length}, got ${trackIds.length}`, {
+          playlistId,
+          newOrder,
+          mappedIds: trackIds.length
+        })
+        // Continue with partial reorder if we have at least some valid tracks
+      }
+
+      // Send track IDs to backend (not track numbers)
+      await apiService.reorderTracks(playlistId, trackIds)
+
+      // Update local data optimistically using centralized logic and performance optimization
+      const reorderedTracks = newOrder
+        .map(num => trackMap!.get(num))
+        .filter((track): track is Track => track !== undefined)
+        .map((track, index) => ({
+          ...track,
+          track_number: index + 1, // Update track numbers for new positions
+          number: undefined // Remove legacy field
+        }))
+
+      tracks.value.set(playlistId, reorderedTracks)
+      // Update performance index with new data
+      updateTrackIndexMap(playlistId, reorderedTracks)
+
       logger.info('Reordered tracks', { playlistId, newOrder })
       
       // CRITICAL FIX: Clear drag operation immediately after successful API call

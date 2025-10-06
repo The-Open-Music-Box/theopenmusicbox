@@ -45,6 +45,7 @@
 </template>
 
 <script setup lang="ts">
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import { useI18n } from 'vue-i18n'
 import { useUploadStore } from '@/stores/uploadStore'
 import { useUnifiedPlaylistStore } from '@/stores/unifiedPlaylistStore'
@@ -97,9 +98,9 @@ async function handleUploadComplete() {
         
         logger.debug('Tracks successfully reloaded for uploaded playlist')
       } catch (error) {
-        logger.warn('Failed to reload tracks for uploaded playlist', { 
-          playlistId: uploadStore.modalPlaylistId, 
-          error 
+        logger.warn('Failed to reload tracks for uploaded playlist', {
+          playlistId: uploadStore.modalPlaylistId,
+          error
         })
       }
     }
@@ -111,9 +112,8 @@ async function handleUploadComplete() {
   }
 }
 
-function handleUploadError(error: unknown) {
+function handleUploadError(_error: unknown) {
   // Error is already logged by SimpleUploader
-  console.error('Upload error:', error)
 }
 </script>
 

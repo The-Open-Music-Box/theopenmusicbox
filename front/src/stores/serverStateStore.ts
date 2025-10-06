@@ -94,7 +94,7 @@ export const useServerStateStore = defineStore('serverState', () => {
   const pendingOperations = reactive<Set<string>>(new Set())
 
   // Player state monitoring for proactive sync
-  let playerStateCheckInterval: NodeJS.Timeout | null = null
+  let playerStateCheckInterval: ReturnType<typeof setInterval> | null = null
   const PLAYER_STATE_CHECK_INTERVAL = 5000 // 5 seconds
 
   // Computed getters
@@ -843,7 +843,10 @@ export const useServerStateStore = defineStore('serverState', () => {
     unsubscribeFromPlaylist,
     requestStateSync,
     manualSync,
-    requestInitialPlayerState
+    requestInitialPlayerState,
+
+    // Player state management - exposed for optimistic updates
+    handlePlayerState
   }
 
   return store

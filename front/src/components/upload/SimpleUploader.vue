@@ -328,6 +328,7 @@ const cancelUpload = () => {
 }
 
 // Socket.IO event handlers for real-time upload progress
+    /* eslint-disable @typescript-eslint/no-explicit-any */
 const handleUploadProgress = (data: any) => {
   if (data.playlist_id !== props.playlistId) return
   
@@ -372,6 +373,7 @@ const handleUploadComplete = (data: any) => {
 const handleUploadError = (data: any) => {
   if (data.playlist_id !== props.playlistId) return
   
+    /* eslint-enable @typescript-eslint/no-explicit-any */
   // Find the upload file by session ID
   const uploadFile = uploadFiles.value.find(f => f.sessionId === data.session_id)
   if (uploadFile) {

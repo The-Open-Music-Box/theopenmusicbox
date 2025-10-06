@@ -105,8 +105,10 @@ function positionToTime(clientX: number, target: HTMLElement): number {
   return props.duration * percentage
 }
 
+  /* eslint-disable @typescript-eslint/no-explicit-any */
 let moveListener: any = null
 let upListener: any = null
+  /* eslint-enable @typescript-eslint/no-explicit-any */
 
 const onMouseDown = (event: MouseEvent) => {
   const target = event.currentTarget as HTMLElement

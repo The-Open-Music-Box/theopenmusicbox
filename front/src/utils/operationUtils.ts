@@ -10,7 +10,13 @@
  */
 export function generateClientOpId(operation: string): string {
   const timestamp = Date.now()
-  const randomSuffix = Math.random().toString(36).substr(2, 9)
+  let randomSuffix = Math.random().toString(36).substr(2, 9)
+  
+  // Handle edge case where Math.random() returns 0, resulting in empty suffix
+  if (randomSuffix.length === 0) {
+    randomSuffix = '000000000' // 9 zeros as fallback
+  }
+  
   return `${operation}_${timestamp}_${randomSuffix}`
 }
 
@@ -25,8 +31,21 @@ export function validateClientOpId(clientOpId: string): boolean {
   }
   
   // Should match pattern: operation_timestamp_random
-  const parts = clientOpId.split('_')
-  return parts.length >= 3 && parts[1].length > 0 && !isNaN(Number(parts[1]))
+  // Find the last two underscores to separate operation_name from timestamp and random_suffix
+  const lastUnderscoreIndex = clientOpId.lastIndexOf('_')
+  if (lastUnderscoreIndex === -1) return false
+  
+  const secondLastUnderscoreIndex = clientOpId.lastIndexOf('_', lastUnderscoreIndex - 1)
+  if (secondLastUnderscoreIndex === -1) return false
+  
+  // Extract the timestamp part (between second-last and last underscore)
+  const timestampPart = clientOpId.substring(secondLastUnderscoreIndex + 1, lastUnderscoreIndex)
+  
+  // Extract the random suffix part (after last underscore)
+  const randomSuffixPart = clientOpId.substring(lastUnderscoreIndex + 1)
+  
+  // Validate timestamp is numeric and not empty, and random suffix is not empty
+  return timestampPart.length > 0 && !isNaN(Number(timestampPart)) && randomSuffixPart.length > 0
 }
 
 /**
@@ -39,6 +58,10 @@ export function extractOperationName(clientOpId: string): string | null {
     return null
   }
   
-  const parts = clientOpId.split('_')
-  return parts[0]
+  // Find the last two underscores to separate operation_name from timestamp and random_suffix
+  const lastUnderscoreIndex = clientOpId.lastIndexOf('_')
+  const secondLastUnderscoreIndex = clientOpId.lastIndexOf('_', lastUnderscoreIndex - 1)
+  
+  // Return everything before the second-last underscore (the operation name)
+  return clientOpId.substring(0, secondLastUnderscoreIndex)
 }

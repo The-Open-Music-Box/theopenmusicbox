@@ -12,6 +12,7 @@ import type { Track } from '@/components/files/types'
  * Priority: track_number > number > 0
  */
 export function getTrackNumber(track: Track): number {
+  if (!track) return 0
   return track.track_number ?? track.number ?? 0
 }
 
@@ -20,15 +21,17 @@ export function getTrackNumber(track: Track): number {
  * Priority: duration_ms > duration * 1000 > 0
  */
 export function getTrackDurationMs(track: Track): number {
+  if (!track) return 0
+
   if (track.duration_ms !== undefined) {
     return track.duration_ms
   }
-  
+
   // Legacy fallback - duration in seconds, convert to ms
   if (track.duration !== undefined) {
     return track.duration * 1000
   }
-  
+
   return 0
 }
 
@@ -37,15 +40,17 @@ export function getTrackDurationMs(track: Track): number {
  * Priority: duration_ms / 1000 > duration > 0
  */
 export function getTrackDurationSeconds(track: Track): number {
+  if (!track) return 0
+
   if (track.duration_ms !== undefined) {
     return track.duration_ms / 1000
   }
-  
+
   // Legacy fallback
   if (track.duration !== undefined) {
     return track.duration
   }
-  
+
   return 0
 }
 
@@ -54,6 +59,8 @@ export function getTrackDurationSeconds(track: Track): number {
  * Converts legacy fields to new standardized format
  */
 export function normalizeTrack(track: Track): Track {
+  if (!track) return track
+
   return {
     ...track,
     track_number: getTrackNumber(track),

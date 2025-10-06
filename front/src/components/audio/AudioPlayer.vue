@@ -175,34 +175,79 @@ const unwatchPosition = serverStateStore.$subscribe((mutation, state) => {
 
 // Player control methods
 async function togglePlayPause() {
+  // Save current state for rollback on error
+  const previousState = { ...playerState.value }
+  const wasPlaying = isPlaying.value
+
   try {
-    if (isPlaying.value) {
-      await apiService.pausePlayer()
+    // OPTIMISTIC UPDATE: Update UI immediately for instant feedback
+    // This will be confirmed or rolled back based on server response
+    const optimisticState = {
+      ...previousState,
+      is_playing: !wasPlaying
+    }
+    logger.debug('[AudioPlayerSimplified] Optimistic update:', { was: wasPlaying, now: !wasPlaying })
+    serverStateStore.handlePlayerState(optimisticState)
+
+    // Make API call
+    let response
+    if (wasPlaying) {
+      response = await apiService.pausePlayer()
       logger.debug('[AudioPlayerSimplified] Pause requested')
     } else {
-      await apiService.playPlayer()
+      response = await apiService.playPlayer()
       logger.debug('[AudioPlayerSimplified] Play requested')
+    }
+
+    // CONFIRM with server response (may include additional state updates)
+    // Note: apiService returns direct PlayerState (already unwrapped by ApiResponseHandler)
+    if (response && typeof response === 'object') {
+      logger.debug('[AudioPlayerSimplified] Confirming state with HTTP response:', response)
+      serverStateStore.handlePlayerState(response)
     }
   } catch (error) {
     logger.error('[AudioPlayerSimplified] Failed to toggle play/pause:', error)
+
+    // ROLLBACK: Restore previous state on error
+    logger.warn('[AudioPlayerSimplified] Rolling back to previous state due to error')
+    serverStateStore.handlePlayerState(previousState)
+
+    // TODO: Show error notification to user (toast/snackbar)
+    // Example: notificationStore.showError('Failed to toggle playback')
   }
 }
 
 async function previous() {
   try {
-    await apiService.previousTrack()
+    const response = await apiService.previousTrack()
     logger.debug('[AudioPlayerSimplified] Previous track requested')
+
+    // Update store immediately with HTTP response
+    // Note: apiService returns direct PlayerState (already unwrapped by ApiResponseHandler)
+    if (response && typeof response === 'object') {
+      logger.debug('[AudioPlayerSimplified] Updating player state from previous response:', response)
+      serverStateStore.handlePlayerState(response)
+    }
   } catch (error) {
     logger.error('[AudioPlayerSimplified] Failed to go to previous track:', error)
+    // TODO: Show error notification to user
   }
 }
 
 async function next() {
   try {
-    await apiService.nextTrack()
+    const response = await apiService.nextTrack()
     logger.debug('[AudioPlayerSimplified] Next track requested')
+
+    // Update store immediately with HTTP response
+    // Note: apiService returns direct PlayerState (already unwrapped by ApiResponseHandler)
+    if (response && typeof response === 'object') {
+      logger.debug('[AudioPlayerSimplified] Updating player state from next response:', response)
+      serverStateStore.handlePlayerState(response)
+    }
   } catch (error) {
     logger.error('[AudioPlayerSimplified] Failed to go to next track:', error)
+    // TODO: Show error notification to user
   }
 }
 
