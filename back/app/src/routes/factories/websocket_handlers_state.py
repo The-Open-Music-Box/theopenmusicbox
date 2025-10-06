@@ -16,8 +16,7 @@ import socketio
 
 from app.src.monitoring import get_logger
 from app.src.services.error.unified_error_decorator import handle_http_errors
-from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.state_manager import StateManager
+from app.src.domain.audio.engine.state_manager import StateManager
 
 logger = get_logger(__name__)
 
@@ -33,9 +32,7 @@ class WebSocketStateHandlers:
         # Set the Socket.IO server in state manager
         self.state_manager.socketio = sio
 
-        logger.log(
-            LogLevel.INFO,
-            "WebSocketStateHandlers initialized with server-authoritative architecture",
+        logger.info("WebSocketStateHandlers initialized with server-authoritative architecture",
         )
 
     def register(self):
@@ -45,7 +42,7 @@ class WebSocketStateHandlers:
         @handle_http_errors()
         async def connect(sid, environ):
             """Handle client connection and initial state sync."""
-            logger.log(LogLevel.INFO, f"Client connected: {sid}")
+            logger.info(f"Client connected: {sid}")
 
             # Send connection acknowledgment with proper error handling
             await self.sio.emit(
@@ -61,7 +58,7 @@ class WebSocketStateHandlers:
         @self.sio.event
         async def disconnect(sid):
             """Handle client disconnection and cleanup subscriptions."""
-            logger.log(LogLevel.INFO, f"Client disconnected: {sid}")
+            logger.info(f"Client disconnected: {sid}")
 
             # Unsubscribe client from all rooms
             await self.state_manager.unsubscribe_client(sid)
@@ -70,7 +67,7 @@ class WebSocketStateHandlers:
         @handle_http_errors()
         async def handle_join_playlists(sid, data):
             """Subscribe client to global playlists state updates."""
-            logger.log(LogLevel.INFO, f"Client {sid} joining playlists room")
+            logger.info(f"Client {sid} joining playlists room")
             await self.state_manager.subscribe_client(sid, "playlists")
             # Snapshot is sent by StateManager.subscribe_client via _send_state_snapshot
             # Send acknowledgment
@@ -83,9 +80,7 @@ class WebSocketStateHandlers:
                 },
                 room=sid,
             )
-            logger.log(
-                LogLevel.INFO,
-                f"Client {sid} subscribed to playlists; snapshot will be sent by StateManager",
+            logger.info(f"Client {sid} subscribed to playlists; snapshot will be sent by StateManager",
             )
 
         @self.sio.on("join:playlist")
@@ -96,7 +91,7 @@ class WebSocketStateHandlers:
             if not playlist_id:
                 raise ValueError("playlist_id is required")
             room = f"playlist:{playlist_id}"
-            logger.log(LogLevel.INFO, f"Client {sid} joining playlist room: {room}")
+            logger.info(f"Client {sid} joining playlist room: {room}")
             await self.state_manager.subscribe_client(sid, room)
             # Send acknowledgment
             await self.sio.emit(
@@ -114,7 +109,7 @@ class WebSocketStateHandlers:
         @handle_http_errors()
         async def handle_leave_playlists(sid, data):
             """Unsubscribe client from global playlists updates."""
-            logger.log(LogLevel.INFO, f"Client {sid} leaving playlists room")
+            logger.info(f"Client {sid} leaving playlists room")
             await self.state_manager.unsubscribe_client(sid, "playlists")
             await self.sio.emit("ack:leave", {"room": "playlists", "success": True}, room=sid)
 
@@ -126,7 +121,7 @@ class WebSocketStateHandlers:
             if not playlist_id:
                 raise ValueError("playlist_id is required")
             room = f"playlist:{playlist_id}"
-            logger.log(LogLevel.INFO, f"Client {sid} leaving playlist room: {room}")
+            logger.info(f"Client {sid} leaving playlist room: {room}")
             await self.state_manager.unsubscribe_client(sid, room)
             await self.sio.emit(
                 "ack:leave", {"room": room, "playlist_id": playlist_id, "success": True}, room=sid
@@ -140,7 +135,7 @@ class WebSocketStateHandlers:
             if not assoc_id:
                 raise ValueError("assoc_id is required")
             room = f"nfc:{assoc_id}"
-            logger.log(LogLevel.INFO, f"Client {sid} joining NFC room: {room}")
+            logger.info(f"Client {sid} joining NFC room: {room}")
             await self.state_manager.subscribe_client(sid, room)
             # Send current snapshot
             container = getattr(self.app, "container", None)
@@ -159,7 +154,7 @@ class WebSocketStateHandlers:
             # Get client's last known sequence numbers
             last_global_seq = data.get("last_global_seq", 0)
             last_playlist_seqs = data.get("last_playlist_seqs", {})
-            logger.log(LogLevel.INFO, f"Sync request from {sid}: global_seq={last_global_seq}")
+            logger.info(f"Sync request from {sid}: global_seq={last_global_seq}")
             # Send current global state if client is behind
             current_global_seq = self.state_manager.get_global_sequence()
             if last_global_seq < current_global_seq:
@@ -189,9 +184,7 @@ class WebSocketStateHandlers:
             client_op_id = data.get("client_op_id")
             if not playlist_id:
                 raise ValueError("playlist_id is required")
-            logger.log(
-                LogLevel.INFO,
-                f"Starting NFC association for playlist {playlist_id} from client {sid}",
+            logger.info(f"Starting NFC association for playlist {playlist_id} from client {sid}",
             )
             # Get NFC service from container
             container = getattr(self.app, "container", None)
@@ -218,8 +211,7 @@ class WebSocketStateHandlers:
                     True,
                     {"assoc_id": result.get("assoc_id"), "playlist_id": playlist_id},
                 )
-            logger.log(
-                LogLevel.INFO, f"NFC association started successfully for playlist {playlist_id}"
+            logger.info(f"NFC association started successfully for playlist {playlist_id}"
             )
 
         @self.sio.on("stop_nfc_link")
@@ -230,9 +222,7 @@ class WebSocketStateHandlers:
             client_op_id = data.get("client_op_id")
             if not playlist_id:
                 raise ValueError("playlist_id is required")
-            logger.log(
-                LogLevel.INFO,
-                f"Stopping NFC association for playlist {playlist_id} from client {sid}",
+            logger.info(f"Stopping NFC association for playlist {playlist_id} from client {sid}",
             )
             # Get NFC service from container
             container = getattr(self.app, "container", None)
@@ -258,60 +248,95 @@ class WebSocketStateHandlers:
                 await self.state_manager.send_acknowledgment(
                     client_op_id, True, {"playlist_id": playlist_id, "status": "cancelled"}
                 )
-            logger.log(LogLevel.INFO, f"NFC association cancelled for playlist {playlist_id}")
+            logger.info(f"NFC association cancelled for playlist {playlist_id}")
 
         @self.sio.on("override_nfc_tag")
         @handle_http_errors()
         async def handle_override_nfc_tag(sid, data):
-            """Handle NFC tag override via WebSocket."""
+            """Handle NFC tag override via WebSocket.
+
+            Starts a new association session in override mode and immediately processes
+            the tag if tag_id is provided (no need to scan again).
+            """
             playlist_id = data.get("playlist_id")
+            tag_id = data.get("tag_id")  # Get the tag_id from duplicate detection
             client_op_id = data.get("client_op_id")
             if not playlist_id:
                 raise ValueError("playlist_id is required")
-            logger.log(
-                LogLevel.INFO, f"Overriding NFC tag for playlist {playlist_id} from client {sid}"
-            )
-            # Get NFC service from container
-            container = getattr(self.app, "container", None)
-            nfc_service = getattr(container, "nfc", None) if container else None
+
+            logger.info(f"🔄 Overriding NFC tag {tag_id} for playlist {playlist_id} from client {sid}")
+
+            # Get NFC service from application (correct path: app.application._nfc_app_service)
+            application = getattr(self.app, "application", None)
+            if not application:
+                raise Exception("Domain application not available")
+            nfc_service = getattr(application, "_nfc_app_service", None)
             if not nfc_service:
                 raise Exception("NFC service not available")
-            # Start association in override mode
-            result = await nfc_service.start_association_use_case(playlist_id)
-            # If there's already a detected tag in duplicate state, process it immediately
-            if hasattr(nfc_service, "_active_assoc_id") and nfc_service._active_assoc_id:
-                session = nfc_service._assoc_sessions.get(nfc_service._active_assoc_id)
-                if session and hasattr(session, "tag_id") and session.tag_id:
-                    logger.log(
-                        LogLevel.INFO,
-                        f"Processing previously detected tag {session.tag_id} in override mode",
-                    )
-                    # Use the NFC service detection handler to process the tag
-                    await nfc_service.handle_tag_detected(session.tag_id)
-            # Emit waiting state for override
-            await self.sio.emit(
-                "nfc_association_state",
-                {
-                    "state": "waiting",
-                    "playlist_id": playlist_id,
-                    "expires_at": result.get("expires_at"),
-                    "message": "Place NFC tag to override existing association",
-                    "server_seq": self.state_manager.get_global_sequence(),
-                },
-                room=sid,
+
+            # Start association in override mode (NEW: pass override_mode=True)
+            result = await nfc_service.start_association_use_case(
+                playlist_id,
+                timeout_seconds=60,
+                override_mode=True  # Force association even if tag already associated
             )
+
+            # Get session info
+            session = result.get("session", {})
+            session_id = session.get("session_id")
+            timeout_at = session.get("timeout_at")
+
+            # Calculate expires_at timestamp for frontend countdown
+            import time
+            from datetime import datetime, timezone
+            if timeout_at:
+                expires_at = datetime.fromisoformat(timeout_at.replace('Z', '+00:00')).timestamp()
+            else:
+                expires_at = time.time() + 60
+
+            # If tag_id is provided, immediately process it (no need to scan again)
+            if tag_id:
+                logger.info(f"✅ Processing saved tag {tag_id} immediately for override")
+                from app.src.domain.nfc.value_objects.tag_identifier import TagIdentifier
+
+                # Create tag identifier from saved tag_id
+                tag_identifier = TagIdentifier(uid=tag_id)
+
+                # Process the tag immediately for this override session
+                await nfc_service._handle_tag_detection(tag_identifier)
+
+                logger.info(f"✅ Override completed automatically for tag {tag_id}")
+            else:
+                # No tag_id provided, emit waiting state (old behavior)
+                await self.sio.emit(
+                    "nfc_association_state",
+                    {
+                        "state": "waiting",
+                        "playlist_id": playlist_id,
+                        "session_id": session_id,
+                        "expires_at": expires_at,
+                        "override_mode": True,
+                        "message": "Place NFC tag to override existing association",
+                        "server_seq": self.state_manager.get_global_sequence(),
+                    },
+                    room=sid,
+                )
+
             # Send acknowledgment
             if client_op_id:
                 await self.state_manager.send_acknowledgment(
                     client_op_id,
                     True,
                     {
-                        "assoc_id": result.get("assoc_id"),
+                        "session_id": session_id,
                         "playlist_id": playlist_id,
                         "override": True,
+                        "tag_id": tag_id,
+                        "auto_processed": tag_id is not None,
                     },
                 )
-            logger.log(LogLevel.INFO, f"NFC tag override started for playlist {playlist_id}")
+
+            logger.info(f"✅ NFC tag override started for playlist {playlist_id} (session: {session_id})")
 
         # Connection health monitoring
         @self.sio.on("client_ping")
@@ -346,18 +371,18 @@ class WebSocketStateHandlers:
         @handle_http_errors()
         async def handle_request_current_state(sid, data):
             """Handle client request for current state synchronization."""
-            logger.log(LogLevel.INFO, f"🔄 Client {sid} requesting current state sync")
+            logger.info(f"🔄 Client {sid} requesting current state sync")
             # Get current player state and broadcast to specific client
-            from ..services.player_state_service import player_state_service
+            from app.src.dependencies import get_playback_coordinator, get_player_state_service
 
-            # Get playlist routes state from app attribute instead of global import
-            playlist_routes_state = getattr(self.app, "playlist_routes_state", None)
-            if playlist_routes_state:
-                audio_controller = playlist_routes_state.audio_controller
-                if audio_controller:
+            # Get playback coordinator using DDD architecture
+            try:
+                playback_coordinator = get_playback_coordinator()
+                player_state_service = get_player_state_service()
+                if playback_coordinator:
                     # Build current player state
                     player_state = await player_state_service.build_current_player_state(
-                        audio_controller, self.state_manager
+                        playback_coordinator, self.state_manager
                     )
 
                     # Handle both PlayerStateModel and dict returns
@@ -384,17 +409,13 @@ class WebSocketStateHandlers:
                         },
                         room=sid,
                     )
-                    logger.log(
-                        LogLevel.INFO,
-                        f"✅ Sent current player state to client {sid}: {playlist_title}",
+                    logger.info(f"✅ Sent current player state to client {sid}: {playlist_title}",
                     )
                 else:
-                    logger.log(
-                        LogLevel.WARNING, f"⚠️ No audio controller available for state sync to {sid}"
+                    logger.warning(f"⚠️ No playback coordinator available for state sync to {sid}"
                     )
-            else:
-                logger.log(
-                    LogLevel.WARNING, f"⚠️ No playlist routes state available for sync to {sid}"
+            except Exception as e:
+                logger.error(f"❌ Error getting playback coordinator for state sync to {sid}: {e}"
                 )
 
-        logger.log(LogLevel.INFO, "Server-authoritative WebSocket handlers registered successfully")
+        logger.info("Server-authoritative WebSocket handlers registered successfully")
