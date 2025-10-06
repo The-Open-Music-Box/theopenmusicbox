@@ -16,12 +16,11 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple
 
 from app.src.infrastructure.error_handling.unified_error_handler import InvalidFileError
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 from app.src.services.upload_service import UploadService
 from app.src.services.error.unified_error_decorator import handle_service_errors
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ChunkedUploadService:
@@ -104,7 +103,7 @@ class ChunkedUploadService:
             "created_at": datetime.now(),
         }
 
-        logger.log(LogLevel.INFO, f"Created upload session {session_id} for file {filename}")
+        logger.info(f"Created upload session {session_id} for file {filename}")
         return session_id
 
     @handle_service_errors("chunked_upload")
@@ -205,9 +204,8 @@ class ChunkedUploadService:
         metadata = self.upload_service.extract_metadata(assembled_file_path)
         # Clean up the temporary files
         self._cleanup_session(session_id)
-        logger.log(
-            LogLevel.INFO,
-            f"Successfully assembled file {filename} from {session['total_chunks']} chunks",
+        logger.info(
+            f"Successfully assembled file {filename} from {session['total_chunks']} chunks"
         )
         return filename, metadata
 
@@ -247,7 +245,7 @@ class ChunkedUploadService:
             if session_dir.exists():
                 shutil.rmtree(session_dir)
             del self.active_uploads[session_id]
-            logger.log(LogLevel.INFO, f"Cleaned up session {session_id}")
+            logger.info(f"Cleaned up session {session_id}")
 
     def cleanup_expired_sessions(self, max_age_hours: int = 24):
         """
@@ -266,6 +264,6 @@ class ChunkedUploadService:
 
         for session_id in sessions_to_remove:
             self._cleanup_session(session_id)
-            logger.log(LogLevel.INFO, f"Removed expired session {session_id}")
+            logger.info(f"Removed expired session {session_id}")
 
         return len(sessions_to_remove)

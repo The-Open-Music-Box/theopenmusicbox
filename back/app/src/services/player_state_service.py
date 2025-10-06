@@ -17,9 +17,8 @@ from datetime import datetime
 from ..common.data_models import PlayerStateModel, TrackModel, PlaybackState
 from ..monitoring import get_error_handler
 from app.src.infrastructure.error_handling.unified_error_handler import service_unavailable_error
-from .state_manager import StateEventType
+from app.src.common.socket_events import StateEventType
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_service_errors
 
 logger = get_logger(__name__)
@@ -90,16 +89,12 @@ class PlayerStateService:
             )
         # Enhanced diagnostic: Log playlist info to debug missing title
         if active_playlist_id and not active_playlist_title:
-            logger.log(
-                LogLevel.WARNING,
-                f"⚠️ Missing playlist title for ID {active_playlist_id}. playlist_info: {playlist_info}",
+            logger.warning(f"⚠️ Missing playlist title for ID {active_playlist_id}. playlist_info: {playlist_info}",
             )
             # Try to get title from status fallback
             if status.get("playlist_title"):
                 active_playlist_title = status.get("playlist_title")
-                logger.log(
-                    LogLevel.INFO,
-                    f"✅ Recovered playlist title from status: {active_playlist_title}",
+                logger.info(f"✅ Recovered playlist title from status: {active_playlist_title}",
                 )
         # Get track information
         active_track_data = playlist_info.get("current_track") if playlist_info else None
@@ -143,9 +138,7 @@ class PlayerStateService:
             muted=muted,
             server_seq=server_seq,
         )
-        logger.log(
-            LogLevel.DEBUG,
-            f"Built player state - playing={is_playing}, playlist={active_playlist_id}, "
+        logger.debug(f"Built player state - playing={is_playing}, playlist={active_playlist_id}, "
             f"track={active_track_id}, position={position_ms}ms",
         )
         return player_state
@@ -287,9 +280,7 @@ class PlayerStateService:
             # Send acknowledgment if client operation ID provided
             if client_op_id:
                 await self.state_manager.send_acknowledgment(client_op_id, True, player_state_dict)
-        logger.log(
-            LogLevel.INFO,
-            f"Player state broadcasted: {playlist_data.get('title')} (source: {source})",
+        logger.info(f"Player state broadcasted: {playlist_data.get('title')} (source: {source})",
         )
         return player_state_dict
 
@@ -379,5 +370,6 @@ class PlayerStateService:
         )
 
 
-# Global instance
-player_state_service = PlayerStateService()
+# Note: PlayerStateService should be retrieved from DI container
+# Use: container.get("player_state_service")
+# Legacy global instance removed - use dependency injection

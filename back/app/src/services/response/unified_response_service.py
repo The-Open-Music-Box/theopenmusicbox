@@ -13,8 +13,8 @@ from typing import Dict, Any, Optional, List, Union
 from fastapi.responses import JSONResponse
 import time
 import traceback
+import logging
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 
 logger = get_logger(__name__)
 
@@ -124,11 +124,10 @@ class UnifiedResponseService:
             response_body["trace"] = traceback.format_exc()
 
         # Log the error
-        logger.log(
-            LogLevel.ERROR if status_code >= 500 else LogLevel.WARNING,
-            f"API Error: {error_type} - {message}",
-            extra={"details": details, "status_code": status_code},
-        )
+        if status_code >= 500:
+            logger.error(f"API Error: {error_type} - {message}", extra={"details": details, "status_code": status_code})
+        else:
+            logger.warning(f"API Error: {error_type} - {message}", extra={"details": details, "status_code": status_code})
 
         # Create response
         response = JSONResponse(content=response_body, status_code=status_code)

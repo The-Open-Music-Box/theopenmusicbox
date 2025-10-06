@@ -10,12 +10,11 @@ for centralized event management and Socket.IO integration.
 """
 
 from typing import Any, Dict
+import logging
 
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_service_errors
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class DownloadNotifier:
@@ -113,7 +112,7 @@ class PlaybackSubject:
         event = PlaybackEvent("status", event_data)
         self._last_status_event = event
         # Socket.IO emission removed - StateManager handles all real-time events
-        logger.log(LogLevel.DEBUG, f"Playback status stored internally: {status}")
+        logger.debug(f"Playback status stored internally: {status}")
 
     @handle_service_errors("notification")
     def notify_track_progress(
@@ -147,7 +146,7 @@ class PlaybackSubject:
         event = PlaybackEvent("progress", event_data)
         self._last_progress_event = event
         # Socket.IO emission removed - StateManager handles all real-time events
-        logger.log(LogLevel.DEBUG, f"Track progress stored internally: {elapsed:.1f}s/{total:.1f}s")
+        logger.debug(f"Track progress stored internally: {elapsed:.1f}s/{total:.1f}s")
 
     def get_last_status_event(self):
         """Return the last emitted playback status event."""

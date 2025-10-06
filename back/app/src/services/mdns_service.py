@@ -16,10 +16,9 @@ from typing import Optional
 
 from zeroconf import IPVersion, ServiceInfo, Zeroconf
 
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class MDNSService:
@@ -48,9 +47,8 @@ class MDNSService:
         # Get the host IP (non-loopback)
         ip = self._get_local_ip()
         if not ip:
-            logger.log(
-                LogLevel.ERROR,
-                "Could not determine local IP address for mDNS registration. Aborting registration.",
+            logger.error(
+                "Could not determine local IP address for mDNS registration. Aborting registration."
             )
             return False
         # Create zeroconf instance if it doesn't exist
@@ -76,10 +74,7 @@ class MDNSService:
         # Register the service
         self.zeroconf_instance.register_service(self.service_info)
         self._is_registered = True
-        logger.log(
-            LogLevel.INFO,
-            f"mDNS service registered successfully at {ip}:{port}",
-        )
+        logger.info(f"mDNS service registered successfully at {ip}:{port}")
         return True
 
     @handle_service_errors("mdns")
@@ -94,7 +89,7 @@ class MDNSService:
         if self.service_info:
             self.zeroconf_instance.unregister_service(self.service_info)
         self._cleanup_zeroconf()
-        logger.log(LogLevel.INFO, "mDNS service unregistered successfully")
+        logger.info("mDNS service unregistered successfully")
         return True
 
     @handle_service_errors("mdns")
@@ -125,5 +120,5 @@ class MDNSService:
             finally:
                 s.close()
         except Exception as e:
-            logger.log(LogLevel.WARNING, f"Error getting local IP: {str(e)}")
-            return None
+            logger.warning(f"Error getting local IP: {str(e)}")
+        return None

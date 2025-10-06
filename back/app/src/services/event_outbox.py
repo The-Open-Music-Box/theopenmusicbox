@@ -14,12 +14,11 @@ import time
 from typing import List, Optional
 from dataclasses import dataclass
 
-from app.src.monitoring import get_logger
+import logging
 from app.src.services.error.unified_error_decorator import handle_service_errors
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.config.socket_config import socket_config
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -57,7 +56,7 @@ class EventOutbox:
         self._max_size = socket_config.OUTBOX_SIZE_LIMIT
         self._cleanup_batch_size = socket_config.OUTBOX_CLEANUP_BATCH
 
-        logger.log(LogLevel.INFO, "EventOutbox initialized")
+        logger.info("EventOutbox initialized")
 
     async def add_event(
         self,
@@ -73,9 +72,8 @@ class EventOutbox:
             if len(self._outbox) >= self._max_size:
                 removed_count = min(self._cleanup_batch_size, len(self._outbox) // 10)
                 self._outbox = self._outbox[removed_count:]
-                logger.log(
-                    LogLevel.WARNING,
-                    f"Outbox size limit reached. Removed {removed_count} oldest events.",
+                logger.warning(
+                    f"Outbox size limit reached. Removed {removed_count} oldest events."
                 )
 
             # Add new event
@@ -88,7 +86,7 @@ class EventOutbox:
             )
             self._outbox.append(event)
 
-            logger.log(LogLevel.DEBUG, f"Added event to outbox: {event_type} (seq: {server_seq})")
+            logger.debug(f"Added event to outbox: {event_type} (seq: {server_seq})")
 
     @handle_service_errors("event_outbox")
     async def process_outbox(self) -> None:
@@ -110,7 +108,7 @@ class EventOutbox:
         # Process each event
         for event in events_to_process:
             await self._emit_event(event)
-            logger.log(LogLevel.DEBUG, f"Successfully emitted event {event.event_id}")
+            logger.debug(f"Successfully emitted event {event.event_id}")
         # Re-add retry events
         if retry_events:
             async with self._outbox_lock:
@@ -162,4 +160,4 @@ class EventOutbox:
             count = len(self._outbox)
             self._outbox.clear()
             if count > 0:
-                logger.log(LogLevel.INFO, f"Cleared {count} events from outbox")
+                logger.info(f"Cleared {count} events from outbox")

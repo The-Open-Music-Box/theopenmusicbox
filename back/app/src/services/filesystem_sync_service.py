@@ -16,12 +16,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from uuid import uuid4
 from datetime import datetime, timezone
 
-# Pure DDD - no direct imports, use dependency injection
-from app.src.monitoring import get_logger
-from app.src.services.error.unified_error_decorator import handle_service_errors
-from app.src.monitoring.logging.log_level import LogLevel
+# Direct imports following DDD principles
+import logging
 
-logger = get_logger(__name__)
+from app.src.services.error.unified_error_decorator import handle_service_errors
+from app.src.services.upload_service import UploadService
+
+logger = logging.getLogger(__name__)
 
 
 class FilesystemSyncService:
@@ -73,7 +74,7 @@ class FilesystemSyncService:
         """
         # Check if the folder exists and is a directory
         if not folder_path.exists() or not folder_path.is_dir():
-            logger.log(LogLevel.ERROR, f"Folder does not exist: {folder_path}")
+            logger.error(f"Folder does not exist: {folder_path}")
             return None
         # Retrieve audio files in the folder
         audio_files = [
@@ -83,7 +84,7 @@ class FilesystemSyncService:
         ]
         # Check if there are any audio files
         if not audio_files:
-            logger.log(LogLevel.WARNING, f"No audio files found in folder: {folder_path}")
+            logger.warning(f"No audio files found in folder: {folder_path}")
             return None
         # Determine the relative path with respect to the parent of the uploads folder
         rel_path = folder_path.relative_to(self.upload_folder.parent)
@@ -97,8 +98,6 @@ class FilesystemSyncService:
             "tracks": [],
         }
         # Use UploadService to extract metadata for each audio file
-        from app.src.services.upload_service import UploadService
-
         upload_service = UploadService(self.config)
         for i, file_path in enumerate(sorted(audio_files), 1):
             metadata = upload_service.extract_metadata(file_path)
@@ -140,7 +139,7 @@ class FilesystemSyncService:
         # Retrieve the existing playlist
         playlist = await self.repository.get_playlist_by_id(playlist_id)
         if not playlist:
-            logger.log(LogLevel.WARNING, f"Playlist not found: {playlist_id}")
+            logger.warning(f"Playlist not found: {playlist_id}")
             return False, stats
         # Retrieve audio files in the folder
         audio_files = [
@@ -182,9 +181,8 @@ class FilesystemSyncService:
         if await self.repository.replace_tracks(playlist_id, new_tracks):
             stats["added"] = len(to_add)
             stats["removed"] = len(to_remove)
-            logger.log(
-                LogLevel.INFO,
-                f"Updated playlist {playlist_id}: added {stats['added']}, removed {stats['removed']} tracks",
+            logger.info(
+                f"Updated playlist {playlist_id}: added {stats['added']}, removed {stats['removed']} tracks"
             )
             return True, stats
         return False, stats
@@ -206,14 +204,13 @@ class FilesystemSyncService:
                 "tracks_removed": 0,
             }
 
-            logger.log(
-                LogLevel.INFO,
-                f"Starting playlist synchronization with {self.upload_folder}",
+            logger.info(
+                f"Starting playlist synchronization with {self.upload_folder}"
             )
             # 1. Check that the uploads folder exists
             if not self.upload_folder.exists():
                 self.upload_folder.mkdir(parents=True, exist_ok=True)
-                logger.log(LogLevel.INFO, f"Created upload folder: {self.upload_folder}")
+                logger.info(f"Created upload folder: {self.upload_folder}")
             # 2. Retrieve existing playlists
             db_playlists = await self.repository.get_all_playlists()
             db_playlists_by_path = {p.get("path", ""): p for p in db_playlists}
@@ -242,11 +239,9 @@ class FilesystemSyncService:
                     disk_playlists, db_playlists_by_path, db_playlists_by_title, stats
                 )
             else:
-                logger.log(LogLevel.WARNING, "Skipping new playlists due to timeout")
+                logger.warning("Skipping new playlists due to timeout")
             elapsed = time.time() - start_time
-            logger.log(
-                LogLevel.INFO,
-                f"Playlist sync completed in {elapsed:.2f}s",
+            logger.info(f"Playlist sync completed in {elapsed:.2f}s",
                 extra=stats,
             )
             return stats
@@ -264,9 +259,7 @@ class FilesystemSyncService:
         for item in self.upload_folder.iterdir():
             # Check global timeout
             if time.time() - scan_start > self.SYNC_FOLDER_TIMEOUT:
-                logger.log(
-                    LogLevel.WARNING,
-                    "Folder scan timeout, processing items scanned so far",
+                logger.warning("Folder scan timeout, processing items scanned so far",
                 )
                 break
             if item.is_dir():
@@ -277,9 +270,7 @@ class FilesystemSyncService:
                 for f in item.iterdir():
                     # Timeout per folder
                     if time.time() - folder_scan_start > self.SYNC_OPERATION_TIMEOUT:
-                        logger.log(
-                            LogLevel.WARNING,
-                            f"Partial scan of {rel_path} due to timeout",
+                        logger.warning(f"Partial scan of {rel_path} due to timeout",
                         )
                         break
                     if f.is_file() and f.suffix.lower() in self.SUPPORTED_AUDIO_EXTENSIONS:
@@ -308,7 +299,7 @@ class FilesystemSyncService:
 
         for db_playlist in db_playlists:
             if time.time() - start_time > self.SYNC_TOTAL_TIMEOUT:
-                logger.log(LogLevel.WARNING, "Update timeout reached, stopping updates")
+                logger.warning("Update timeout reached, stopping updates")
                 break
 
             stats["playlists_scanned"] += 1
@@ -348,7 +339,7 @@ class FilesystemSyncService:
 
         for path, audio_files in disk_playlists.items():
             if time.time() - start_time > self.SYNC_TOTAL_TIMEOUT:
-                logger.log(LogLevel.WARNING, "Add timeout reached, stopping additions")
+                logger.warning("Add timeout reached, stopping additions")
                 break
 
             # Check if playlist already exists by path or by folder name
@@ -356,15 +347,13 @@ class FilesystemSyncService:
 
             # Skip if playlist exists by path
             if path in db_playlists_by_path:
-                logger.log(LogLevel.DEBUG, f"Playlist already exists by path: {path}")
+                logger.debug(f"Playlist already exists by path: {path}")
                 continue
 
             # Skip if playlist exists by folder name/title
             if folder_name in db_playlists_by_title:
                 existing_playlist = db_playlists_by_title[folder_name]
-                logger.log(
-                    LogLevel.INFO,
-                    f"Playlist already exists with name '{folder_name}' (ID: {existing_playlist.get('id')}), skipping duplicate creation",
+                logger.info(f"Playlist already exists with name '{folder_name}' (ID: {existing_playlist.get('id')}), skipping duplicate creation",
                 )
                 continue
 
@@ -376,12 +365,8 @@ class FilesystemSyncService:
                     if playlist_id:
                         stats["playlists_added"] += 1
                         stats["tracks_added"] += len(audio_files)
-                        logger.log(
-                            LogLevel.INFO,
-                            f"Created new playlist from folder: {path} (ID: {playlist_id})",
+                        logger.info(f"Created new playlist from folder: {path} (ID: {playlist_id})",
                         )
                 except (OSError, IOError, PermissionError, ValueError) as e:
-                    logger.log(
-                        LogLevel.ERROR,
-                        f"Error creating playlist from folder {path}: {str(e)}",
+                    logger.error(f"Error creating playlist from folder {path}: {str(e)}",
                     )

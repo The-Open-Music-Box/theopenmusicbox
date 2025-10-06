@@ -12,7 +12,6 @@ Extracted from StateManager for better separation of concerns.
 from typing import Dict, Set, Optional
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 
 logger = get_logger(__name__)
 
@@ -29,7 +28,7 @@ class ClientSubscriptionManager:
         self.socketio = socketio_server
         self._client_subscriptions: Dict[str, Set[str]] = {}  # client_id -> {room_names}
 
-        logger.log(LogLevel.INFO, "ClientSubscriptionManager initialized")
+        logger.info("ClientSubscriptionManager initialized")
 
     async def subscribe_client(self, client_id: str, room: str) -> None:
         """Subscribe a client to a specific room."""
@@ -40,7 +39,7 @@ class ClientSubscriptionManager:
 
         if self.socketio:
             await self.socketio.enter_room(client_id, room)
-            logger.log(LogLevel.INFO, f"Client {client_id} subscribed to room: {room}")
+            logger.info(f"Client {client_id} subscribed to room: {room}")
 
         return True
 
@@ -54,14 +53,14 @@ class ClientSubscriptionManager:
             self._client_subscriptions[client_id].discard(room)
             if self.socketio:
                 await self.socketio.leave_room(client_id, room)
-                logger.log(LogLevel.INFO, f"Client {client_id} unsubscribed from room: {room}")
+                logger.info(f"Client {client_id} unsubscribed from room: {room}")
         else:
             # Unsubscribe from all rooms
             for room_name in self._client_subscriptions[client_id].copy():
                 if self.socketio:
                     await self.socketio.leave_room(client_id, room_name)
             self._client_subscriptions[client_id].clear()
-            logger.log(LogLevel.INFO, f"Client {client_id} unsubscribed from all rooms")
+            logger.info(f"Client {client_id} unsubscribed from all rooms")
 
     def get_client_subscriptions(self, client_id: str) -> Set[str]:
         """Get all rooms a client is subscribed to."""
@@ -92,8 +91,7 @@ class ClientSubscriptionManager:
         if client_id in self._client_subscriptions:
             room_count = len(self._client_subscriptions[client_id])
             del self._client_subscriptions[client_id]
-            logger.log(
-                LogLevel.INFO, f"Cleaned up {room_count} subscriptions for client {client_id}"
+            logger.info(f"Cleaned up {room_count} subscriptions for client {client_id}"
             )
 
     def get_stats(self) -> dict:

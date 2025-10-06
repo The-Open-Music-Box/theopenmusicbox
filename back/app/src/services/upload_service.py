@@ -17,11 +17,10 @@ from mutagen.easyid3 import EasyID3
 from werkzeug.utils import secure_filename
 
 from app.src.infrastructure.error_handling.unified_error_handler import InvalidFileError
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 from app.src.services.error.unified_error_decorator import handle_service_errors
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class UploadService:
@@ -112,16 +111,17 @@ class UploadService:
         filename = secure_filename(file.filename)
 
         # Create the playlist folder if necessary
+        upload_path = self.upload_folder / playlist_path
         upload_path.mkdir(parents=True, exist_ok=True)
 
         # Save the file
         file_path = upload_path / filename
-        logger.log(LogLevel.INFO, f"Saving file to {file_path}")
+        logger.info(f"Saving file to {file_path}")
         await file.seek(0)
         content = await file.read()
         with open(str(file_path), "wb") as f:
             f.write(content)
-        logger.log(LogLevel.INFO, f"File saved successfully: {file_path}")
+        logger.info(f"File saved successfully: {file_path}")
         metadata = self.extract_metadata(file_path)
         return filename, metadata
 
@@ -137,4 +137,4 @@ class UploadService:
             if file_path.exists():
                 file_path.unlink()
         except OSError as e:
-            logger.log(LogLevel.ERROR, f"Error cleaning up failed upload: {str(e)}")
+            logger.error(f"Error cleaning up failed upload: {str(e)}")

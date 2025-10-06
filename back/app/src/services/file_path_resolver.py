@@ -12,7 +12,6 @@ across AudioController methods and providing consistent path resolution logic.
 from pathlib import Path
 from typing import List, Optional, Tuple
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_service_errors
 
 logger = get_logger(__name__)
@@ -48,7 +47,7 @@ class FilePathResolver:
             Path to the track file if found, None otherwise
         """
         if not hasattr(track, "filename") or not track.filename:
-            logger.log(LogLevel.WARNING, f"Track {track.track_number} has no filename")
+            logger.warning(f"Track {track.track_number} has no filename")
             return None
 
         possible_paths = self._generate_possible_paths(track, playlist_title)
@@ -56,12 +55,10 @@ class FilePathResolver:
         for path_candidate in possible_paths:
             path = Path(path_candidate)
             if path.exists() and path.is_file():
-                logger.log(LogLevel.DEBUG, f"Found track file at: {path}")
+                logger.debug(f"Found track file at: {path}")
                 return path
         # Log all attempted paths for debugging
-        logger.log(
-            LogLevel.WARNING,
-            f"Track file not found. Attempted paths: {[str(p) for p in possible_paths]}",
+        logger.warning(f"Track file not found. Attempted paths: {[str(p) for p in possible_paths]}",
         )
         return None
 
@@ -142,11 +139,11 @@ class FilePathResolver:
         if not path.exists():
             return False
         if not path.is_file():
-            logger.log(LogLevel.WARNING, f"Path is not a file: {path}")
+            logger.warning(f"Path is not a file: {path}")
             return False
         # Check if file is readable
         if not path.stat().st_size > 0:
-            logger.log(LogLevel.WARNING, f"File is empty: {path}")
+            logger.warning(f"File is empty: {path}")
             return False
         return True
 
@@ -173,5 +170,5 @@ class FilePathResolver:
             }
 
         except (OSError, ValueError) as e:
-            logger.log(LogLevel.WARNING, f"Error getting file stats for {path}: {e}")
+            logger.warning(f"Error getting file stats for {path}: {e}")
             return None

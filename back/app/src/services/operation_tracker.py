@@ -14,7 +14,6 @@ import time
 from typing import Any, Dict, Optional
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.config.socket_config import socket_config
 
 logger = get_logger(__name__)
@@ -37,7 +36,7 @@ class OperationTracker:
         self._dedup_window = socket_config.OPERATION_DEDUP_WINDOW_SEC
         self._result_ttl = socket_config.OPERATION_RESULT_TTL_SEC
 
-        logger.log(LogLevel.INFO, "OperationTracker initialized")
+        logger.info("OperationTracker initialized")
 
     async def is_operation_processed(self, client_op_id: str) -> bool:
         """Check if a client operation has already been processed with thread safety."""
@@ -67,7 +66,7 @@ class OperationTracker:
                     "timestamp": current_time,
                 }
 
-            logger.log(LogLevel.DEBUG, f"Operation {client_op_id} marked as processed")
+            logger.debug(f"Operation {client_op_id} marked as processed")
 
     async def get_operation_result(self, client_op_id: str) -> Optional[Any]:
         """Get cached result for a processed operation."""
@@ -115,9 +114,7 @@ class OperationTracker:
 
             total_cleaned = cleaned_ops + cleaned_results
             if total_cleaned > 0:
-                logger.log(
-                    LogLevel.DEBUG,
-                    f"Cleaned up {cleaned_ops} operations and {cleaned_results} results",
+                logger.debug(f"Cleaned up {cleaned_ops} operations and {cleaned_results} results",
                 )
 
             return total_cleaned
@@ -163,4 +160,4 @@ class OperationTracker:
             self._processed_operations.clear()
             self._operation_results.clear()
 
-            logger.log(LogLevel.INFO, f"Cleared {op_count} operations and {result_count} results")
+            logger.info(f"Cleared {op_count} operations and {result_count} results")

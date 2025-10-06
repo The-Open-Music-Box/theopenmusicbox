@@ -17,13 +17,37 @@ from concurrent.futures import ThreadPoolExecutor
 import functools
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_errors
 
 logger = get_logger(__name__)
 
-# Thread pool for file operations - reuse to avoid overhead
-_file_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="async_file")
+# Thread pool for file operations - managed lifecycle
+_file_executor: Optional[ThreadPoolExecutor] = None
+
+
+def get_file_executor() -> ThreadPoolExecutor:
+    """Get or create the file executor thread pool.
+
+    Returns:
+        ThreadPoolExecutor for async file operations
+    """
+    global _file_executor
+    if _file_executor is None:
+        _file_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="async_file")
+        logger.info("✅ File executor thread pool initialized")
+    return _file_executor
+
+
+def cleanup_file_executor():
+    """Cleanup the file executor thread pool.
+
+    Should be called during application shutdown.
+    """
+    global _file_executor
+    if _file_executor is not None:
+        _file_executor.shutdown(wait=True)
+        _file_executor = None
+        logger.info("✅ File executor thread pool cleaned up")
 
 
 def _sync_to_async(func):
@@ -32,8 +56,9 @@ def _sync_to_async(func):
     @functools.wraps(func)
     @handle_errors("async_wrapper")
     async def async_wrapper(*args, **kwargs):
-        loop = asyncio.get_event_loop()
-        result = await loop.run_in_executor(_file_executor, func, *args, **kwargs)
+        loop = asyncio.get_running_loop()
+        executor = get_file_executor()
+        result = await loop.run_in_executor(executor, func, *args, **kwargs)
         return result
 
     return async_wrapper
@@ -309,7 +334,7 @@ class AsyncFileUtils:
             True if deleted successfully, False otherwise
         """
         await AsyncFileUtils.unlink(path, missing_ok=True)
-        logger.log(LogLevel.DEBUG, f"Successfully deleted file: {path}")
+        logger.debug(f"Successfully deleted file: {path}")
         return True
 
     @staticmethod
@@ -324,7 +349,7 @@ class AsyncFileUtils:
             True if directory exists or was created successfully
         """
         await AsyncFileUtils.mkdir(path, parents=True, exist_ok=True)
-        logger.log(LogLevel.DEBUG, f"Directory ensured: {path}")
+        logger.debug(f"Directory ensured: {path}")
         return True
 
 
@@ -357,4 +382,4 @@ async def aunlink(path: Union[str, Path], missing_ok: bool = False) -> None:
 def cleanup_file_executor():
     """Clean up the file executor thread pool."""
     _file_executor.shutdown(wait=True)
-    logger.log(LogLevel.INFO, "File executor thread pool cleaned up")
+    logger.info("File executor thread pool cleaned up")

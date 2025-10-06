@@ -11,11 +11,9 @@ Extracted from StateManager for better separation of concerns.
 
 import asyncio
 from typing import Dict
+import logging
 
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class SequenceGenerator:
@@ -34,7 +32,7 @@ class SequenceGenerator:
         self._global_lock = asyncio.Lock()
         self._playlist_lock = asyncio.Lock()
 
-        logger.log(LogLevel.INFO, "SequenceGenerator initialized")
+        logger.info("SequenceGenerator initialized")
 
     async def get_next_global_seq(self) -> int:
         """Get the next global sequence number with thread safety."""
@@ -61,12 +59,12 @@ class SequenceGenerator:
     def reset_global_seq(self, value: int = 0) -> None:
         """Reset global sequence to a specific value (for testing/recovery)."""
         self._global_seq = value
-        logger.log(LogLevel.INFO, f"Global sequence reset to {value}")
+        logger.info(f"Global sequence reset to {value}")
 
     def reset_playlist_seq(self, playlist_id: str, value: int = 0) -> None:
         """Reset playlist sequence to a specific value (for testing/recovery)."""
         self._playlist_sequences[playlist_id] = value
-        logger.log(LogLevel.INFO, f"Playlist {playlist_id} sequence reset to {value}")
+        logger.info(f"Playlist {playlist_id} sequence reset to {value}")
 
     def get_all_playlist_sequences(self) -> Dict[str, int]:
         """Get all playlist sequences (read-only copy)."""

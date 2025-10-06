@@ -10,6 +10,6 @@ throughout the application.
 """
 
 from .notification_service import DownloadNotifier
-from .youtube.service import YouTubeService
+from app.src.application.services.youtube import YouTubeService
 
 __all__ = ["YouTubeService", "DownloadNotifier"]

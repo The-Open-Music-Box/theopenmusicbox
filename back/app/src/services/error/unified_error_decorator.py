@@ -16,11 +16,10 @@ from typing import Callable, Any, Optional, Dict, Union
 from datetime import datetime
 
 from fastapi import HTTPException
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 from app.src.services.response.unified_response_service import UnifiedResponseService
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ErrorContext:
@@ -32,7 +31,7 @@ class ErrorContext:
         component: str = None,
         client_op_id: str = None,
         user_friendly: bool = True,
-        log_level: LogLevel = LogLevel.ERROR,
+        log_level: Any = logging.ERROR,
         include_trace: bool = False,
     ):
         self.operation = operation
@@ -48,7 +47,7 @@ def handle_errors(
     operation_name: Optional[str] = None,
     component: Optional[str] = None,
     return_response: bool = True,
-    log_level: LogLevel = LogLevel.ERROR,
+    log_level: Any = logging.ERROR,
     include_trace: bool = False,
     custom_error_map: Optional[Dict[type, str]] = None,
 ) -> Callable:
@@ -125,6 +124,27 @@ def handle_errors(
     return decorator
 
 
+def _to_std_level(level: Any) -> int:
+    """Convert a custom LogLevel enum or string/int to stdlib logging level."""
+    try:
+        # Enum with .value like 'error'
+        name = getattr(level, 'value', None)
+        if isinstance(name, str):
+            return getattr(logging, name.upper(), logging.ERROR)
+        # If string provided directly
+        if isinstance(level, str):
+            return getattr(logging, level.upper(), logging.ERROR)
+        # If already an int
+        if isinstance(level, int):
+            return level
+    except Exception as e:
+        # Re-raise system exceptions immediately
+        if isinstance(e, (SystemExit, KeyboardInterrupt, GeneratorExit)):
+            raise
+        pass
+    return logging.ERROR
+
+
 async def _execute_with_error_handling(
     func: Callable,
     args: tuple,
@@ -132,7 +152,7 @@ async def _execute_with_error_handling(
     operation: str,
     component: str,
     return_response: bool,
-    log_level: LogLevel,
+    log_level: Any,
     include_trace: bool,
     error_map: Dict[type, str],
 ) -> Any:
@@ -162,7 +182,7 @@ def _execute_sync_with_error_handling(
     operation: str,
     component: str,
     return_response: bool,
-    log_level: LogLevel,
+    log_level: Any,
     include_trace: bool,
     error_map: Dict[type, str],
 ) -> Any:
@@ -190,7 +210,7 @@ def _handle_caught_exception(
     operation: str,
     component: str,
     return_response: bool,
-    log_level: LogLevel,
+    log_level: Any,
     include_trace: bool,
     error_map: Dict[type, str],
     kwargs: dict,
@@ -234,7 +254,7 @@ def _handle_caught_exception(
     if include_trace:
         extra_data["traceback"] = traceback.format_exc()
 
-    logger.log(log_level, log_message, extra=extra_data)
+    logger.log(_to_std_level(log_level), log_message, extra=extra_data)
 
     if return_response:
         # Return UnifiedResponseService error response
@@ -327,8 +347,8 @@ def handle_validation_errors(validation_context: str = "api") -> Callable:
                     message=f"Validation failed in {validation_context}",
                 )
             except Exception as e:
-                logger.log(
-                    LogLevel.ERROR, f"Unexpected validation error in {validation_context}: {str(e)}"
+                logger.error(
+                    f"Unexpected validation error in {validation_context}: {str(e)}"
                 )
                 return UnifiedResponseService.validation_error(
                     errors=[{"message": "Validation error occurred"}],
@@ -358,7 +378,7 @@ def handle_repository_errors(entity_name: str = "entity") -> Callable:
         return handle_errors(
             component=f"repository_{entity_name}",
             operation_name=func.__name__,
-            log_level=LogLevel.ERROR,
+            log_level=logging.ERROR,
             include_trace=True,  # Repository errors need stack trace for debugging
             return_response=False,  # CRITICAL: Ne pas retourner JSONResponse
             custom_error_map={
@@ -391,7 +411,7 @@ def handle_infrastructure_errors(component_name: str = "infrastructure") -> Call
         return handle_errors(
             component=f"infrastructure_{component_name}",
             operation_name=func.__name__,
-            log_level=LogLevel.ERROR,
+            log_level=logging.ERROR,
             include_trace=True,  # Infrastructure errors need debugging info
             return_response=False,  # CRITICAL: Ne pas retourner JSONResponse
             custom_error_map={
@@ -421,7 +441,7 @@ def handle_service_errors(service_name: str) -> Callable:
         @handle_errors(
             component=service_name,
             operation_name=func.__name__,
-            log_level=LogLevel.ERROR,
+            log_level=logging.ERROR,
             include_trace=False,
             return_response=False,  # Don't return JSONResponse, let method return dict
         )
@@ -493,4 +513,7 @@ class ErrorTracker:
 
 
 # Global error tracker instance
+# Note: ErrorTracker should be retrieved from DI container
+# Use: container.get("error_tracker")
+# Legacy global instance kept for backward compatibility during transition
 error_tracker = ErrorTracker()

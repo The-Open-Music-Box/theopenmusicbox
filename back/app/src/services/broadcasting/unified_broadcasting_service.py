@@ -10,12 +10,13 @@ the 15+ duplicated broadcasting patterns across route handlers.
 """
 
 from typing import Dict, Any, Optional, List
-from app.src.services.state_manager import StateManager, StateEventType
-from app.src.monitoring import get_logger
-from app.src.services.error.unified_error_decorator import handle_service_errors
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 
-logger = get_logger(__name__)
+from app.src.domain.audio.engine.state_manager import StateManager
+from app.src.common.socket_events import StateEventType
+from app.src.services.error.unified_error_decorator import handle_service_errors
+
+logger = logging.getLogger(__name__)
 
 
 class UnifiedBroadcastingService:
@@ -70,7 +71,7 @@ class UnifiedBroadcastingService:
         # Broadcast principal
         await self.state_manager.broadcast_state_change(event_type, data, room)
         self._broadcast_count += 1
-        logger.log(LogLevel.DEBUG, f"Broadcasted {event_type} to room '{room or 'all'}'")
+        logger.debug(f"Broadcasted {event_type} to room '{room or 'all'}'")
         # Acknowledgment si client_op_id fourni
         if client_op_id:
             ack_data = acknowledge_data if acknowledge_data is not None else data
@@ -78,7 +79,7 @@ class UnifiedBroadcastingService:
                 client_op_id, acknowledge_success, ack_data
             )
             self._acknowledgment_count += 1
-            logger.log(LogLevel.DEBUG, f"Sent acknowledgment for operation {client_op_id}")
+            logger.debug(f"Sent acknowledgment for operation {client_op_id}")
         return True
 
     async def broadcast_playlist_change(
@@ -234,15 +235,43 @@ class UnifiedBroadcastingService:
         if expires_at:
             nfc_data["expires_at"] = expires_at
 
-        # Determine room based on session
-        room = f"nfc:{session_id}" if session_id else "nfc"
+        # CRITICAL: Emit globally (no room) so frontend receives the event
+        # The frontend doesn't join specific nfc:session_id rooms
+        # See NfcAssociateDialog.vue:289 - "nfc_association_state events are emitted globally"
 
-        return await self.broadcast_with_acknowledgment(
-            event_type=StateEventType.NFC_ASSOCIATION,
-            data=nfc_data,
-            client_op_id=client_op_id,
-            room=room,
-        )
+        # Use SocketEventType.NFC_ASSOCIATION_STATE instead of StateEventType.NFC_ASSOCIATION
+        # The frontend listens for 'nfc_association_state', not 'state:nfc_association'
+        # We need to emit directly using Socket.IO instead of going through state manager
+
+        # Handle both cases: state_manager with socketio attribute OR direct socketio instance
+        socketio_instance = None
+        if self.state_manager:
+            if hasattr(self.state_manager, 'socketio'):
+                # Case 1: Proper StateManager with socketio attribute
+                socketio_instance = self.state_manager.socketio
+            elif hasattr(self.state_manager, 'emit'):
+                # Case 2: Direct socketio instance (from api_routes_state.py:140)
+                socketio_instance = self.state_manager
+
+        if socketio_instance:
+            from app.src.common.socket_events import SocketEventType
+            # Emit globally (no room parameter) so all clients receive it
+            await socketio_instance.emit(
+                SocketEventType.NFC_ASSOCIATION_STATE.value,
+                nfc_data
+            )
+            self._broadcast_count += 1
+            logger.debug(f"Broadcasted NFC association state globally (state={association_state})")
+
+            # Send acknowledgment if client_op_id provided and we have a state manager
+            if client_op_id and hasattr(self.state_manager, 'send_acknowledgment'):
+                await self.state_manager.send_acknowledgment(
+                    client_op_id, True, nfc_data
+                )
+                self._acknowledgment_count += 1
+            return True
+
+        return False
 
     @handle_service_errors("unified_broadcasting")
     async def broadcast_error(

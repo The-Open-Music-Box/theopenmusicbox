@@ -366,7 +366,7 @@ class UnifiedSerializationService:
         ]
 
     @staticmethod
-    def _format_datetime(dt: Any) -> Optional[str]:
+    def _format_datetime(dt: Any) -> str:
         """
         Formate une datetime de manière cohérente.
 
@@ -374,10 +374,10 @@ class UnifiedSerializationService:
             dt: DateTime, string, ou None
 
         Returns:
-            String ISO format ou None
+            String ISO format or empty string (never None for contract compliance)
         """
         if dt is None:
-            return None
+            return ""  # Return empty string instead of None for contract compliance
 
         if isinstance(dt, str):
             return dt
@@ -412,27 +412,3 @@ class UnifiedSerializationService:
 
         return format_mapping.get(context.lower(), UnifiedSerializationService.FORMAT_API)
 
-    @staticmethod
-    def _format_datetime(dt: Any) -> Optional[str]:
-        """
-        Format datetime for API compatibility.
-
-        Args:
-            dt: Datetime object, string, or None
-
-        Returns:
-            ISO8601 formatted string or None
-        """
-        if dt is None:
-            return None
-
-        if isinstance(dt, str):
-            # Already a string, return as-is (assume it's properly formatted)
-            return dt
-
-        if hasattr(dt, 'isoformat'):
-            # datetime object
-            return dt.isoformat()
-
-        # For other types, convert to string
-        return str(dt) if dt else None
