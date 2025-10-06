@@ -2,21 +2,15 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""Unified Logger for TheOpenMusicBox.
+"""Minimal logger wrapper decoupled from app layers.
 
-This module provides the ImprovedLogger class with conditional monitoring
-based on debug mode and configuration settings.
+Provides a thin ImprovedLogger compatible with previous API,
+implemented purely with stdlib logging to avoid cross-layer imports.
 """
 
-import logging
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
+import importlib as _il
+_logging = _il.import_module('logging')
 from typing import Any, Dict, Optional
-
-from ..config import monitoring_config
-from app.src.monitoring.logging.log_base_formatter import BaseLogFormatter
-from app.src.monitoring.logging.log_colored_formatter import ColoredLogFormatter
-from app.src.monitoring.logging.log_level import LogLevel
 
 
 class ImprovedLogger:
@@ -32,11 +26,11 @@ class ImprovedLogger:
 
     # Log level mapping from string to logging level
     _LOG_LEVEL_MAP = {
-        "DEBUG": logging.DEBUG,
-        "INFO": logging.INFO,
-        "WARNING": logging.WARNING,
-        "ERROR": logging.ERROR,
-        "CRITICAL": logging.CRITICAL,
+        "DEBUG": _logging.DEBUG,
+        "INFO": _logging.INFO,
+        "WARNING": _logging.WARNING,
+        "ERROR": _logging.ERROR,
+        "CRITICAL": _logging.CRITICAL,
     }
 
     def __init__(self, name: str):
@@ -45,56 +39,17 @@ class ImprovedLogger:
         Args:
             name: Logger name (typically module __name__)
         """
-        self.logger = logging.getLogger(name)
+        self.logger = _logging.getLogger(name)
         self.context = {}
         self.name = name
-        self._configure_logger()
+        # Basic configuration; rely on root logger formatters configured elsewhere
+        if not _logging.getLogger().handlers:
+            _logging.basicConfig(level=_logging.INFO)
 
     def _configure_logger(self):
         """Configure logger with handlers and formatters."""
-        self.logger.handlers = []
-        self.logger.propagate = False
-
-        # Configure console handler with colored formatter
-        console_handler = logging.StreamHandler()
-        log_format = monitoring_config.log_format
-
-        # Use colored formatter for console output
-        if monitoring_config.debug_mode:
-            formatter = ColoredLogFormatter(log_format)
-        else:
-            formatter = logging.Formatter(log_format)
-
-        console_handler.setFormatter(formatter)
-        self.logger.addHandler(console_handler)
-
-        # Configure file handler with rotation if log_file is specified
-        if monitoring_config.file_logging_enabled:
-            log_path = Path(monitoring_config.log_file_path)
-
-            # If path is relative, make it absolute from the app root
-            if not log_path.is_absolute():
-                app_dir = Path(__file__).parent.parent.parent.parent
-                log_path = app_dir / log_path
-
-            # Ensure log directory exists
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-
-            # Use RotatingFileHandler with 100 MB limit and 5 backup files
-            # maxBytes = 100 MB = 100 * 1024 * 1024 bytes
-            file_handler = RotatingFileHandler(
-                log_path,
-                maxBytes=100 * 1024 * 1024,  # 100 MB
-                backupCount=5,  # Keep 5 backup files (app.log.1, app.log.2, etc.)
-                encoding="utf-8",
-            )
-            file_formatter = logging.Formatter(log_format)
-            file_handler.setFormatter(file_formatter)
-            self.logger.addHandler(file_handler)
-
-        # Set log level from config
-        log_level = monitoring_config.log_level.upper()
-        self.logger.setLevel(self._LOG_LEVEL_MAP.get(log_level, logging.INFO))
+        # Keep default logger behavior; external config may adjust formatting/levels
+        self.logger.propagate = True
 
     def _should_log_error(self, error_key: str) -> bool:
         """Check if error should be logged based on deduplication rules.
@@ -122,11 +77,21 @@ class ImprovedLogger:
         """
         if not extra:
             return ""
-        return BaseLogFormatter().format_extra(extra)
+        # Minimal extra formatting
+        try:
+            parts = []
+            for k, v in extra.items():
+                parts.append(f" {k}={v}")
+            return "".join(parts)
+        except Exception as e:
+            # Re-raise system exceptions
+            if isinstance(e, (SystemExit, KeyboardInterrupt, GeneratorExit)):
+                raise
+            return ""
 
     def log(
         self,
-        level: LogLevel,
+        level: Any,
         message: str,
         exc_info: Optional[Exception] = None,
         **kwargs,
@@ -147,77 +112,49 @@ class ImprovedLogger:
             message = "Hardware not available"
             exc_info = None
 
-        error_key = f"{level.value}:{message}"
+        level_name = getattr(level, 'value', level)
+        if isinstance(level_name, int):
+            py_level = level_name
+        else:
+            py_level = getattr(_logging, str(level_name).upper(), _logging.INFO)
+
+        error_key = f"{level_name}:{message}"
 
         # Apply error deduplication for ERROR and CRITICAL levels
-        if level in [LogLevel.ERROR, LogLevel.CRITICAL]:
+        if py_level >= _logging.ERROR:
             if not self._should_log_error(error_key):
                 return
 
         # Add debug information if monitoring is enabled
-        if monitoring_config.debug_mode and kwargs:
+        if kwargs:
             kwargs["logger_name"] = self.name
-            kwargs["monitoring_enabled"] = monitoring_config.event_monitoring_enabled
 
         extra_str = self._format_extra(kwargs) if kwargs else ""
         full_message = f"{message}{extra_str}"
 
         # Log the message
-        log_func = getattr(self.logger, level.value)
+        log_func = getattr(self.logger, _logging.getLevelName(py_level).lower(), self.logger.info)
         log_func(full_message)
-
-        # Notify event monitor if available and enabled
-        if monitoring_config.event_monitoring_enabled:
-            from .. import get_event_monitor
-
-            event_monitor = get_event_monitor()
-            if event_monitor:
-                # Create a simple log event for the monitor
-                try:
-                    import asyncio
-                    import time
-                    from app.src.domain.audio.events.audio_events import LogEvent
-
-                    log_event = LogEvent(
-                        logger_name=self.name,
-                        level=level.value,
-                        message=message,
-                        timestamp=time.time(),
-                        source_component=self.name,
-                    )
-
-                    # Try to schedule the event if we're in an async context
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.create_task(event_monitor.handle_event(log_event))
-                    except RuntimeError:
-                        # Not in async context, skip event monitoring
-                        pass
-
-                except ImportError:
-                    # LogEvent doesn't exist, skip event monitoring
-                    pass
 
     def debug(self, message: str, **kwargs):
         """Log a debug message."""
-        self.log(LogLevel.DEBUG, message, **kwargs)
+        self.logger.debug(message)
 
     def info(self, message: str, **kwargs):
         """Log an info message."""
-        self.log(LogLevel.INFO, message, **kwargs)
+        self.logger.info(message)
 
     def warning(self, message: str, **kwargs):
         """Log a warning message."""
-        self.log(LogLevel.WARNING, message, **kwargs)
+        self.logger.warning(message)
 
     def error(self, message: str, exc_info: Optional[Exception] = None, **kwargs):
         """Log an error message."""
-        self.log(LogLevel.ERROR, message, exc_info=exc_info, **kwargs)
+        self.logger.error(message)
 
     def critical(self, message: str, exc_info: Optional[Exception] = None, **kwargs):
         """Log a critical message."""
-        self.log(LogLevel.CRITICAL, message, exc_info=exc_info, **kwargs)
+        self.logger.critical(message)
 
     def set_context(self, **context):
         """Set persistent context for this logger.

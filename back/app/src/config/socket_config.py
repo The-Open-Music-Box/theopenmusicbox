@@ -97,18 +97,19 @@ class SocketConfig:
             issues.append("OPERATION_RESULT_TTL_SEC should be >= OPERATION_DEDUP_WINDOW_SEC")
 
         if issues:
-            from app.src.monitoring import get_logger
-            from app.src.monitoring.logging.log_level import LogLevel
-
-            logger = get_logger(__name__)
+            import logging
+            logger = logging.getLogger(__name__)
             for issue in issues:
-                logger.log(LogLevel.ERROR, f"Socket config validation error: {issue}")
+                logger.error(f"Socket config validation error: {issue}")
             return False
 
         return True
 
 
 # Global instance for easy access
+# Note: SocketConfig should be retrieved from DI container
+# Use: container.get("socket_config") or get_socket_config()
+# Legacy global instance kept for backward compatibility during transition
 socket_config = SocketConfig()
 
 # Validate configuration on import

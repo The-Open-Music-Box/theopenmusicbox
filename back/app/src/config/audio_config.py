@@ -41,7 +41,7 @@ class AudioConfig:
     sdl_videodriver: str = "dummy"  # Video driver (dummy to disable video)
 
     # Mock audio settings for development/testing
-    mock_track_duration: float = 180.0  # Default duration for mock tracks in seconds
+    mock_track_duration: float = 30.0  # Default duration for mock tracks in seconds (shortened for testing)
 
     # Progress tracking settings
     progress_update_interval: float = 0.1  # Update interval in seconds for progress tracking

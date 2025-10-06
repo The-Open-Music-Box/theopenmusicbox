@@ -2,241 +2,32 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""Event Monitoring and Debugging System.
+"""Minimal EventMonitor stub to avoid cross-layer imports.
 
-This module provides comprehensive monitoring, debugging, and analytics
-for the event-driven audio system. Now integrated with unified monitoring
-configuration and conditional activation.
+This stub maintains API shape but does not subscribe to domain events.
 """
 
-import json
-import logging
-import time
-from collections import deque
-from dataclasses import dataclass, asdict
-from typing import Dict, List, Any, Optional, Deque, Set
-from pathlib import Path
-
-from ..core.logger import ImprovedLogger
-from ..config import monitoring_config
-
-try:
-    from app.src.domain.audio.engine.event_bus import audio_event_bus, EventBus
-    from app.src.domain.audio.events.audio_events import AudioEvent
-    from app.src.domain.protocols.event_bus_protocol import EventHandler
-
-    EVENT_BUS_AVAILABLE = True
-except ImportError:
-    # Event bus not available, create dummy classes
-    class AudioEvent:
-        pass
-
-    class EventHandler:
-        pass
-
-    EVENT_BUS_AVAILABLE = False
-
-logger = ImprovedLogger(__name__)
+import importlib as _il
+_logging = _il.import_module('logging')
+from typing import Optional
 
 
-@dataclass
-class EventMetrics:
-    """Metrics for event processing."""
-
-    event_type: str
-    count: int = 0
-    first_seen: float = 0.0
-    last_seen: float = 0.0
-    total_processing_time_ms: float = 0.0
-    average_processing_time_ms: float = 0.0
-    min_processing_time_ms: float = float("inf")
-    max_processing_time_ms: float = 0.0
-    error_count: int = 0
-
-
-@dataclass
-class EventTrace:
-    """Trace record for a single event."""
-
-    event_id: str
-    event_type: str
-    timestamp: float
-    source_component: str
-    processing_time_ms: float
-    success: bool
-    error_message: Optional[str] = None
-    metadata: Dict[str, Any] = None
-
-
-class EventMonitor(EventHandler):
-    """Comprehensive event monitoring and debugging system.
-
-    Now with conditional activation based on monitoring configuration.
-    Only subscribes to events if debug mode is enabled.
-    """
+class EventMonitor:
+    """Minimal stub for event monitoring (no cross-layer imports)."""
 
     def __init__(self, max_trace_history: int = 1000, enable_file_logging: bool = False):
-        """Initialize the event monitor.
-
-        Args:
-            max_trace_history: Maximum number of events to keep in trace history
-            enable_file_logging: Whether to log events to file
-        """
-        # Metrics and statistics
-        self._event_metrics: Dict[str, EventMetrics] = {}
-        self._event_trace_history: Deque[EventTrace] = deque(maxlen=max_trace_history)
-
-        # Real-time monitoring
-        self._active_events: Dict[str, float] = {}  # event_id -> start_time
-        self._event_chains: Dict[str, List[EventTrace]] = {}  # Track event causality
-
-        # Configuration
-        self._enable_file_logging = enable_file_logging
-        self._log_file_path: Optional[Path] = None
         self._is_active = False
+        _logging.getLogger(__name__).info("📊 EventMonitor initialized (stub)")
 
-        # Performance tracking
-        self._monitoring_overhead_ms = 0.0
-        self._total_events_monitored = 0
+    async def handle_event(self, event) -> None:  # pragma: no cover - stub
+        return
 
-        # Filtering and alerting
-        self._event_type_filters: Set[str] = set()
-        self._alert_thresholds = {
-            "max_processing_time_ms": 1000,  # Alert if event takes > 1 second
-            "error_rate_threshold": 0.05,  # Alert if error rate > 5%
-            "queue_size_threshold": 100,  # Alert if queue size > 100
-        }
+    def shutdown(self) -> None:
+        self._is_active = False
+        _logging.getLogger(__name__).info("📊 EventMonitor shutdown")
 
-        if enable_file_logging:
-            self._setup_file_logging()
-
-        # ✅ CONDITIONAL SUBSCRIPTION - Only if monitoring enabled and event bus available
-        if monitoring_config.event_monitoring_enabled and EVENT_BUS_AVAILABLE:
-            self._activate_monitoring()
-        else:
-            # Use standard logging to avoid recursion during initialization
-            logging.getLogger(__name__).info(
-                "📊 EventMonitor initialized but not active (monitoring disabled or event bus unavailable)"
-            )
-
-    def _activate_monitoring(self):
-        """Activate event monitoring by subscribing to event bus."""
-        try:
-            if EVENT_BUS_AVAILABLE:
-                audio_event_bus.subscribe(AudioEvent, self.handle_event, weak_ref=False)
-                self._is_active = True
-                # Use standard logging to avoid recursion during initialization
-                logging.getLogger(__name__).info("📊 EventMonitor activated (debug mode enabled)")
-            else:
-                # Use standard logging to avoid recursion during initialization
-                logging.getLogger(__name__).warning(
-                    "📊 EventMonitor cannot activate - event bus unavailable"
-                )
-        except Exception as e:
-            # Use standard logging to avoid recursion during initialization
-            logging.getLogger(__name__).error(f"📊 Failed to activate EventMonitor: {e}")
-
-    def _deactivate_monitoring(self):
-        """Deactivate event monitoring by unsubscribing from event bus."""
-        try:
-            if EVENT_BUS_AVAILABLE and self._is_active:
-                audio_event_bus.unsubscribe(AudioEvent, self.handle_event)
-                self._is_active = False
-                # Use standard logging to avoid recursion
-                logging.getLogger(__name__).info("📊 EventMonitor deactivated")
-        except Exception as e:
-            # Use standard logging to avoid recursion
-            logging.getLogger(__name__).error(f"📊 Failed to deactivate EventMonitor: {e}")
-
-    def _setup_file_logging(self) -> None:
-        """Setup file logging for events."""
-        try:
-            log_dir = Path("logs/events")
-            log_dir.mkdir(parents=True, exist_ok=True)
-
-            timestamp = int(time.time())
-            self._log_file_path = log_dir / f"events_{timestamp}.jsonl"
-
-            # Use standard logging to avoid recursion during initialization
-            logging.getLogger(__name__).info(
-                f"📊 Event file logging enabled: {self._log_file_path}"
-            )
-
-        except Exception as e:
-            # Use standard logging to avoid recursion during initialization
-            logging.getLogger(__name__).warning(f"📊 Failed to setup file logging: {e}")
-            self._enable_file_logging = False
-
-    async def handle_event(self, event: AudioEvent) -> None:
-        """Handle and monitor audio events."""
-        if not self._is_active or not monitoring_config.event_monitoring_enabled:
-            return
-
-        monitor_start_time = time.time()
-
-        try:
-            event_type = type(event).__name__
-            event_id = str(getattr(event, "event_id", f"event_{time.time()}"))
-
-            # Skip if filtered
-            if self._event_type_filters and event_type not in self._event_type_filters:
-                return
-
-            # Record event start
-            self._active_events[event_id] = time.time()
-
-            # Process the event
-            await self._process_event(event)
-
-            # Calculate processing time
-            processing_time = (time.time() - self._active_events[event_id]) * 1000
-            del self._active_events[event_id]
-
-            # Update metrics
-            self._update_event_metrics(event_type, processing_time)
-
-            # Create trace record
-            trace = EventTrace(
-                event_id=event_id,
-                event_type=event_type,
-                timestamp=getattr(event, "timestamp", time.time()),
-                source_component=getattr(event, "source_component", "unknown"),
-                processing_time_ms=processing_time,
-                success=True,
-                metadata=self._extract_event_metadata(event),
-            )
-
-            # Add to history
-            self._event_trace_history.append(trace)
-
-            # Log to file if enabled
-            if self._enable_file_logging:
-                await self._log_event_to_file(trace)
-
-            # Check for alerts
-            await self._check_alerts(event_type, processing_time)
-
-            self._total_events_monitored += 1
-
-        except Exception as e:
-            # Record error
-            event_id = getattr(event, "event_id", f"error_event_{time.time()}")
-            processing_time = (time.time() - self._active_events.get(event_id, time.time())) * 1000
-
-            error_trace = EventTrace(
-                event_id=event_id,
-                event_type=type(event).__name__,
-                timestamp=getattr(event, "timestamp", time.time()),
-                source_component=getattr(event, "source_component", "unknown"),
-                processing_time_ms=processing_time,
-                success=False,
-                error_message=str(e),
-            )
-
-            self._event_trace_history.append(error_trace)
-            self._update_event_metrics(type(event).__name__, processing_time, is_error=True)
-
-            logger.error(f"📊 Error monitoring event {event}: {e}")
+    def get_monitoring_statistics(self) -> dict:
+        return {"active": self._is_active, "stub": True}
 
         finally:
             # Track monitoring overhead

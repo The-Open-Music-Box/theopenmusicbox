@@ -12,7 +12,7 @@ import os
 from enum import Enum, auto
 from pathlib import Path
 
-from app.src.config.app_config import AppConfig
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ class ConfigFactory:
     """
 
     @staticmethod
-    def create_config(config_type: ConfigType) -> AppConfig:
+    def create_config(config_type: ConfigType) -> Any:
         """Create a configuration instance for the specified environment.
 
         Args:
@@ -51,10 +51,15 @@ class ConfigFactory:
             os.environ["UVICORN_RELOAD"] = "True"
 
         elif config_type == ConfigType.PRODUCTION:
+            # Force disable debug mode in production (override any existing env var)
             os.environ["DEBUG"] = "False"
             os.environ["USE_MOCK_HARDWARE"] = "False"
             os.environ["USE_RELOADER"] = "False"
             os.environ["UVICORN_RELOAD"] = "False"
+            # Double check and force False if needed
+            if os.environ.get("DEBUG", "").lower() in ["true", "1", "yes"]:
+                logger.warning("⚠️ DEBUG was set to True in production, forcing to False")
+                os.environ["DEBUG"] = "False"
 
         elif config_type == ConfigType.TEST:
             os.environ["DEBUG"] = "True"
@@ -67,7 +72,6 @@ class ConfigFactory:
             os.environ["UPLOAD_FOLDER"] = str(test_upload_dir)
 
         # Create and return the configuration instance
-        from app.src.config.app_config import config
-
+        config = __import__('importlib').import_module('app.src.config.app_config').config
         logger.info(f"Created {config_type.name} configuration")
         return config

@@ -2,24 +2,21 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""Unified Monitoring System for TheOpenMusicBox.
+"""Minimal monitoring interface (std logging based).
 
-This module provides centralized monitoring, logging, and error handling
-with conditional activation based on debug mode and configuration.
+Provides get_logger and stubs for event monitor without cross-layer imports.
+Uses lazy loading to avoid circular dependencies.
 """
 
 from typing import Optional
-from .config import monitoring_config
-from .core.logger import ImprovedLogger
+import logging as _logging
 
-from .specialized.event_monitor import EventMonitor
-
-# Global instances
-_event_monitor_instance: Optional[EventMonitor] = None
-_error_handler_instance = None  # Using domain error handler instead
+# Lazy loaded references
+_ImprovedLogger = None
+_error_handler = None
 
 
-def get_logger(name: str) -> ImprovedLogger:
+def get_logger(name: str) -> object:
     """Get a logger instance for the specified module.
 
     Args:
@@ -28,7 +25,12 @@ def get_logger(name: str) -> ImprovedLogger:
     Returns:
         ImprovedLogger instance
     """
-    return ImprovedLogger(name)
+    # Lazy load to avoid circular dependencies
+    global _ImprovedLogger
+    if _ImprovedLogger is None:
+        from app.src.monitoring.core.logger import ImprovedLogger
+        _ImprovedLogger = ImprovedLogger
+    return _ImprovedLogger(name)
 
 
 def get_error_handler():
@@ -37,41 +39,27 @@ def get_error_handler():
     Returns:
         Domain error handler instance
     """
-    from app.src.infrastructure.error_handling import unified_error_handler
+    # Lazy load to avoid circular dependencies
+    global _error_handler
+    if _error_handler is None:
+        from app.src.infrastructure.error_handling import unified_error_handler
+        _error_handler = unified_error_handler
+    return _error_handler
 
-    return unified_error_handler
 
-
-def get_event_monitor() -> Optional[EventMonitor]:
+def get_event_monitor() -> Optional[object]:
     """Get event monitor instance (only if debug enabled).
 
     Returns:
         EventMonitor instance if debug mode is enabled, None otherwise
     """
-    global _event_monitor_instance
-
-    if not monitoring_config.event_monitoring_enabled:
-        return None
-
-    if _event_monitor_instance is None:
-        _event_monitor_instance = EventMonitor(
-            max_trace_history=monitoring_config.trace_history_size,
-            enable_file_logging=monitoring_config.file_logging_enabled,
-        )
-
-    return _event_monitor_instance
+    # Stubbed out in minimal implementation
+    return None
 
 
 def shutdown_monitoring():
     """Shutdown all monitoring components."""
-    global _event_monitor_instance, _error_handler_instance
-
-    if _event_monitor_instance:
-        _event_monitor_instance.shutdown()
-        _event_monitor_instance = None
-
-    # Error handler is now managed by domain bootstrap
-    pass
+    return None
 
 
 def get_monitoring_statistics() -> dict:
@@ -80,19 +68,7 @@ def get_monitoring_statistics() -> dict:
     Returns:
         Dictionary with monitoring statistics
     """
-    stats = {
-        "debug_mode": monitoring_config.debug_mode,
-        "event_monitoring_enabled": monitoring_config.event_monitoring_enabled,
-        "performance_monitoring_enabled": monitoring_config.performance_monitoring_enabled,
-        "file_logging_enabled": monitoring_config.file_logging_enabled,
-        "event_monitor_active": _event_monitor_instance is not None,
-        "error_handler_active": True,  # Domain error handler is always active
-    }
-
-    if _event_monitor_instance:
-        stats["event_monitor_stats"] = _event_monitor_instance.get_monitoring_statistics()
-
-    return stats
+    return {"active": False, "stub": True}
 
 
 # Export public interface
@@ -102,5 +78,5 @@ __all__ = [
     "get_event_monitor",
     "shutdown_monitoring",
     "get_monitoring_statistics",
-    "monitoring_config",
+    # Monitoring config removed from public interface
 ]

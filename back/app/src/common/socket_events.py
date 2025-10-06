@@ -71,6 +71,40 @@ class SocketEventType(str, Enum):
     YOUTUBE_ERROR = "youtube:error"
 
 
+class StateEventType(Enum):
+    """Types of state events that can be broadcast per API Contract v2.0."""
+
+    PLAYLISTS_SNAPSHOT = "state:playlists"
+    PLAYLISTS_INDEX_UPDATE = "state:playlists_index_update"
+    PLAYLIST_SNAPSHOT = "state:playlist"
+    TRACK_SNAPSHOT = "state:track"
+    PLAYER_STATE = "state:player"
+    TRACK_PROGRESS = "state:track_progress"
+    TRACK_POSITION = "state:track_position"
+
+    PLAYLIST_DELETED = "state:playlist_deleted"
+    PLAYLIST_CREATED = "state:playlist_created"
+    PLAYLIST_UPDATED = "state:playlist_updated"
+    TRACK_DELETED = "state:track_deleted"
+    TRACK_ADDED = "state:track_added"
+
+    VOLUME_CHANGED = "state:volume_changed"
+    NFC_STATE = "state:nfc_state"
+
+    # Additional event types for DDD broadcasting service
+    TRACKS_DELETED = "state:tracks_deleted"
+    TRACKS_REORDERED = "state:tracks_reordered"
+    PLAYLIST_STARTED = "state:playlist_started"
+    NFC_ASSOCIATED = "state:nfc_associated"
+    NFC_DISASSOCIATED = "state:nfc_disassociated"
+
+    # Legacy aliases
+    GENERAL = "state:general"
+    ERROR = "state:error"
+    NFC_ASSOCIATION = "state:nfc_association"
+    POSITION_UPDATE = "state:position_update"
+
+
 class StateEventEnvelope(BaseModel):
     """
     Standardized envelope for all state:* events.

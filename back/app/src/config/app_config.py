@@ -15,7 +15,6 @@ from pathlib import Path
 from typing import Any, List
 
 from dotenv import load_dotenv
-
 from app.src.config.audio_config import AudioConfig
 from app.src.config.hardware_config import HardwareConfig
 from app.src.config.nfc_config import NFCConfig
@@ -564,5 +563,15 @@ class AppConfig:
             raise
 
 
-# Create the single global instance
+# Note: AppConfig should be retrieved from DI container
+# Use: container.get("config") or get_config()
+# Legacy global instance kept for backward compatibility during transition
+import warnings
+warnings.warn(
+    "Global 'config' instance is deprecated. Use dependency injection instead: "
+    "container.get('config') or get_config(). "
+    "This global will be removed in v2.0 (Q2 2026)",
+    DeprecationWarning,
+    stacklevel=2
+)
 config = AppConfig()
