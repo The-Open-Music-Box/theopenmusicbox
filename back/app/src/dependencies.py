@@ -9,22 +9,22 @@ using the DI Container to avoid circular dependencies.
 """
 
 from app.src.infrastructure.di.container import get_container
+from app.src.application.di.application_container import get_application_container
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 
 logger = get_logger(__name__)
 
-# Get the global DI container
-container = get_container()
+# Note: Containers are retrieved via functions to avoid module-level caching
+# Use get_container() and get_application_container() instead
 
 
 def get_config():
-    """Dependency provider for the global config singleton.
+    """Dependency provider for the config singleton.
 
     Returns:
-        The global configuration object.
+        The configuration object from DI container.
     """
-    return container.get("config")
+    return get_container().get("config")
 
 
 def get_domain_bootstrap():
@@ -33,16 +33,16 @@ def get_domain_bootstrap():
     Returns:
         The domain bootstrap instance providing access to domain services.
     """
-    return container.get("domain_bootstrap")
+    return get_container().get("domain_bootstrap")
 
 
 def get_audio_service():
-    """Retrieve the audio service from domain architecture.
+    """Retrieve the audio application service from domain architecture.
 
     Returns:
-        The unified controller instance.
+        The audio application service instance.
     """
-    return container.get("unified_controller")
+    return get_application_container().get("audio_application_service")
 
 
 def get_playlist_repository():
@@ -51,7 +51,7 @@ def get_playlist_repository():
     Returns:
         The pure DDD playlist repository implementation.
     """
-    return container.get("playlist_repository")
+    return get_container().get("playlist_repository")
 
 
 def get_playlist_repository_adapter():
@@ -60,7 +60,7 @@ def get_playlist_repository_adapter():
     Returns:
         The playlist repository adapter for domain operations.
     """
-    return container.get("playlist_repository_adapter")
+    return get_container().get("playlist_repository_adapter")
 
 
 def get_data_application_service():
@@ -69,7 +69,7 @@ def get_data_application_service():
     Returns:
         The data application service instance.
     """
-    return container.get("data_application_service")
+    return get_application_container().get("data_application_service")
 
 
 def get_audio_application_service():
@@ -78,17 +78,10 @@ def get_audio_application_service():
     Returns:
         The audio application service instance.
     """
-    return container.get("audio_application_service")
+    return get_application_container().get("audio_application_service")
 
 
 # Data Domain Dependencies
-def get_data_application_service():
-    """Retrieve the data application service for use cases.
-
-    Returns:
-        The data application service instance.
-    """
-    return container.get("data_application_service")
 
 
 def get_data_playlist_service():
@@ -97,7 +90,7 @@ def get_data_playlist_service():
     Returns:
         The data playlist service instance.
     """
-    return container.get("data_playlist_service")
+    return get_container().get("data_playlist_service")
 
 
 def get_data_track_service():
@@ -106,4 +99,85 @@ def get_data_track_service():
     Returns:
         The data track service instance.
     """
-    return container.get("data_track_service")
+    return get_container().get("data_track_service")
+
+
+def get_nfc_application_service():
+    """Retrieve the NFC application service.
+
+    Returns:
+        The NFC application service instance.
+    """
+    return get_application_container().get("nfc_application_service")
+
+
+def get_upload_application_service():
+    """Retrieve the upload application service.
+
+    Returns:
+        The upload application service instance.
+    """
+    return get_application_container().get("upload_application_service")
+
+
+def get_playback_coordinator():
+    """Retrieve the playback coordinator singleton.
+
+    Returns:
+        The playback coordinator instance.
+    """
+    return get_application_container().get("playback_coordinator")
+
+
+def get_database_manager():
+    """Retrieve the database manager singleton.
+
+    Returns:
+        The database manager instance.
+    """
+    return get_container().get("database_manager")
+
+
+def get_player_state_service():
+    """Retrieve the player state service.
+
+    Returns:
+        The player state service instance.
+    """
+    return get_container().get("player_state_service")
+
+
+def get_socket_config():
+    """Retrieve the socket configuration.
+
+    Returns:
+        The socket configuration instance.
+    """
+    return get_container().get("socket_config")
+
+
+def get_monitoring_config():
+    """Retrieve the monitoring configuration.
+
+    Returns:
+        The monitoring configuration instance.
+    """
+    return get_container().get("monitoring_config")
+
+
+def get_error_tracker():
+    """Retrieve the error tracker.
+
+    Returns:
+        The error tracker instance.
+    """
+    return get_container().get("error_tracker")
+
+
+def get_unified_error_handler():
+    """Retrieve the unified error handler.
+
+    Returns:
+        The unified error handler instance.
+    """
+    return get_container().get("unified_error_handler")
