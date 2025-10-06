@@ -36,6 +36,7 @@ cypress/screenshots/
 .coverage
 .pytest_cache/
 htmlcov/
+contract-validation-reports/
 
 # =========================
 # Environment variables
