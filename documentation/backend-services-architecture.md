@@ -263,3 +263,130 @@ class SocketConfig:
 - Gestion erreur cohérente
 
 Cette architecture garantit une **communication temps réel fiable** avec **état cohérent** entre tous les clients et **performance optimale** via throttling intelligent.
+
+## Architecture de Routing (Two-Layer Pattern)
+
+TheOpenMusicBox implémente une **architecture de routing à deux couches** suivant les principes DDD et Dependency Injection.
+
+### Vue d'ensemble
+
+```mermaid
+graph TD
+    A[main.py] -->|initialise| B[api_routes_state.py]
+    B -->|orchestre| C[Bootstrap Routes]
+    C -->|importe & initialise| D[API Routes]
+    D -->|délègue à| E[Application Services]
+
+    subgraph "Couche 2: Bootstrap/Factory<br/>back/app/src/routes/factories/"
+        C
+    end
+
+    subgraph "Couche 1: Routes API Pures<br/>back/app/src/api/endpoints/"
+        D
+    end
+
+    style C fill:#e1f5fe
+    style D fill:#f3e5f5
+```
+
+### Couche 1: Routes API Pures (`back/app/src/api/endpoints/`)
+
+**Responsabilités**:
+- Définition des endpoints FastAPI
+- Gestion requête/réponse HTTP
+- Validation des entrées (Pydantic)
+- Délégation de la logique métier
+- **NE GÈRE PAS**: Instantiation de services, gestion du cycle de vie
+
+**Fichiers** (7 au total, ~2,829 LOC):
+- `player_api_routes.py` - Endpoints de contrôle player
+- `nfc_api_routes.py` - Endpoints d'association NFC
+- `playlist_api_routes.py` - Endpoints de gestion playlists
+- `system_api_routes.py` - Endpoints système et santé
+- `upload_api_routes.py` - Endpoints de sessions upload
+- `web_api_routes.py` - Endpoints web/statiques
+- `youtube_api_routes.py` - Endpoints YouTube
+
+### Couche 2: Routes Bootstrap (`back/app/src/routes/factories/`)
+
+**Responsabilités**:
+- Création et câblage des dépendances
+- Initialisation des services
+- Configuration de l'injection de dépendances
+- Enregistrement des routes avec FastAPI
+- Gestion du cycle de vie
+
+**Fichiers** (7 au total, ~761 LOC):
+- `player_routes_ddd.py` - Bootstrap player routes
+- `nfc_unified_routes.py` - Bootstrap NFC routes
+- `playlist_routes_ddd.py` - Bootstrap playlist routes
+- `system_routes.py` - Bootstrap système routes
+- `upload_routes.py` - Bootstrap upload routes
+- `web_routes.py` - Bootstrap web routes
+- `youtube_routes.py` - Bootstrap YouTube routes
+
+### Flux de dépendances
+
+```python
+# Layer 2: Bootstrap (routes/factories/player_routes_ddd.py)
+class PlayerRoutesDDD:
+    def __init__(self, app, socketio, coordinator):
+        # Initialise les services
+        self.state_manager = UnifiedStateManager(socketio)
+        self.player_service = PlayerApplicationService(coordinator, self.state_manager)
+        self.broadcasting_service = PlayerBroadcastingService(self.state_manager)
+
+        # Initialise les routes API avec dépendances
+        self.api_routes = PlayerAPIRoutes(
+            player_service=self.player_service,
+            broadcasting_service=self.broadcasting_service
+        )
+
+        # Enregistre avec FastAPI
+        app.include_router(self.api_routes.get_router())
+
+# Layer 1: API Routes (api/endpoints/player_api_routes.py)
+class PlayerAPIRoutes:
+    def __init__(self, player_service, broadcasting_service):
+        self.router = APIRouter(prefix="/api/player")
+        self._player_service = player_service  # Reçu par DI
+        self._broadcasting_service = broadcasting_service
+
+    def _register_routes(self):
+        @self.router.post("/play")
+        async def play():
+            # Délègue au service - pas d'instantiation
+            result = await self._player_service.play_use_case()
+            await self._broadcasting_service.broadcast_state_change(...)
+            return UnifiedResponseService.success(...)
+```
+
+### Avantages de cette architecture
+
+1. **Séparation des responsabilités**
+   - Routes API: logique HTTP uniquement
+   - Bootstrap: gestion des dépendances uniquement
+
+2. **Testabilité**
+   - Routes API testables avec mocks
+   - Bootstrap testable pour vérifier le câblage
+
+3. **Flexibilité**
+   - Facile de remplacer les implémentations
+   - Modifications de dépendances isolées
+
+4. **Clean Architecture**
+   - Respecte la direction des dépendances
+   - Suit les principes DDD
+
+### Patterns utilisés
+
+- **Factory Pattern**: Bootstrap routes créent et configurent les handlers
+- **Dependency Injection**: Dépendances injectées par constructeur
+- **Single Responsibility**: Chaque couche a une responsabilité unique
+
+### ⚠️ Note importante
+
+Cette structure **N'EST PAS une duplication** mais un pattern architectural intentionnel. Les deux dossiers de routes servent des objectifs complémentaires distincts.
+
+**Documentation complète**: Voir [routing-architecture.md](./routing-architecture.md) pour détails complets.

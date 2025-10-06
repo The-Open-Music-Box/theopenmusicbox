@@ -1,10 +1,11 @@
-# TheOpenMusicBox: HTTP API & Socket.IO Communication (Canonical)
+# TheOpenMusicBox: HTTP API & Socket.IO Communication (DDD Architecture v3.0)
 
-This document specifies the HTTP API and Socket.IO communication as implemented today (server‑authoritative v2), aligned with the backend and frontend constants.
+This document specifies the HTTP API and Socket.IO communication as currently implemented with Domain-Driven Design architecture, server-authoritative patterns, and the UnifiedStateManager system.
 
 ## Table of Contents
 
 - [Architecture Overview](#architecture-overview)
+- [Domain-Driven Design Implementation](#domain-driven-design-implementation)
 - [HTTP API Endpoints](#http-api-endpoints)
 - [Socket.IO Communication](#socketio-communication)
 - [State Management Architecture](#state-management-architecture)
@@ -12,675 +13,490 @@ This document specifies the HTTP API and Socket.IO communication as implemented 
 - [Authentication & Security](#authentication--security)
 - [Error Handling](#error-handling)
 - [Performance Considerations](#performance-considerations)
+- [Configuration](#configuration)
+- [Migration Notes](#migration-notes)
 
 ## Architecture Overview
 
-TheOpenMusicBox uses a **Server-Authoritative Architecture** where:
+TheOpenMusicBox uses a **Domain-Driven Design (DDD) Server-Authoritative Architecture** where:
 
-- **Backend (FastAPI)**: Single source of truth for all data
+- **Backend (FastAPI + DDD)**: Single source of truth with clean architecture separation
 - **Frontend (Vue.js)**: Reactive client that subscribes to real-time updates
 - **Socket.IO**: Real-time bidirectional communication for state updates
-- **HTTP REST API**: Traditional request/response for operations
+- **HTTP REST API**: Traditional request/response for operations via application services
 
 ### Technology Stack
 
 | Component | Technology | Purpose |
 |-----------|------------|---------|
-| Backend Framework | FastAPI | HTTP API server |
+| Backend Framework | FastAPI + DDD Architecture | HTTP API server with domain separation |
 | WebSocket Server | Socket.IO (Python) | Real-time communication |
-| State Management | Custom StateManager | Server-authoritative state |
+| State Management | UnifiedStateManager + DDD Services | Server-authoritative state coordination |
 | Frontend Framework | Vue.js 3 + TypeScript | Reactive UI |
 | WebSocket Client | Socket.IO (JavaScript) | Real-time updates |
 | HTTP Client | Axios | API requests |
 
-## HTTP API Endpoints
-
-### Core Endpoint Categories
+### DDD Architecture Layers
 
 ```mermaid
 graph TD
-    A[HTTP API] --> B[Playlists API]
-    A --> C[Player Control API]
-    A --> D[Upload API]
-    A --> E[System API]
-    A --> F[NFC API]
-    A --> G[YouTube API]
+    A[API Routes] --> B[Application Services]
+    B --> C[Domain Services]
+    C --> D[Domain Entities]
+    B --> E[Infrastructure Services]
+    E --> F[Database/Hardware]
 
-    B --> B1[CRUD Operations]
-    B --> B2[Track Management]
-    B --> B3[Playlist Playback]
-
-    C --> C1[Play/Pause/Stop]
-    C --> C2[Navigation]
-    C --> C3[Seek/Volume]
-
-    D --> D1[Chunked Upload]
-    D --> D2[Session Management]
-    D --> D3[Progress Tracking]
+    G[Socket.IO Events] --> H[UnifiedStateManager]
+    H --> I[StateEventCoordinator]
+    H --> J[EventOutbox]
+    H --> K[ClientSubscriptionManager]
 ```
 
-### Response Format Notes
+## Domain-Driven Design Implementation
 
-- Many endpoints return JSON objects with fields at the top level (no `data` wrapper). Some utility responses use `{ "status": "success|error", "message": string, ... }`.
-- Player endpoints typically return a PlayerState-like object directly (top-level fields) or an error JSON with `{ status: "error", message }`.
-- This document reflects current shapes; full standardization may come later.
+### Application Services Layer
 
-### Detailed API Endpoints
+The application layer orchestrates domain operations and coordinates infrastructure concerns:
 
-#### 1. Playlist Management
+| Service | Purpose | Location |
+|---------|---------|----------|
+| `PlaylistApplicationService` | Playlist CRUD operations | `app/src/application/services/` |
+| `PlayerApplicationService` | Player control operations | `app/src/application/services/` |
+| `NfcApplicationService` | NFC tag management | `app/src/application/services/` |
+| `UploadApplicationService` | File upload workflows | `app/src/application/services/` |
 
-| Method | Endpoint | Description | Query Parameters | Request Body | Response |
-|--------|----------|-------------|------------------|--------------|----------|
-| `GET` | `/api/playlists` | List playlists (paginated) | `page?: number, limit?: number` | - | `{ status: "success", message: string, data: { playlists: PlaylistLite[], page: number, total: number, limit: number } }` |
-| `POST` | `/api/playlists/` | Create playlist | - | `{ title: string, description?: string, client_op_id?: string }` | `{ status: "success", message: string, data: { playlist: Playlist } }` |
-| `GET` | `/api/playlists/{playlist_id}` | Get specific playlist | - | - | `{ status: "success", message: string, data: { playlist: Playlist } }` |
-| `PUT` | `/api/playlists/{playlist_id}` | Update playlist | - | `{ title?: string, description?: string, client_op_id?: string }` | `{ status: "success", message: string, data: { playlist: Playlist } }` |
-| `DELETE` | `/api/playlists/{playlist_id}` | Delete playlist | - | `{ client_op_id?: string }` | `{ status: "success", message: string }` |
+### Domain Services Layer
 
-#### 2. Player Control
+Pure business logic without infrastructure dependencies:
 
-| Method | Endpoint | Description | Request Body | Response |
-|--------|----------|-------------|--------------|----------|
-| `POST` | `/api/player/toggle` | Toggle play/pause (server decides action based on current state) | `{ client_op_id?: string }` | PlayerState (top-level fields) or `{ status: "error", message }` |
-| `POST` | `/api/player/stop` | Stop playback | `{ client_op_id?: string }` | PlayerState (top-level fields) or `{ status: "error", message }` |
-| `POST` | `/api/player/next` | Next track | `{ client_op_id?: string }` | PlayerState (top-level fields) or `{ status: "error", message }` |
-| `POST` | `/api/player/previous` | Previous track | `{ client_op_id?: string }` | PlayerState (top-level fields) or `{ status: "error", message }` |
-| `POST` | `/api/player/seek` | Seek to position | `{ position_ms: number, client_op_id?: string }` | PlayerState (top-level fields) or `{ status: "error", message }` |
-| `POST` | `/api/player/volume` | Set volume level | `{ volume: number, client_op_id?: string }` | PlayerState (top-level fields) or `{ status: "error", message }` |
-| `GET` | `/api/player/status` | Get player status | - | PlayerState (top-level fields) |
+| Service | Purpose | Location |
+|---------|---------|----------|
+| `PlaybackStateManager` | Playback state business rules | `app/src/domain/services/` |
+| `TrackProgressService` | Position tracking logic | `app/src/services/` |
 
-#### 3. Upload API
+### Infrastructure Layer
 
-| Method | Endpoint | Description | Request Body | Response |
-|--------|----------|-------------|--------------|----------|
-| `POST` | `/api/playlists/{id}/uploads/session` | Initialize upload session | `{ filename: string, file_size: number, chunk_size?: number }` | `{ status: "success", message: string, data: { session_id: string, chunk_size: number } }` |
-| `PUT` | `/api/playlists/{id}/uploads/{session_id}/chunks/{chunk_index}` | Upload file chunk | `FormData` | `{ status: "success", message: string, data: { progress: number } }` |
-| `POST` | `/api/playlists/{id}/uploads/{session_id}/finalize` | Finalize upload | `{ client_op_id?: string, file_hash?: string }` | `{ status: "success", message: string, data: { track: Track } }` |
-| `GET` | `/api/playlists/{id}/uploads/{session_id}` | Get upload status | - | `{ status: "success", message: string, data: { upload_status: UploadStatus } }` |
+External system adapters and technical implementations:
 
-#### Upload Management API
+| Component | Purpose | Location |
+|-----------|---------|----------|
+| Repository Adapters | Database abstraction | `app/src/infrastructure/repositories/` |
+| Hardware Adapters | NFC/Audio hardware | `app/src/infrastructure/hardware/` |
+| Error Handlers | Unified error handling | `app/src/infrastructure/error_handling/` |
 
-| Method | Endpoint | Description | Request Body | Response |
-|--------|----------|-------------|--------------|----------|
-| `GET` | `/api/uploads/sessions` | List all upload sessions | - | `{ status: "success", message: string, data: { sessions: UploadSession[] } }` |
-| `DELETE` | `/api/uploads/sessions/{session_id}` | Cancel/delete upload session | - | `{ status: "success", message: string }` |
-| `POST` | `/api/uploads/cleanup` | Clean up orphaned upload files | - | `{ status: "success", message: string, data: { cleaned_files: number, freed_bytes: number } }` |
+## HTTP API Endpoints
 
-#### 4. NFC API
+### Core Endpoint Structure
 
-| Method | Endpoint | Description | Request Body | Response |
-|--------|----------|-------------|--------------|----------|
-| `POST` | `/api/nfc/associate` | Associate tag with playlist | `{ playlist_id: string, tag_id: string, client_op_id?: string }` | `{ status: "success", message: string, data: { association: NfcAssociation } }` |
-| `DELETE` | `/api/nfc/associate/{tag_id}` | Remove tag association | `{ client_op_id?: string }` | `{ status: "success", message: string }` |
-| `GET` | `/api/nfc/status` | Get NFC reader status | - | `{ status: "success", message: string, data: { reader_available: boolean, scanning: boolean } }` |
-| `POST` | `/api/nfc/scan` | Start NFC scan session | `{ timeout_ms?: number }` | `{ status: "success", message: string, data: { scan_id: string } }` |
+The current implementation uses **clean DDD API routes** with the following structure:
 
-#### 5. YouTube API
+```
+/api/
+├── playlists/           # Playlist management (DDD)
+├── player/              # Player control (DDD)
+├── nfc/                 # NFC operations (Unified)
+├── uploads/             # Upload management
+├── youtube/             # YouTube integration
+└── system/              # System management
+```
+
+### Player Control API (DDD Implementation)
 
 | Method | Endpoint | Description | Request Body | Response |
 |--------|----------|-------------|--------------|----------|
-| `POST` | `/api/youtube/download` | Download from YouTube URL | `{ url: string, playlist_id: string, client_op_id?: string }` | `{ status: "success", message: string, data: { task_id: string } }` |
-| `GET` | `/api/youtube/status/{task_id}` | Get download progress | - | `{ task_id: string, status: string, ... }` |
-| `GET` | `/api/youtube/search` | Search YouTube videos | `query: string, max_results?: number` | `{ status: "success", message: string, data: { results: YoutubeResult[] } }` |
+| `POST` | `/api/player/play` | Start/resume playback | `PlayerControlRequest` | `UnifiedResponse<PlayerState>` |
+| `POST` | `/api/player/pause` | Pause playback | `PlayerControlRequest` | `UnifiedResponse<PlayerState>` |
+| `POST` | `/api/player/stop` | Stop playback | `PlayerControlRequest` | `UnifiedResponse<PlayerState>` |
+| `POST` | `/api/player/toggle` | Toggle play/pause | `PlayerControlRequest` | `UnifiedResponse<PlayerState>` |
+| `POST` | `/api/player/next` | Next track | `PlayerControlRequest` | `UnifiedResponse<PlayerState>` |
+| `POST` | `/api/player/previous` | Previous track | `PlayerControlRequest` | `UnifiedResponse<PlayerState>` |
+| `GET` | `/api/player/status` | Get player status | - | `UnifiedResponse<PlayerState>` |
+| `POST` | `/api/player/seek` | Seek to position | `SeekRequest` | `UnifiedResponse<PlayerState>` |
+| `POST` | `/api/player/volume` | Set volume level | `VolumeRequest` | `UnifiedResponse<VolumeState>` |
 
-#### Additional Endpoints (Implementation Specific)
-
-These endpoints exist in the current implementation:
+### Playlist Management API (DDD Implementation)
 
 | Method | Endpoint | Description | Request Body | Response |
 |--------|----------|-------------|--------------|----------|
-| `POST` | `/api/playlists/{playlist_id}/reorder` | Reorder tracks in playlist | `{ tracks: Track[], client_op_id?: string }` | `{ status: "success", message: string, data: { playlist: Playlist } }` |
-| `DELETE` | `/api/playlists/{playlist_id}/tracks` | Delete specific tracks | `{ track_ids: string[], client_op_id?: string }` | `{ status: "success", message: string }` |
-| `POST` | `/api/playlists/{playlist_id}/start` | Start playlist playback | `{ client_op_id?: string }` | PlayerState |
-| `POST` | `/api/playlists/{playlist_id}/play/{track_number}` | Play specific track in playlist | `{ client_op_id?: string }` | PlayerState |
-| `POST` | `/api/playlists/move-track` | Move tracks between playlists | `{ from_playlist_id: string, to_playlist_id: string, track_id: string, client_op_id?: string }` | `{ status: "success", message: string }` |
-| `GET` | `/api/health` | Health check endpoint | - | `{ status: "ok", timestamp: number }` |
-| `GET` | `/api/playback/status` | Get playback status (anti-cache) | - | PlayerState with anti-cache headers |
+| `GET` | `/api/playlists` | List playlists (paginated) | - | `UnifiedResponse<PlaylistCollection>` |
+| `POST` | `/api/playlists` | Create playlist | `CreatePlaylistRequest` | `UnifiedResponse<Playlist>` |
+| `GET` | `/api/playlists/{id}` | Get specific playlist | - | `UnifiedResponse<Playlist>` |
+| `PUT` | `/api/playlists/{id}` | Update playlist | `UpdatePlaylistRequest` | `UnifiedResponse<Playlist>` |
+| `DELETE` | `/api/playlists/{id}` | Delete playlist | `ClientOperationRequest` | `204 No Content` |
+| `POST` | `/api/playlists/{id}/start` | Start playlist playback | `ClientOperationRequest` | `UnifiedResponse<PlayerState>` |
+| `POST` | `/api/playlists/{id}/reorder` | Reorder tracks | `ReorderTracksRequest` | `UnifiedResponse<Success>` |
+| `DELETE` | `/api/playlists/{id}/tracks` | Delete tracks | `DeleteTracksRequest` | `UnifiedResponse<Success>` |
+| `POST` | `/api/playlists/move-track` | Move track between playlists | `MoveTrackRequest` | `UnifiedResponse<Success>` |
+| `POST` | `/api/playlists/sync` | Synchronize playlists and broadcast state | - | `UnifiedResponse<SyncResult>` |
 
-#### System Management Endpoints
+### NFC API (Unified Implementation)
+
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| `POST` | `/api/nfc/associate` | Associate tag with playlist | `NFCAssociateRequest` | `UnifiedResponse<NFCAssociation>` |
+| `DELETE` | `/api/nfc/associate/{tag_id}` | Remove tag association | `ClientOperationRequest` | `UnifiedResponse<Success>` |
+| `GET` | `/api/nfc/status` | Get NFC reader status | - | `UnifiedResponse<NFCStatusResponse>` |
+| `POST` | `/api/nfc/scan` | Start NFC scan session | `NFCScanRequest` | `UnifiedResponse<NFCScanResponse>` |
+| `DELETE` | `/api/nfc/session/{session_id}` | Cancel active association session | `ClientOperationRequest` | `UnifiedResponse<Success>` |
+
+### Upload Management API
+
+#### Playlist-Specific Upload Endpoints
+
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| `POST` | `/api/playlists/{id}/uploads/session` | Initialize upload session | `InitUploadRequest` | `UnifiedResponse<UploadSession>` |
+| `PUT` | `/api/playlists/{id}/uploads/{session_id}/chunks/{chunk_index}` | Upload file chunk | `bytes (binary data)` | `UnifiedResponse<UploadProgress>` |
+| `POST` | `/api/playlists/{id}/uploads/{session_id}/finalize` | Finalize upload | `FinalizeUploadRequest` | `UnifiedResponse<Track>` |
+| `GET` | `/api/playlists/{id}/uploads/{session_id}` | Get upload status | - | `UnifiedResponse<UploadStatus>` |
+
+#### Global Upload Session Management
+
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| `GET` | `/api/uploads/sessions` | List all upload sessions (with filtering) | `status` (query param) | `UnifiedResponse<UploadSessionCollection>` |
+| `DELETE` | `/api/uploads/sessions/{session_id}` | Delete/cancel upload session | - | `UnifiedResponse<Success>` |
+| `POST` | `/api/uploads/cleanup` | Cleanup stale sessions | `max_age_hours` (query param) | `UnifiedResponse<CleanupResult>` |
+
+### YouTube Integration API
+
+| Method | Endpoint | Description | Request Body | Response |
+|--------|----------|-------------|--------------|----------|
+| `POST` | `/api/youtube/download` | Download from YouTube URL | `YouTubeDownloadRequest` | `UnifiedResponse<DownloadTask>` |
+| `GET` | `/api/youtube/status/{task_id}` | Get download progress | - | `UnifiedResponse<YouTubeProgress>` |
+| `GET` | `/api/youtube/search` | Search YouTube videos | `query`, `max_results` | `UnifiedResponse<YouTubeResults>` |
+
+### System Management API
 
 | Method | Endpoint | Description | Response |
 |--------|----------|-------------|----------|
-| `GET` | `/api/system/info` | Get system information | `{ status: "success", data: SystemInfo }` |
-| `GET` | `/api/system/logs` | Get system logs | `{ status: "success", data: { logs: LogEntry[] } }` |
-| `POST` | `/api/system/restart` | Restart system | `{ status: "success", message: string }` |
+| `GET` | `/api/system/info` | Get system information | `UnifiedResponse<SystemInfo>` |
+| `GET` | `/api/system/logs` | Get system logs | `UnifiedResponse<LogCollection>` |
+| `POST` | `/api/system/restart` | Restart system | `UnifiedResponse<Success>` |
+| `GET` | `/api/health` | Health check endpoint | `UnifiedResponse<HealthStatus>` |
+| `GET` | `/api/playback/status` | Get playback status (anti-cache) | `UnifiedResponse<PlayerState>` |
 
-#### Debug & Testing Endpoints
+### Unified Response Format
 
-| Method | Endpoint | Description | Response |
-|--------|----------|-------------|----------|
-| `GET` | `/api/playlists/debug` | Debug playlist information | `{ debug_info: any }` |
-| `GET` | `/api/playlists/test-route` | Test route functionality | `{ status: "ok" }` |
-| `POST` | `/api/playlists/control` | Control playlist operations | `{ status: "success", message: string }` |
-| `POST` | `/api/playlists/sync` | Synchronize playlist state | `{ status: "success", message: string }` |
-
-#### NFC Alternative Endpoints
-
-| Method | Endpoint | Description | Request Body | Response |
-|--------|----------|-------------|--------------|----------|
-| `GET` | `/api/playlists/nfc/{nfc_tag_id}` | Get playlist by NFC tag | - | `{ playlist: Playlist }` |
-| `POST` | `/api/playlists/nfc/{nfc_tag_id}/associate/{playlist_id}` | Associate NFC tag with playlist | - | `{ status: "success", message: string }` |
-| `DELETE` | `/api/playlists/nfc/{playlist_id}` | Remove NFC association by playlist | - | `{ status: "success", message: string }` |
-
-### Data Models
-
-#### Track Schema
+All API endpoints use the `UnifiedResponseService` for consistent formatting:
 
 ```typescript
-interface Track {
-  id: string;
-  title: string;
-  filename: string;
-  duration_ms: number;
-  file_path: string;
-  file_hash?: string;
-  file_size?: number;
-  artist?: string;
-  album?: string;
-  track_number?: number;
-  play_count: number;
-  created_at: string;
-  updated_at?: string;
-  server_seq: number;
-}
-```
-
-#### PlayerState Schema (as emitted/returned currently)
-
-```typescript
-interface PlayerState {
-  is_playing: boolean;
-  state: PlaybackState; // Detailed playback state (playing, paused, stopped, loading, error)
-  active_playlist_id: string | null;
-  active_playlist_title: string | null;
-  active_track_id: string | null;
-  active_track: Track | null;
-  position_ms: number;
-  duration_ms: number;
-  track_index: number;
-  track_count: number;
-  can_prev: boolean;
-  can_next: boolean;
-  volume: number; // Volume level (0-100)
-  muted: boolean; // Whether audio is muted
-  server_seq: number;
-  error_message?: string; // Error message if in error state
-}
-
-enum PlaybackState {
-  PLAYING = "playing",
-  PAUSED = "paused",
-  STOPPED = "stopped",
-  LOADING = "loading", 
-  ERROR = "error"
-}
-```
-
-#### Playlist Schema
-
-```typescript
-interface Playlist {
-  id: string;
-  title: string;
-  description: string;
-  nfc_tag_id: string | null;
-  tracks: Track[];
-  track_count: number;
-  created_at: string;
-  updated_at?: string;
-  server_seq: number;
-  playlist_seq: number;
-}
-
-#### PlaylistLite Schema
-
-```typescript
-interface PlaylistLite {
-  id: string;
-  title: string;
-  description: string;
-  nfc_tag_id: string | null;
-  track_count: number;
-  created_at: string;
-  updated_at?: string;
-  server_seq: number;
-}
-```
-
-#### Additional Data Models
-
-```typescript
-// Upload Status Model
-interface UploadStatus {
-  session_id: string;
-  filename: string;
-  file_size: number;
-  bytes_uploaded: number;
-  progress_percent: number;
-  chunks_total: number;
-  chunks_uploaded: number;
-  status: "pending" | "uploading" | "processing" | "completed" | "error";
-  error_message?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-// Upload Session Model
-interface UploadSession {
-  session_id: string;
-  playlist_id: string;
-  filename: string;
-  file_size: number;
-  chunk_size: number;
-  status: "pending" | "uploading" | "processing" | "completed" | "error" | "cancelled";
-  progress_percent: number;
-  bytes_uploaded: number;
-  chunks_total: number;
-  chunks_uploaded: number;
-  created_at: string;
-  updated_at: string;
-  error_message?: string;
-}
-
-// NFC Association Model
-interface NFCAssociation {
-  tag_id: string;
-  playlist_id: string;
-  playlist_title: string;
-  created_at: string;
-}
-
-// YouTube Progress Model
-interface YouTubeProgress {
-  task_id: string;
-  status: string;
-  progress_percent: number;
-  current_step: string;
-  estimated_time_remaining?: number;
-  error_message?: string;
-  result?: any;
-}
-
-// YouTube Search Result Model
-interface YouTubeResult {
-  id: string;
-  title: string;
-  duration_ms: number;
-  thumbnail_url: string;
-  channel: string;
-  view_count: number;
-}
-
-// Track Progress Model (for progress updates)
-interface TrackProgress {
-  position_ms: number;
-  duration_ms: number;
-  is_playing: boolean;
-  active_track_id?: string;
-  server_seq: number;
+interface UnifiedResponse<T> {
+  status: "success" | "error";
+  message: string;
+  data?: T;
+  client_op_id?: string;
+  server_seq?: number;
   timestamp: number;
+  request_id?: string;
+  error_type?: string;
+  details?: any;
 }
 ```
 
-#### UploadStatus Schema
+### Request Models
+
+Additional request models for new endpoints:
 
 ```typescript
-interface UploadStatus {
-  session_id: string;
-  filename: string;
-  file_size: number;
-  bytes_uploaded: number;
-  progress_percent: number;
-  chunks_total: number;
-  chunks_uploaded: number;
-  status: UploadStatus; // Standardized enum values
-  error_message?: string;
-  created_at: string;
-  updated_at: string;
+interface MoveTrackRequest {
+  source_playlist_id: string;
+  target_playlist_id: string;
+  track_number: number;
+  target_position?: number;
+  client_op_id?: string;
 }
 
-enum UploadStatus {
-  PENDING = "pending",
-  UPLOADING = "uploading", 
-  PROCESSING = "processing",
-  COMPLETED = "completed",
-  ERROR = "error"
-}
-```
-
-#### VolumePayload Schema
-
-```typescript
-interface VolumePayload {
-  volume: number;  // 0-100
-  muted: boolean;
-}
-```
-
-#### NfcAssociation Schema
-
-```typescript
-interface NfcAssociation {
-  tag_id: string;
-  playlist_id: string;
-  playlist_title: string;
-  created_at: string;
-}
-```
-
-#### YoutubeProgress Schema
-
-```typescript
-interface YoutubeProgress {
-  task_id: string;
-  status: 'pending' | 'downloading' | 'processing' | 'completed' | 'error';
-  progress_percent: number;
-  current_step: string;
-  estimated_time_remaining?: number;
-  error_message?: string;
-  result?: {
-    track: Track;
-    playlist_id: string;
-  };
-}
-```
-
-#### YoutubeResult Schema
-
-```typescript
-interface YoutubeResult {
-  id: string;
-  title: string;
-  duration_ms: number;
-  thumbnail_url: string;
-  channel: string;
-  view_count: number;
+interface ClientOperationRequest {
+  client_op_id?: string;
 }
 ```
 
 ## Socket.IO Communication
 
-### Connection Architecture
+### Event Architecture
+
+The current implementation uses **UnifiedStateManager** with clean DDD architecture:
 
 ```mermaid
 sequenceDiagram
     participant Frontend
     participant Backend
-    participant StateManager
+    participant UnifiedStateManager
+    participant StateEventCoordinator
+    participant EventOutbox
 
     Frontend->>Backend: Socket.IO Connect
     Backend->>Frontend: connection_status
     Frontend->>Backend: join:playlists
-    Backend->>StateManager: subscribe_client()
-    StateManager->>Frontend: state:playlists (snapshot)
+    Backend->>UnifiedStateManager: subscribe_client()
+    UnifiedStateManager->>StateEventCoordinator: coordinate_subscription()
+    StateEventCoordinator->>EventOutbox: queue_snapshot()
+    EventOutbox->>Frontend: state:playlists (snapshot)
     Backend->>Frontend: ack:join
 ```
 
-### Event Naming Convention (Canonical)
-
-- State events: `state:*` → `state:playlists`, `state:playlist`, `state:track`, `state:player`, `state:track_progress`, `state:track_position`
-- Room management: `join:playlists`, `leave:playlists`, `join:playlist`, `leave:playlist`, `join:nfc`, `sync:request`
-- Operation acknowledgments: `ack:op`, `err:op`
-- Connection management: `connection_status`, `ack:join`, `ack:leave`
-- Synchronization: `sync:complete`, `sync:error`, `client_ping`, `client_pong`
-- Progress events: `upload:*`, `youtube:*`
-- NFC events: `nfc_status`, `nfc_association_state`, `start_nfc_link`, `stop_nfc_link`, `override_nfc_tag`
-- Health monitoring: `health_check`, `health_status`, `health_error`
-
-### Event Categories
+### Event Categories and Implementation
 
 #### 1. Connection Management
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `connect` | Client → Server | Establish connection | - |
-| `disconnect` | Bi-directional | Close connection | - |
-| `connection_status` | Server → Client | Connection acknowledgment | `{ status: "connected", sid: string, server_seq: number, server_time: number }` |
-| `client_ping` | Client → Server | Health check ping | `{}` |
-| `client_pong` | Server → Client | Health check response | `{}` |
+| Event | Direction | Payload | Current Implementation |
+|-------|-----------|---------|----------------------|
+| `connect` | Client → Server | - | `websocket_handlers_state.py:connect()` |
+| `disconnect` | Client → Server | - | `websocket_handlers_state.py:disconnect()` |
+| `connection_status` | Server → Client | `{status, sid, server_seq}` | ✅ Implemented |
+| `client_ping` | Client → Server | `{}` | ✅ Implemented |
+| `client_pong` | Server → Client | `{timestamp, server_time, server_seq}` | ✅ Implemented |
 
 #### 2. Subscription Management
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `join:playlists` | Client → Server | Subscribe to playlists updates | `{}` |
-| `join:playlist` | Client → Server | Subscribe to specific playlist | `{ playlist_id: string }` |
-| `join:nfc` | Client → Server | Subscribe to NFC events | `{}` |
-| `leave:playlists` | Client → Server | Unsubscribe from playlists | `{}` |
-| `leave:playlist` | Client → Server | Unsubscribe from specific playlist | `{ playlist_id: string }` |
-| `ack:join` | Server → Client | Subscription confirmation | `{ room: string, success: boolean, server_seq?: number, playlist_seq?: number, message?: string }` |
-| `ack:leave` | Server → Client | Leave confirmation | `{ room: string, success: boolean, message?: string }` |
+| Event | Direction | Payload | Current Implementation |
+|-------|-----------|---------|----------------------|
+| `join:playlists` | Client → Server | `{}` | ✅ DDD StateManager integration |
+| `join:playlist` | Client → Server | `{playlist_id}` | ✅ DDD StateManager integration |
+| `join:nfc` | Client → Server | `{assoc_id}` | ✅ NFC service integration |
+| `leave:playlists` | Client → Server | `{}` | ✅ DDD StateManager integration |
+| `leave:playlist` | Client → Server | `{playlist_id}` | ✅ DDD StateManager integration |
+| `ack:join` | Server → Client | `{room, success, server_seq}` | ✅ Implemented |
+| `ack:leave` | Server → Client | `{room, success}` | ✅ Implemented |
 
-#### 3. State Synchronization Events (Canonical `state:*` with envelope)
+#### 3. State Events (DDD Implementation)
 
-| Event | Direction | Purpose | Data Structure |
-|-------|-----------|---------|----------------|
-| `state:playlists` | Server → Client | Playlist list update | Envelope: `{ event_type, server_seq, data: { playlists: PlaylistLite[] }, timestamp, event_id }` |
-| `state:playlist` | Server → Client | Specific playlist update | Envelope: `{ event_type, server_seq, playlist_id, data: Playlist, timestamp, event_id }` |
-| `state:player` | Server → Client | Player state update | Envelope: `{ event_type, server_seq, data: PlayerState, timestamp, event_id }` |
-| `state:track_progress` | Server → Client | Track progress (legacy - deprecated) | Envelope: `{ event_type, server_seq, data: { position_ms, duration_ms, ... }, timestamp, event_id }` |
-| `state:track_position` | Server → Client | **Lightweight position updates (200ms)** | Envelope: `{ event_type, server_seq, data: { position_ms, track_id, is_playing, duration_ms? }, timestamp, event_id }` |
-| `state:track` | Server → Client | Track-level change | Envelope: `{ event_type, server_seq, playlist_id, data: Track, timestamp, event_id }` |
+All state events use the **StateEventCoordinator** with proper envelope format:
 
-#### 4. Operation Acknowledgments
+| Event | Purpose | Envelope Structure | Frequency |
+|-------|---------|-------------------|-----------|
+| `state:player` | Player state updates | `{event_type, server_seq, data: PlayerState, timestamp, event_id}` | On demand |
+| `state:track_position` | **Lightweight position tracking** | `{event_type, server_seq, data: {position_ms, track_id, is_playing}, timestamp, event_id}` | **500ms intervals** |
+| `state:playlists` | Playlist collection updates | `{event_type, server_seq, data: {playlists: PlaylistLite[]}, timestamp, event_id}` | On demand |
+| `state:playlist` | Specific playlist updates | `{event_type, server_seq, playlist_id, data: Playlist, timestamp, event_id}` | On demand |
+| `state:track` | Track-level changes | `{event_type, server_seq, playlist_id, data: Track, timestamp, event_id}` | On demand |
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `ack:op` | Server → Client | Operation success | `{ client_op_id: string, success: true, data?: any, server_seq: number }` |
-| `err:op` | Server → Client | Operation failure | `{ client_op_id: string, success: false, message: string, server_seq: number }` |
+#### 4. NFC Events (Unified Implementation)
+
+| Event | Direction | Payload | Current Implementation |
+|-------|-----------|---------|----------------------|
+| `nfc_status` | Server → Client | `{assoc_id, state, playlist_id, tag_id?, server_seq}` | ✅ UnifiedNFCRoutes |
+| `nfc_association_state` | Server → Client | `{state, playlist_id, tag_id?, message?, expires_at?, existing_playlist?, server_seq}` | ✅ Frontend-friendly format with tag tracking |
+| `start_nfc_link` | Client → Server | `{playlist_id, client_op_id?}` | ✅ WebSocket handler |
+| `stop_nfc_link` | Client → Server | `{playlist_id, client_op_id?}` | ✅ WebSocket handler |
+| `override_nfc_tag` | Client → Server | `{playlist_id, tag_id?, client_op_id?}` | ✅ WebSocket handler with automatic tag processing |
+
+**NFC Association States:**
+- `waiting` - Waiting for tag scan (initial state)
+- `duplicate` - Tag already associated with another playlist (includes `tag_id` and `existing_playlist`)
+- `success` - Association completed successfully
+- `timeout` - Session expired without tag detection
+- `cancelled` - User cancelled the association
+- `error` - Error occurred during association
+
+**Override Mechanism (tag_id parameter):**
+When `override_nfc_tag` is called with `tag_id` parameter:
+1. Backend starts override session with `override_mode=true`
+2. Tag is **automatically processed** without requiring second scan
+3. Frontend receives `success` state immediately
+4. Previous association is replaced atomically
+
+This eliminates the need to scan the tag twice when overriding existing associations.
 
 #### 5. Upload Progress Events
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `upload:progress` | Server → Client | Upload progress update | `{ playlist_id: string, session_id: string, chunk_index: number, progress: number, complete: boolean }` |
-| `upload:complete` | Server → Client | Upload completed | `{ playlist_id: string, session_id: string, filename: string, metadata: object, track: Track }` |
-| `upload:error` | Server → Client | Upload failed | `{ playlist_id: string, session_id: string, error: string }` |
+| Event | Direction | Payload | Current Implementation |
+|-------|-----------|---------|----------------------|
+| `upload:progress` | Server → Client | `{playlist_id, session_id, progress, complete}` | ✅ UploadController integration |
+| `upload:complete` | Server → Client | `{playlist_id, session_id, track}` | ✅ UploadController integration |
+| `upload:error` | Server → Client | `{playlist_id, session_id, error}` | ✅ UploadController integration |
 
-#### 6. NFC Events
+#### 6. YouTube Events
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `nfc_status` | Server → Client | Association session status | `{ assoc_id: string, state: 'listening'|'duplicate'|'success'|'stopped'|'timeout'|'error', playlist_id: string, tag_id?: string, conflict_playlist_id?: string, started_at: string, timeout_at: string, server_seq: number }` |
-| `nfc_association_state` | Server → Client | Frontend-friendly association updates | `{ state: string, playlist_id: string, tag_id?: string, message?: string, expires_at?: string, existing_playlist?: { id: string, title: string }, server_seq: number }` |
+| Event | Direction | Payload | Current Implementation |
+|-------|-----------|---------|----------------------|
+| `youtube:progress` | Server → Client | `{task_id, status, progress_percent?, current_step?}` | ✅ YouTubeRoutes |
+| `youtube:complete` | Server → Client | `{task_id, track, playlist_id}` | ✅ YouTubeRoutes |
+| `youtube:error` | Server → Client | `{task_id, message}` | ✅ YouTubeRoutes |
 
-#### 7. YouTube Events
+#### 7. Synchronization Events
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `youtube:progress` | Server → Client | Download progress | `{ task_id: string, status: string, progress_percent?: number, current_step?: string, estimated_time_remaining?: number, error_message?: string }` |
-| `youtube:complete` | Server → Client | Download completed | `{ task_id: string, track: Track, playlist_id: string }` |
-| `youtube:error` | Server → Client | Download failed | `{ task_id: string, message: string }` |
+| Event | Direction | Payload | Current Implementation |
+|-------|-----------|---------|----------------------|
+| `sync:request` | Client → Server | `{last_global_seq?, last_playlist_seqs?, requested_rooms?}` | ✅ DDD StateManager |
+| `sync:complete` | Server → Client | `{synced_rooms, server_seq}` | ✅ DDD StateManager |
+| `sync:error` | Server → Client | `{error, requested_rooms?}` | ✅ DDD StateManager |
+| `client:request_current_state` | Client → Server | `{}` | ✅ Immediate state sync |
 
-#### 8. System Health & Monitoring Events
+#### 8. Operation Acknowledgments
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `health_check` | Client → Server | Request system health status | `{}` |
-| `health_status` | Server → Client | System health information | `{ status: string, components: any, timestamp: number }` |
-| `health_error` | Server → Client | System health error | `{ error: string, component?: string, timestamp: number }` |
+| Event | Direction | Payload | Current Implementation |
+|-------|-----------|---------|----------------------|
+| `ack:op` | Server → Client | `{client_op_id, success: true, data?, server_seq}` | ✅ StateEventCoordinator |
+| `err:op` | Server → Client | `{client_op_id, success: false, message, server_seq}` | ✅ StateEventCoordinator |
 
-#### 9. Synchronization Events
+#### 9. Health and Monitoring Events
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `sync:request` | Client → Server | Request state synchronization | `{ last_global_seq?: number, last_playlist_seqs?: Record<string, number>, requested_rooms?: string[] }` |
-| `sync:complete` | Server → Client | Synchronization completed | `{ synced_rooms: string[], server_seq: number }` |
-| `sync:error` | Server → Client | Synchronization failed | `{ error: string, requested_rooms?: string[] }` |
-| `client:request_current_state` | Client → Server | Request immediate current state sync | `{}` | Triggers `state:player` emission to requesting client |
+| Event | Direction | Payload | Current Implementation |
+|-------|-----------|---------|----------------------|
+| `client_ping` | Client → Server | `{timestamp?}` | ✅ Connection health check |
+| `client_pong` | Server → Client | `{timestamp, server_time, server_seq}` | ✅ Ping response |
+| `health_check` | Client → Server | `{}` | ✅ System health request |
+| `health_status` | Server → Client | `{health_metrics, connected_clients, server_time}` | ✅ Health metrics response |
 
-#### 10. Extended NFC Events
+#### 10. Post-Connection State Synchronization
 
-| Event | Direction | Purpose | Payload |
-|-------|-----------|---------|---------|
-| `start_nfc_link` | Client → Server | Start NFC association process | `{ playlist_id: string, timeout_s?: number }` |
-| `stop_nfc_link` | Client → Server | Stop NFC association process | `{ assoc_id?: string }` |
-| `override_nfc_tag` | Client → Server | Override existing NFC tag association | `{ tag_id: string, playlist_id: string, force: boolean }` |
+**Critical Events for Page Refresh and Reconnection:**
 
-### Real-time Communication Flow
+| Event | Direction | Purpose | When Used |
+|-------|-----------|---------|-----------|
+| `client:request_current_state` | Client → Server | Request immediate full player state | After page refresh or reconnection |
+| `state:player` (response) | Server → Client | Complete current player state | Response to state request |
 
-```mermaid
-graph TB
-    subgraph Frontend
-        A[User Action] --> B[HTTP Request]
-        B --> C[client_op_id]
-        D[Socket Listener] --> E[UI Update]
-    end
+**Reconnection Flow Pattern:**
+```javascript
+// Frontend reconnection after page refresh
+socket.on('connect', () => {
+  // 1. Join necessary rooms
+  socket.emit('join:playlists', {});
 
-    subgraph Backend
-        F[HTTP Endpoint] --> G[Business Logic]
-        G --> H[StateManager]
-    H --> I[Socket Broadcast state:*]
-    end
+  // 2. CRITICAL: Request immediate current state
+  socket.emit('client:request_current_state', {});
+});
 
-    C -.->|HTTP| F
-    I -.->|WebSocket| D
-    H --> J[ack:op/err:op]
-    J -.->|WebSocket| D
+// Server responds with complete player state
+socket.on('state:player', (envelope) => {
+  const { data } = envelope;
+  // data contains complete PlayerState fields at top level
+  // Update UI with current playback information
+});
 ```
 
 ## State Management Architecture
 
-### Server-Authoritative Pattern
+### UnifiedStateManager (DDD Implementation)
 
-The system implements a **Server-Authoritative State Management** pattern where:
-
-1. **Single Source of Truth**: Backend maintains authoritative state
-2. **Event Sequencing**: All events have sequence numbers for ordering
-3. **Real-time Synchronization**: Changes broadcast immediately to subscribers
-4. **Conflict Resolution**: Server state always wins
-
-### StreamlinedStateManager Component (Refactored Architecture)
-
-The `StreamlinedStateManager` uses **focused, single-responsibility classes** for clean separation of concerns:
-
-- **EventOutbox**: Reliable event delivery with retry mechanisms
-- **ClientSubscriptionManager**: Room-based subscription management  
-- **SequenceGenerator**: Thread-safe sequence number generation
-- **OperationTracker**: Operation deduplication and result caching
+The **UnifiedStateManager** coordinates multiple focused components following DDD principles:
 
 ```python
-class StreamlinedStateManager:
+class UnifiedStateManager(StateManagerProtocol):
     def __init__(self, socketio_server=None):
-        self.socketio = socketio_server
-        
-        # Initialize focused components
-        self.outbox = EventOutbox(socketio_server)
-        self.subscriptions = ClientSubscriptionManager(socketio_server)
-        self.sequences = SequenceGenerator()
-        self.operations = OperationTracker()
-        
-        # Position update throttling (200ms intervals)
-        self._last_position_emit_time = 0
+        # Focused components (Single Responsibility Principle)
+        self.sequences = SequenceGenerator()              # Thread-safe sequence generation
+        self.outbox = EventOutbox(socketio_server)        # Reliable event delivery
+        self.subscriptions = ClientSubscriptionManager()  # Room management
+        self.operations = OperationTracker()              # Deduplication
+
+        # DDD components
+        self.state_manager = PlaybackStateManager()       # Domain state management
+        self.event_coordinator = StateEventCoordinator()  # Event coordination
+        self.serialization_service = StateSerializationApplicationService()
+        self.snapshot_service = StateSnapshotApplicationService()
+        self.lifecycle_service = StateManagerLifecycleApplicationService()
 ```
 
-#### New Lightweight Position System
+### Component Responsibilities
 
-The refactored system introduces **high-frequency position updates** for smooth playback tracking:
+| Component | Single Responsibility | Location |
+|-----------|----------------------|----------|
+| **EventOutbox** | Reliable event delivery with retry logic | `app/src/services/event_outbox.py` |
+| **ClientSubscriptionManager** | Room-based subscription management | `app/src/services/client_subscription_manager.py` |
+| **SequenceGenerator** | Thread-safe sequence number generation | `app/src/services/sequence_generator.py` |
+| **OperationTracker** | Operation deduplication and result caching | `app/src/services/operation_tracker.py` |
+| **StateEventCoordinator** | Event coordination between domain and transport | `app/src/application/services/state_event_coordinator.py` |
+| **PlaybackStateManager** | Domain state management and business rules | `app/src/domain/services/playback_state_manager.py` |
+
+### High-Frequency Position Updates
+
+The system implements **optimized position tracking** for smooth playback:
 
 ```python
+# Configuration from socket_config.py
+POSITION_UPDATE_INTERVAL_MS = 500    # 500ms updates for smooth progression
+POSITION_THROTTLE_MIN_MS = 400       # Minimum time between updates
+
+# Implementation in StateEventCoordinator
 async def broadcast_position_update(
-    self, 
-    position_ms: int, 
-    track_id: str, 
-    is_playing: bool, 
+    self,
+    position_ms: int,
+    track_id: str,
+    is_playing: bool,
     duration_ms: Optional[int] = None
 ) -> Optional[dict]:
-    """
-    Broadcast lightweight position update with throttling.
-    
-    - Updates every 200ms (configurable via SocketConfig)
-    - Throttled to prevent spam (150ms minimum)
-    - Minimal payload for optimal performance
-    """
+    """Broadcast lightweight position update with throttling."""
 ```
 
-### Reliable Event Delivery
+### Event Flow Architecture
 
-The system implements an **outbox pattern** for reliable event delivery:
+```mermaid
+graph LR
+    A[Application Service] --> B[StateEventCoordinator]
+    B --> C[EventOutbox]
+    C --> D[Socket.IO]
+    D --> E[Frontend]
 
-1. **Retry Logic**: Failed events are retried with exponential backoff
-2. **Sequence Tracking**: Clients can request missed events via `sync:request` (e.g., `last_global_seq`)
-3. **Snapshot Recovery**: Full state snapshots available on demand
-4. **Idempotence**: Duplicate events are safely ignored via sequence numbers
-
-### Event Types and Routing
-
-| Event Type | Room | Purpose |
-|------------|------|---------|
-| `state:playlists` | `playlists` | Global playlist changes |
-| `state:player` | `playlists` | Player state for all clients |
-| `state:track_progress` | `playlists` | Progress updates (legacy - deprecated) |
-| `state:track_position` | `playlists` | **Lightweight position updates (200ms intervals)** |
-| `state:playlist` | `playlist:{id}` | Specific playlist changes |
-| `state:track` | `playlist:{id}` | Track-level changes |
+    F[TrackProgressService] --> B
+    G[Player Operations] --> B
+    H[Playlist Operations] --> B
+```
 
 ## Data Flow Patterns
 
-### 1. CRUD Operations Flow
+### 1. CRUD Operations (DDD Flow)
 
 ```mermaid
 sequenceDiagram
     participant UI
-    participant ApiService
-    participant Backend
-    participant StateManager
+    participant APIRoutes
+    participant ApplicationService
+    participant DomainService
+    participant StateEventCoordinator
     participant Subscribers
 
-    UI->>ApiService: createPlaylist(data)
-    ApiService->>Backend: POST /api/playlists
-    Backend->>StateManager: broadcast_state_change()
-    StateManager->>Subscribers: state:playlists
-    Backend->>ApiService: HTTP Response
-    ApiService->>UI: Success/Error
-    Subscribers->>UI: Real-time Update
+    UI->>APIRoutes: HTTP Request
+    APIRoutes->>ApplicationService: Use Case
+    ApplicationService->>DomainService: Business Logic
+    DomainService-->>ApplicationService: Domain Result
+    ApplicationService->>StateEventCoordinator: broadcast_state_change()
+    StateEventCoordinator->>Subscribers: state:* event
+    ApplicationService-->>APIRoutes: Application Result
+    APIRoutes-->>UI: UnifiedResponse
 ```
 
-### 2. Player Control Flow
+### 2. Player Control (DDD Flow)
 
 ```mermaid
 sequenceDiagram
     participant UI
-    participant ApiService
-    participant PlayerRoutes
-    participant AudioController
-    participant StateManager
+    participant PlayerAPIRoutes
+    participant PlayerApplicationService
+    participant PlaybackCoordinator
+    participant StateEventCoordinator
     participant AllClients
 
-    UI->>ApiService: togglePlayer()
-    ApiService->>PlayerRoutes: POST /api/player/toggle
-    PlayerRoutes->>AudioController: handle_playback_control("toggle")
-    AudioController-->>PlayerRoutes: PlaybackResult
-    PlayerRoutes->>StateManager: broadcast_state_change(state:player)
-    StateManager->>AllClients: state:player
-    PlayerRoutes->>ApiService: HTTP Response
+    UI->>PlayerAPIRoutes: POST /api/player/toggle
+    PlayerAPIRoutes->>PlayerApplicationService: toggle_use_case()
+    PlayerApplicationService->>PlaybackCoordinator: toggle_pause()
+    PlaybackCoordinator-->>PlayerApplicationService: PlaybackResult
+    PlayerApplicationService->>StateEventCoordinator: broadcast_state_change()
+    StateEventCoordinator->>AllClients: state:player
+    PlayerApplicationService-->>PlayerAPIRoutes: Application Result
+    PlayerAPIRoutes-->>UI: UnifiedResponse
 ```
 
-### 3. File Upload Flow
+### 3. Real-time Position Updates
 
 ```mermaid
 sequenceDiagram
-    participant UI
-    participant SimpleUploader
-    participant ApiService
-    participant Backend
-    participant StateManager
+    participant TrackProgressService
+    participant PlaybackCoordinator
+    participant StateEventCoordinator
+    participant ClientSubscriptionManager
+    participant AllClients
 
-    UI->>SimpleUploader: uploadFile()
-    SimpleUploader->>ApiService: initUpload()
-    ApiService->>Backend: POST /api/playlists/{id}/uploads/session
-
-    loop For each chunk
-        SimpleUploader->>ApiService: uploadChunk()
-        ApiService->>Backend: PUT /api/playlists/{id}/uploads/{session_id}/chunks/{index}
-        Backend->>SimpleUploader: upload:progress
+    loop Every 500ms
+        TrackProgressService->>PlaybackCoordinator: get_playback_status()
+        PlaybackCoordinator-->>TrackProgressService: position, duration, is_playing
+        TrackProgressService->>StateEventCoordinator: broadcast_position_update()
+        StateEventCoordinator->>ClientSubscriptionManager: get_subscribed_clients("playlists")
+        StateEventCoordinator->>AllClients: state:track_position
     end
-
-    SimpleUploader->>ApiService: finalizeUpload()
-    ApiService->>Backend: POST /api/playlists/{id}/uploads/{session_id}/finalize
-    Backend->>StateManager: broadcast_state_change()
-    StateManager->>UI: state:playlists (updated)
-    StateManager->>UI: upload:complete
 ```
 
 ## Authentication & Security
@@ -688,603 +504,191 @@ sequenceDiagram
 ### Current Implementation
 
 - **No Authentication**: System designed for local network use
-- **CORS Configuration**: Configurable allowed origins
-- **Rate Limiting**: Implementations exist on some endpoints (e.g., player control); centralization may evolve
-- **Input Validation**: Pydantic models for request validation
-- **File Upload Security**: Chunked uploads with size limits and type validation
+- **CORS Configuration**: Configurable allowed origins via environment
+- **Rate Limiting**: Implemented via `OperationsService` in DDD routes
+- **Input Validation**: Pydantic models with `UnifiedValidationService`
+- **Error Handling**: Unified error handling with `UnifiedErrorHandler`
 
 ### Security Measures
 
 ```python
-# Rate limiting configuration
-RATE_LIMITS = {
-    "player_control": {"window": 60, "max_requests": 30},
-    "uploads": {"window": 60, "max_requests": 10},
-    "youtube": {"window": 300, "max_requests": 5}  # More restrictive for YouTube
-}
-
-def check_rate_limit(endpoint_type: str, client_id: str) -> bool:
-    # Implementation varies by endpoint type
+# Rate limiting in DDD implementation
+class PlayerAPIRoutes:
+    async def play_player(self, request: Request, body: PlayerControlRequest):
+        # Rate limiting via operations service
+        if self._operations_service:
+            rate_check = await self._operations_service.check_rate_limit_use_case(request)
+            if not rate_check.get("allowed", True):
+                return UnifiedResponseService.error(
+                    message="Too many requests",
+                    error_type="rate_limit_error",
+                    status_code=429
+                )
 ```
 
-### Rate Limiting Scope
+### Rate Limiting Configuration
 
-| Endpoint Category | Window | Max Requests | Rationale |
-|------------------|--------|--------------|-----------|
-| Player Control | 60s | 30 requests | Prevent rapid-fire commands |
-| File Uploads | 60s | 10 requests | Limit concurrent uploads |
-| YouTube Downloads | 300s | 5 requests | Prevent API abuse |
+| Endpoint Category | Implementation | Rationale |
+|------------------|----------------|-----------|
+| Player Control | Operations Service | Prevent rapid-fire commands |
+| File Uploads | Upload Controller | Limit concurrent uploads |
+| YouTube Downloads | YouTube Service | Prevent API abuse |
 
-## Error Handling (UPDATED - Post Refactoring)
+## Error Handling
 
-**All errors now use standardized format across all endpoints:**
+### Unified Error Response Format (DDD Implementation)
 
-### Error Response Structure
-```json
-{
-  "status": "error",
-  "message": "Human-readable error message", 
-  "error_type": "validation_error|not_found|rate_limit_exceeded|service_unavailable|internal_error|conflict|bad_request",
-  "details": { /* contextual error information */ },
-  "timestamp": 1640995200000,
-  "request_id": "abc123"
+All endpoints use `UnifiedResponseService` for consistent error handling:
+
+```typescript
+interface ErrorResponse {
+  status: "error";
+  message: string;
+  error_type: "validation_error" | "not_found" | "rate_limit_exceeded" |
+             "service_unavailable" | "internal_error" | "conflict" | "bad_request";
+  details?: any;
+  timestamp: number;
+  request_id?: string;
+  client_op_id?: string;
 }
 ```
 
-### Error Types & HTTP Status Codes
-| Error Type | HTTP Status | Description | Usage |
-|------------|-------------|-------------|-------|
-| `validation_error` | 400 | Invalid request data | Malformed JSON, missing required fields |
-| `bad_request` | 400 | General bad request | Invalid operation parameters |
-| `not_found` | 404 | Resource not found | Playlist, track, or other resource missing |
-| `conflict` | 409 | Resource conflict | Duplicate playlist names, conflicting operations |
-| `rate_limit_exceeded` | 429 | Too many requests | Client exceeded request rate limits |
-| `service_unavailable` | 503 | Backend service unavailable | Audio controller, database unavailable |
-| `internal_error` | 500 | Unexpected server error | Unhandled exceptions, system failures |
+### Error Types & Status Codes
+
+| Error Type | HTTP Status | Usage | Implementation |
+|------------|-------------|-------|----------------|
+| `validation_error` | 400 | Invalid request data | `UnifiedValidationService` |
+| `bad_request` | 400 | Invalid operation parameters | Application Services |
+| `not_found` | 404 | Resource not found | Repository layer |
+| `conflict` | 409 | Resource conflict | Domain validation |
+| `rate_limit_exceeded` | 429 | Too many requests | Operations Service |
+| `service_unavailable` | 503 | Backend service unavailable | Infrastructure layer |
+| `internal_error` | 500 | Unexpected server error | Unified Error Handler |
 
 ### Socket.IO Error Handling
 
 ```typescript
-// Frontend error handling
+// Frontend error handling for operations
 socket.on('err:op', (data) => {
-  const { client_op_id, message } = data;
-  const pending = pendingOperations.get(client_op_id);
-  if (pending) pending.reject(new Error(message));
+  const { client_op_id, message, server_seq } = data;
+  // Handle operation failure
 });
+
 socket.on('ack:op', (data) => {
-  const { client_op_id, data: payload } = data;
-  const pending = pendingOperations.get(client_op_id);
-  if (pending) pending.resolve(payload);
+  const { client_op_id, success, data: payload, server_seq } = data;
+  // Handle operation success
 });
 ```
 
-### Error Recovery Patterns
-
-1. **Retry Logic**: HTTP requests retry 5xx errors with exponential backoff
-2. **Circuit Breaker**: Socket reconnection with exponential backoff
-3. **Fallback Mechanisms**: HTTP fallback for critical data when WebSocket fails
-4. **State Resynchronization**: Clients can request full state snapshots via `sync:request`
-
 ## Performance Considerations
 
-### Backend Optimizations
+### Backend Optimizations (DDD Implementation)
 
-1. **Async/Await**: Non-blocking I/O operations throughout
-2. **Connection Pooling**: Database connection management with optimized pool sizes
-3. **Event Debouncing**: Progress events limited to prevent flooding
-4. **Sequence Management**: Thread-safe sequence generation with atomic operations
-5. **Memory Management**: Outbox size limits and periodic cleanup
+1. **Component Separation**: Single-responsibility components for maintainability
+2. **Async/Await**: Non-blocking I/O throughout DDD services
+3. **Connection Pooling**: Managed via infrastructure layer
+4. **Event Throttling**: Position events throttled to 500ms intervals
+5. **Sequence Management**: Thread-safe atomic operations via `SequenceGenerator`
+6. **Memory Management**: Outbox cleanup and operation result TTL
 
-### Frontend Optimizations
+### Socket.IO Performance Configuration
 
-1. **Event Throttling**: Progress events throttled where applicable
-2. **State Caching**: Efficient Vue.js reactivity with computed properties
-3. **Lazy Loading**: On-demand component and service loading
-4. **Request Deduplication**: Client operation IDs prevent duplicate requests
-
-### Socket.IO Configuration
-
-```javascript
-// Frontend socket configuration
-const socketConfig = {
-  url: process.env.VUE_APP_SOCKET_URL,
-  options: {
-    reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    timeout: 20000,
-    forceNew: true,
-    transports: ['websocket', 'polling']  // WebSocket preferred
-  }
-};
+```python
+# Current socket_config.py settings
+class SocketConfig:
+    POSITION_UPDATE_INTERVAL_MS = 500      # Smooth UI updates
+    POSITION_THROTTLE_MIN_MS = 400         # Prevent flooding
+    OUTBOX_RETRY_MAX = 3                   # Retry attempts
+    OUTBOX_SIZE_LIMIT = 1000               # Memory management
+    OPERATION_DEDUP_WINDOW_SEC = 300       # 5 minute deduplication
 ```
 
 ### Performance Metrics
 
-| Metric | Target | Monitoring |
-|--------|--------|------------|
-| API Response Time | < 200ms | Axios interceptors |
-| Socket Latency | < 50ms | Ping/Pong monitoring |
-| Upload Speed | 1MB/s+ | Chunked progress tracking |
-| Memory Usage | < 100MB | StateManager metrics |
-| Event Processing | < 10ms | Internal StateManager timing |
+| Metric | Current Target | Implementation |
+|--------|----------------|----------------|
+| API Response Time | < 200ms | DDD Application Services |
+| Socket Latency | < 50ms | EventOutbox with retry |
+| Position Update Frequency | 500ms | TrackProgressService |
+| Memory Usage | < 100MB | Component cleanup |
+| Event Processing | < 10ms | StateEventCoordinator |
 
-## Integration Patterns
+## Configuration
 
-### NFC Integration
+### Socket Configuration (Current Implementation)
 
-The system includes comprehensive NFC tag association functionality:
-
-```mermaid
-graph LR
-    A[NFC Tag Scan] --> B[Backend Detection]
-    B --> C[Association Session]
-    C --> D[Playlist Mapping]
-    D --> E[Auto-play Trigger]
-    E --> F[Real-time State Update]
-    F --> G[UI Notification]
-```
-
-**Key Features:**
-- Session-based association (`/api/nfc/associate/{start|override|cancel}`)
-- Real-time status via `nfc_status` and `nfc_association_state`
-- Duplicate tag prevention and explicit override flow
-- Timeout handling; snapshot on room join (`join:nfc`)
-
-### Frontend Socket.IO Event Bridge
-
-**CRITICAL**: The frontend requires proper event bridging between socketService and serverStateStore for state updates to reach the UI.
-
-#### Event Flow Architecture
-
-```mermaid
-graph LR
-    A[Socket.IO Event] --> B[socketService.setupStateEventHandler]
-    B --> C[socketService.processEvent]
-    C --> D[emitLocal to handlers]
-    C --> E[DOM CustomEvent dispatch]
-    E --> F[serverStateStore listener]
-    F --> G[UI Update]
-```
-
-#### Implementation Requirements
-
-The socketService MUST dispatch DOM events for state updates to reach the store:
-
-| Component | Method | Purpose | Implementation |
-|-----------|--------|---------|----------------|
-| socketService | `processEvent()` | Receives Socket.IO events | Must dispatch DOM events |
-| socketService | `emitLocal()` | Notifies registered handlers | Only calls `socketService.on()` handlers |
-| socketService | `window.dispatchEvent()` | Bridges to DOM events | **Required for store updates** |
-| serverStateStore | `window.addEventListener()` | Listens for DOM events | Expects CustomEvent with detail |
-
-**Critical Implementation Detail:**
-```javascript
-// In socketService.ts processEvent() method:
-private processEvent(envelope: StateEventEnvelope): void {
-    // Emit to registered handlers (existing)
-    this.emitLocal(envelope.event_type, envelope)
-    
-    // REQUIRED: Also dispatch as DOM event for serverStateStore
-    window.dispatchEvent(new CustomEvent(envelope.event_type, { 
-        detail: envelope 
-    }))
-}
-```
-
-Without this DOM event dispatch, player state updates (`state:player`) will never reach the serverStateStore, causing the UI to remain empty when music starts.
-
-### YouTube Integration
-
-Audio download from YouTube with comprehensive progress tracking:
-
-```mermaid
-sequenceDiagram
-    participant UI
-    participant Backend
-    participant YouTubeService
-    participant StateManager
-
-    UI->>Backend: POST /api/youtube/download
-    Backend->>YouTubeService: process_download()
-
-    loop Progress Updates
-        YouTubeService->>StateManager: emit progress
-        StateManager->>UI: youtube:progress
-    end
-
-    YouTubeService->>Backend: Download complete
-    Backend->>StateManager: broadcast completion
-    StateManager->>UI: youtube:complete
-    Backend->>UI: Final HTTP response
-```
-
-**Key Features:**
-- URL validation and metadata extraction
-- Progress tracking with ETA
-- Automatic playlist integration
-- Error recovery and retry logic
-
-## Best Practices & Guidelines
-
-### API Design
-
-1. **RESTful URLs**: Clear resource-based routing without trailing slashes
-2. **HTTP Status Codes**: Proper semantic usage with consistent error format
-3. **Request/Response Consistency**: Standardized JSON formats across all endpoints
-4. **Versioning Strategy**: URL-based versioning when needed (`/api/v2/`)
-
-### Real-time Communication
-
-1. **Event Naming**: Canonical `state:*` events, `join:*` rooms, `ack:*` acks
-2. **Sequence Numbers**: All state events include `server_seq` for ordering
-3. **Room Management**: Efficient subscription grouping with automatic cleanup
-4. **Error Boundaries**: Graceful degradation on connection loss
-
-### State Management
-
-1. **Server Authority**: Backend always owns the authoritative state
-2. **Optimistic Updates**: UI responds immediately, reconciles via WebSocket
-3. **Conflict Resolution**: Server state overrides client assumptions
-4. **Data Consistency**: Sequence-based ordering prevents race conditions
-
-### Data Synchronization
-
-1. **Unified Field Names**: `position_ms` and `duration_ms` used consistently
-2. **Complete Schemas**: All data models fully specified with TypeScript interfaces
-3. **Pagination Standards**: Consistent `page`, `limit`, `total` across paginated endpoints
-4. **Lightweight Lists**: Use `PlaylistLite` for list views, full `Playlist` for details
-
----
-
-## ✅ Recent Implementation Updates
-
-### API Standardization Completed (2025-01-01)
-
-The following critical issues have been resolved to align backend and frontend implementations:
-
-#### 1. **API Response Format Unification**
-- ✅ **All player endpoints now return wrapped responses** with `{status, message, data, server_seq}` format
-- ✅ **Standardized error responses** across all endpoints with `error_type`, `details`, `timestamp`, `request_id`
-- ✅ **Frontend API service updated** to handle wrapped PlayerState responses correctly
-
-#### 2. **Data Model Alignment** 
-- ✅ **Duration units standardized** to milliseconds (`duration_ms`) across all components
-- ✅ **Track ID types unified** as strings (UUID format) in database schema and models
-- ✅ **Database migration script created** for seamless schema updates (`001_fix_data_model_alignment.py`)
-
-#### 3. **NFC API Consolidation**
-- ✅ **Unified NFC routes** implemented in `nfc_unified_routes.py` following REST conventions
-- ✅ **Legacy dual API patterns removed** (`nfc_routes.py` and `nfc_associate_routes.py` deprecated)
-- ✅ **Standardized endpoints**: `/api/nfc/associate`, `/api/nfc/status`, `/api/nfc/scan`
-
-#### 4. **Socket.IO Event Consistency**
-- ✅ **Frontend constants updated** with all documented events (`join:nfc`, `ack:join`, `youtube:*`, etc.)
-- ✅ **Room joining logic fixed** to emit specific events (`join:playlists`) instead of generic patterns
-- ✅ **Event naming alignment** between backend implementation and frontend constants
-
-#### 5. **System Architecture Improvements**
-- ✅ **Thread-safe StateManager** with atomic sequence generation using async locks
-- ✅ **Database connection pool enhanced** with health checks before connection return
-- ✅ **Upload system integration** fixed with correct API method signatures and parameter handling
-
-### Additional Updates (2025-01-25)
-
-The following additional improvements have been implemented:
-
-#### 6. **PlayerState Schema Enhancements**
-- ✅ **Added missing fields**: `state` (PlaybackState enum), `muted` (boolean), `error_message` (optional string)
-- ✅ **Volume field standardized**: Now required number (0-100) instead of optional
-- ✅ **PlaybackState enum**: Standardized detailed state values (playing, paused, stopped, loading, error)
-
-#### 7. **Upload System Enhancements** 
-- ✅ **Upload status enum standardized**: Consistent values across backend and frontend
-- ✅ **Socket.IO upload progress**: Real-time progress tracking implemented in SimpleUploader component
-- ✅ **Upload session management**: Session ID tracking for progress correlation
-
-#### 8. **YouTube API Integration**
-- ✅ **Frontend YouTube API**: Complete implementation with search, download, and progress tracking
-- ✅ **YouTube UI component**: Full integration in FilesList with modal interface
-- ✅ **Real-time YouTube events**: Progress tracking via Socket.IO events
-
-#### 9. **Code Quality Improvements**
-- ✅ **Console statement cleanup**: Production console.log statements replaced with proper logging
-- ✅ **NFC API alignment**: Frontend methods updated to match unified backend endpoints
-- ✅ **Database migration**: Data model alignment migration completed and verified
-
-#### 10. **Documentation Completeness**
-- ✅ **Missing endpoints documented**: Additional implementation-specific endpoints added
-- ✅ **Data model updates**: All new fields and enums documented with TypeScript interfaces
-- ✅ **System management endpoints**: Future endpoints section added for reference
-
-### Architecture Refactor Completed (2025-08-28 - Harmonization Update)
-
-#### Complete System Harmonization for Same-Server Deployment
-
-**🎯 OBJECTIVE**: Harmonize frontend and backend to eliminate technical debt and ensure smooth, fast player updates with no delay for same-server deployment.
-
-The following comprehensive refactor was completed:
-
-#### 16. **Eliminated Dual Event Emission**
-- ✅ **Removed PlaybackSubject Socket.IO emission** - Centralized all events through StateManager only
-- ✅ **Single event source** - No more competing event streams causing race conditions  
-- ✅ **Simplified architecture** - Clear separation between internal notifications and Socket.IO broadcasts
-
-#### 17. **Lightweight Position System** 
-- ✅ **Created `state:track_position` events** - Minimal payload for 200ms position updates
-- ✅ **Added SocketConfig class** - Centralized timing constants (200ms intervals, 150ms throttling)
-- ✅ **Position-only updates** - Separate from full player state for optimal performance
-- ✅ **Server-authoritative positioning** - Frontend receives all position data from backend
-
-#### 18. **Pure Asyncio Threading Model**
-- ✅ **Eliminated thread complexity** - Converted all Socket.IO operations to pure asyncio
-- ✅ **Removed manual threading** - No more complex thread coordination and race conditions
-- ✅ **Async/await throughout** - Clean, predictable execution model
-
-#### 19. **Simplified Frontend Player**
-- ✅ **Replaced 617-line AudioPlayer** with 189-line server-authoritative version
-- ✅ **Removed frontend timers** - All position tracking comes from server `state:track_position`
-- ✅ **Eliminated dual progress tracking** - No more complex timer synchronization
-- ✅ **Optimistic seek only** - UI updates immediately for seek, syncs via server
-
-#### 20. **Legacy Event Cleanup**
-- ✅ **Removed `playback_status` events** - Eliminated legacy compatibility layer
-- ✅ **Cleaned up socketService** - Removed unused event conversion methods
-- ✅ **Updated event constants** - Aligned frontend with canonical backend events
-
-#### 21. **Focused StateManager Architecture**
-- ✅ **Decomposed monolithic StateManager** - Split into focused single-responsibility classes:
-  - `EventOutbox` - Reliable event delivery with retry logic
-  - `ClientSubscriptionManager` - Room subscriptions and client tracking  
-  - `SequenceGenerator` - Thread-safe sequence number generation
-  - `OperationTracker` - Operation deduplication and result caching
-- ✅ **StreamlinedStateManager** - Coordinates focused components cleanly
-- ✅ **Separation of concerns** - Each class handles one responsibility well
-
-#### 22. **TrackProgressService Integration**
-- ✅ **Updated for lightweight position** - Uses new `broadcast_position_update()` method
-- ✅ **High-frequency updates** - 200ms intervals via SocketConfig
-- ✅ **Minimal validation** - Optimized for performance with lightweight payload
-
-#### Performance Improvements Achieved
-
-| Metric | Before Refactor | After Refactor | Improvement |
-|--------|----------------|----------------|-------------|
-| Position Update Frequency | ~1000ms | 200ms | 5x faster |
-| Event Emission Complexity | Dual streams | Single stream | Simplified |
-| Frontend Timer Dependencies | Complex sync | Server-only | Eliminated |
-| Threading Model | Mixed async/thread | Pure asyncio | Unified |
-| StateManager LoC | 600+ lines | 436 lines + focused classes | Modular |
-| AudioPlayer LoC | 617 lines | 189 lines | 3x smaller |
-
-#### System Verification Results
-
-- ✅ **Position system working** - 200ms intervals with 150ms throttling  
-- ✅ **StateManager tests passing** - All 17 unit tests pass
-- ✅ **Frontend builds successfully** - No compilation errors
-- ✅ **Backend integration working** - TrackProgressService operational
-- ✅ **Real-time updates smooth** - No delay in player position tracking
-
-### Recent Fixes Completed (2025-01-25 - 2nd Pass)
-
-#### 11. **Progress Tracking System Restored**
-- ✅ **Backend progress tracking**: Re-enabled coordinated progress updates in `audio_wm8960.py`
-- ✅ **Frontend smooth progress**: Implemented dual-track progress system in `AudioPlayer.vue`
-- ✅ **Coordinated updates**: Frontend timer provides smooth UI while backend WebSocket provides accurate sync
-
-#### 12. **Memory Leak Resolution**
-- ✅ **Timer management**: Fixed global `setInterval` in `clientOpId.ts` using TimerManager
-- ✅ **Proper cleanup**: All timers now use centralized TimerManager for automatic cleanup
-- ✅ **Resource management**: Added cleanup handlers for proper shutdown
-
-#### 13. **Cache Service Integration**
-- ✅ **Frontend caching**: Integrated `cacheService` into `apiService.ts` for playlist caching
-- ✅ **LRU strategy**: Implemented intelligent caching with TTL and size limits
-- ✅ **Performance boost**: Reduced redundant API calls with smart cache invalidation
-
-#### 14. **Database Schema Alignment**
-- ✅ **Track ID consistency**: Verified database uses UUID strings (no INTEGER mismatch)
-- ✅ **Data model alignment**: Confirmed all track references use consistent string format
-- ✅ **Migration verification**: Schema matches documented specifications
-
-#### 15. **Thread Safety Improvements**
-- ✅ **StateManager locks**: Verified async locks are properly implemented for sequence generation
-- ✅ **Concurrent operations**: Thread-safe operation tracking and deduplication
-- ✅ **Race condition prevention**: Proper locking around critical sections
-
-### Critical Bug Identified & Resolved (2025-01-27 - 2025-08-29)
-
-#### Player UI Issues and Competing Event Handlers
-
-**🔴 CRITICAL BUGS RESOLVED**: Multiple issues affecting player UI and SocketIO event handling.
-
-##### Issue 1: Missing Backend State Broadcasting (2025-01-27)
-
-**Root Cause:** Missing `state:player` event broadcasting in backend after playlist start operations.
-
-**Resolution Implemented:**
 ```python
-# In back/app/src/routes/playlist_routes_state.py - start_playlist() method
-if result["success"]:
-    # CRITICAL FIX: Broadcast player state after successful playlist start
-    try:
-        current_player_state = await self.player_state_service.build_current_player_state()
-        await self.state_manager.broadcast_state_change(
-            StateEventType.PLAYER_STATE,
-            current_player_state.model_dump()
-        )
-    except Exception as e:
-        logger.log(LogLevel.WARNING, f"Failed to broadcast player state: {str(e)}")
+# app/src/config/socket_config.py
+@dataclass
+class SocketConfig:
+    # Position update timing
+    POSITION_UPDATE_INTERVAL_MS: int = 500
+    POSITION_THROTTLE_MIN_MS: int = 400
+
+    # Outbox configuration
+    OUTBOX_RETRY_MAX: int = 3
+    OUTBOX_SIZE_LIMIT: int = 1000
+
+    # Operation deduplication
+    OPERATION_DEDUP_WINDOW_SEC: int = 300
+    OPERATION_RESULT_TTL_SEC: int = 600
+
+    # Client management
+    CLIENT_TIMEOUT_SEC: int = 60
+
+    # Performance optimization
+    COMPRESS_PAYLOADS_OVER_BYTES: int = 1024
+    MAX_EVENT_BATCH_SIZE: int = 50
 ```
 
-##### Issue 2: Competing SocketIO Event Handlers (2025-08-29)
+### Application Configuration
 
-**🚨 CRITICAL BUG RESOLVED**: Dual SocketIO event handling causing player conflicts.
+The application uses environment-based configuration with DDD bootstrap:
 
-**Root Cause Analysis:**
-Two components were competing for the same `state:player` SocketIO events:
-
-1. **AudioPlayer.vue** (correct): Uses serverStateStore architecture
-2. **FilesList.vue** (problematic): Direct SocketIO subscription bypassing architecture
-
-**Problematic Code in FilesList.vue:**
-```javascript
-// REMOVED - This was causing competing event handlers
-socketService.on('state:player', (playerData: PlayerStateData) => {
-  logger.info('Real-time player state', { isPlaying: playerData.is_playing }, 'FilesList')
-  emit('playback-control', playerData)  // Unused emission!
-})
+```python
+# main.py initialization sequence
+1. Database initialization with health checks
+2. Domain bootstrap initialization
+3. DDD application services registration
+4. API routes registration (DDD)
+5. Socket.IO handlers registration
+6. Background services startup (TrackProgressService)
+7. Infrastructure services (Hardware, NFC)
 ```
 
-**Issues Caused:**
-- Event competition between components
-- Architecture violation (bypassed serverStateStore)
-- Resource waste (duplicate processing)
-- Unused `playback-control` emissions
+## Migration Notes
 
-**Resolution Implemented:**
-- ✅ **Removed duplicate `state:player` handler** from FilesList.vue
-- ✅ **Removed unused `playback-control` emission** from component interface
-- ✅ **Added explanatory comments** about architectural separation
-- ✅ **Cleaned up event listener cleanup** functions
+### From Legacy to DDD Architecture
 
-**Correct Event Flow Now:**
-```
-Backend SocketIO → socketService → DOM Events → serverStateStore → AudioPlayer.vue
-```
+The current implementation represents a **complete DDD evolution** from the original documented architecture:
 
-**Architecture Principle Enforced:**
-Only AudioPlayer.vue should handle `state:player` events via the server-authoritative pattern. Other components should use reactive data from serverStateStore if needed.
+#### **Legacy Architecture (Documented v2.0):**
+- Direct StateManager
+- Mixed route handlers
+- Simple event broadcasting
 
-##### Issue 3: Playlist Status Update Reliability (2025-08-29)
+#### **Current Architecture (DDD v3.0):**
+- UnifiedStateManager with component delegation
+- Clean DDD application services
+- StateEventCoordinator with reliable delivery
+- Protocol-based design with dependency inversion
 
-**🔧 COMPREHENSIVE FIX APPLIED**: Enhanced playlist status update reliability throughout the entire application stack.
+#### **Compatibility Maintained:**
+- Socket.IO events are 100% backward compatible
+- API contracts maintained through `UnifiedResponseService`
+- Client operation IDs supported throughout
 
-**Issues Identified:**
+#### **Enhanced Features:**
+- **Better Error Handling**: Unified error responses
+- **Improved Performance**: Component-based throttling and caching
+- **Better Testability**: Clear component boundaries
+- **Enhanced Reliability**: EventOutbox with retry mechanisms
+- **Cleaner Architecture**: Single Responsibility Principle throughout
 
-1. **Timing Race Conditions**: Backend state broadcasting and frontend state requests had timing mismatches
-2. **Missing State Synchronization**: No immediate state verification after playlist operations  
-3. **Unreliable Event Delivery**: Single point of failure in SocketIO event handling
-4. **Insufficient Error Recovery**: No fallback mechanisms when real-time events failed
+### Breaking Changes
 
-**Comprehensive Solutions Implemented:**
-
-**Frontend Improvements:**
-
-1. **Enhanced apiService.startPlaylist()** (`/front/src/services/apiService.ts`):
-   - Added immediate state synchronization after playlist start
-   - 300ms delay to allow backend state propagation
-   - Automatic fallback to HTTP polling when SocketIO events fail
-
-2. **Improved FileListContainer state verification** (`/front/src/components/files/FileListContainer.vue`):
-   - Added state verification 1 second after playlist start
-   - Automatic retry mechanism for missing state updates
-   - Enhanced logging for debugging playlist status issues
-
-3. **Strengthened AudioPlayer reliability** (`/front/src/components/audio/AudioPlayer.vue`):
-   - Always requests initial state on mount for consistency
-   - Periodic fallback sync every 5 seconds if state is missing
-   - Improved cleanup handling with proper interval management
-
-4. **Enhanced serverStateStore robustness** (`/front/src/stores/serverStateStore.ts`):
-   - Better logging for debugging state update issues
-   - More detailed event processing information
-   - Improved error handling in requestInitialPlayerState()
-
-**Key Architectural Improvements:**
-
-```typescript
-// Multi-layered state synchronization approach
-1. Real-time SocketIO events (primary)
-2. Immediate HTTP fallback after operations (secondary) 
-3. Periodic state verification (tertiary)
-4. Manual retry mechanisms (fallback)
-```
-
-**Benefits Achieved:**
-
-- ✅ **Eliminated race conditions** between backend/frontend state updates
-- ✅ **Multiple synchronization pathways** ensure reliability
-- ✅ **Immediate state verification** after playlist operations
-- ✅ **Comprehensive error recovery** with automatic retries
-- ✅ **Enhanced debugging** with detailed logging throughout the flow
-- ✅ **Improved user experience** with consistent playlist status updates
-
-**End-to-End Flow Now:**
-
-1. User clicks "Play Playlist" 
-2. API call to backend `/playlist/{id}/start`
-3. Backend starts playlist + broadcasts `state:player` event
-4. Frontend receives SocketIO event (primary path)
-5. **NEW**: Frontend also requests fresh state via HTTP (backup path)
-6. **NEW**: Frontend verifies state update occurred (validation)
-7. **NEW**: AudioPlayer has periodic sync fallback (reliability)
-8. UI updates with correct playing status
-
-The playlist status update system is now **highly reliable** with multiple layers of redundancy and comprehensive error recovery mechanisms.
-
-### Remaining Optimizations
-
-The following enhancements can be implemented in future iterations:
-- ✅ **Backend state broadcasting fix** - Implemented in playlist start route (RESOLVED)
-- ❌ **End-to-end integration tests** for complete Socket.IO to UI event flow (CRITICAL)
-- ❌ **Legacy event cleanup** - Remove unused `playback_status` emissions
-- **Centralized rate limiting** expansion beyond player endpoints  
-- **Performance monitoring** for StateManager event processing
-- **System management endpoints** full implementation (logs, restart, info)
-- **Database connection pooling** optimization for high-concurrency scenarios
+**None** - The DDD implementation maintains full backward compatibility while providing enhanced functionality and better architecture.
 
 ---
 
-*This documentation reflects the fully standardized implementation (server‑authoritative v2) with all critical backend-frontend alignment issues resolved. The system now maintains consistent data models, unified API contracts, and reliable real-time communication patterns.*
-
----
-
-## 📝 Documentation Updates (2025-09-20)
-
-### Latest Updates for Domain-Driven Architecture Refactor
-
-**Architecture Migration**: Complete DDD-compliant architecture documentation
-
-#### ✅ **New Architecture Documentation**:
-
-1. **Domain-Driven Design Implementation**:
-   - Application Services layer with use case orchestration
-   - Pure Domain layer with business logic isolation
-   - Infrastructure layer with external adapters
-   - Proper dependency inversion throughout
-
-2. **Updated API Endpoints**:
-   - All endpoints now use Application Services
-   - Domain validation integrated into use cases
-   - Standardized error handling via unified error decorator
-   - Complete separation of concerns
-
-3. **Service Layer Architecture**:
-   - `PlaylistApplicationService`: Centralized playlist operations
-   - `AudioApplicationService`: Audio domain coordination
-   - `NfcApplicationService`: NFC tag management
-   - `UploadApplicationService`: File upload workflows
-
-4. **Domain Model Integration**:
-   - Track and Playlist entities with business rules
-   - Domain validation before persistence
-   - Rich domain models with behavior
-
-#### 🏗️ **Architectural Improvements**:
-
-- **Domain Purity**: No Infrastructure dependencies in Domain layer
-- **Protocol-Based Design**: Clear interfaces for dependency inversion
-- **Factory Pattern**: Proper DDD factories in Infrastructure layer
-- **Error Handling**: Domain errors properly translated to HTTP responses
-- **Testing**: Improved testability with clear boundaries
-
-#### 📊 **Updated Documentation Status**:
-- **Architecture Patterns**: 100% DDD-compliant patterns documented
-- **Service Interfaces**: All application services documented
-- **Domain Models**: Business rules and validation documented
-- **Infrastructure Adapters**: External system integration patterns
-- **Error Handling**: Unified error handling approach
-
-La documentation reflète maintenant l'architecture **Domain-Driven Design** complète avec séparation claire des responsabilités et inversion de dépendance appropriée.
+*This documentation reflects the current Domain-Driven Design implementation (v3.0) with UnifiedStateManager, clean component separation, and enhanced reliability patterns. All Socket.IO events and API contracts remain backward compatible while providing superior performance and maintainability.*
