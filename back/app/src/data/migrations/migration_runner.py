@@ -16,7 +16,6 @@ from typing import Any, Dict, List
 import re
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 
 logger = get_logger(__name__)
 
@@ -47,12 +46,11 @@ class Migration:
             if hasattr(self.module, "migrate_database"):
                 return self.module.migrate_database(db_path)
             else:
-                logger.log(
-                    LogLevel.ERROR, f"Migration {self.version} missing migrate_database function"
+                logger.error(f"Migration {self.version} missing migrate_database function"
                 )
                 return False
         except (ImportError, AttributeError, sqlite3.Error) as e:
-            logger.log(LogLevel.ERROR, f"Migration {self.version} failed: {str(e)}")
+            logger.error(f"Migration {self.version} failed: {str(e)}")
             return False
 
     def verify(self, db_path: str) -> bool:
@@ -64,7 +62,7 @@ class Migration:
                 # No verification function, assume success
                 return True
         except (ImportError, AttributeError, sqlite3.Error) as e:
-            logger.log(LogLevel.ERROR, f"Migration {self.version} verification failed: {str(e)}")
+            logger.error(f"Migration {self.version} verification failed: {str(e)}")
             return False
 
 
@@ -93,7 +91,7 @@ class MigrationRunner:
             conn.commit()
             conn.close()
         except sqlite3.Error as e:
-            logger.log(LogLevel.ERROR, f"Failed to create migration table: {str(e)}")
+            logger.error(f"Failed to create migration table: {str(e)}")
 
     def _get_applied_migrations(self) -> List[str]:
         """Get list of successfully applied migration versions."""
@@ -124,7 +122,7 @@ class MigrationRunner:
             conn.commit()
             conn.close()
         except sqlite3.Error as e:
-            logger.log(LogLevel.ERROR, f"Failed to record migration: {str(e)}")
+            logger.error(f"Failed to record migration: {str(e)}")
 
     def _discover_migrations(self) -> List[Migration]:
         """Discover all migration files in the migrations directory."""
@@ -175,13 +173,13 @@ class MigrationRunner:
         pending_migrations = self.get_pending_migrations()
 
         if not pending_migrations:
-            logger.log(LogLevel.INFO, "No pending migrations")
+            logger.info("No pending migrations")
             return True
 
-        logger.log(LogLevel.INFO, f"Running {len(pending_migrations)} pending migrations...")
+        logger.info(f"Running {len(pending_migrations)} pending migrations...")
 
         for migration in pending_migrations:
-            logger.log(LogLevel.INFO, f"Applying migration {migration.version}: {migration.name}")
+            logger.info(f"Applying migration {migration.version}: {migration.name}")
 
             # Run the migration
             success = migration.migrate(self.db_path)
@@ -191,19 +189,18 @@ class MigrationRunner:
                 verified = migration.verify(self.db_path)
                 if verified:
                     self._record_migration(migration, True)
-                    logger.log(
-                        LogLevel.INFO, f"Migration {migration.version} completed successfully"
+                    logger.info(f"Migration {migration.version} completed successfully"
                     )
                 else:
                     self._record_migration(migration, False)
-                    logger.log(LogLevel.ERROR, f"Migration {migration.version} verification failed")
+                    logger.error(f"Migration {migration.version} verification failed")
                     return False
             else:
                 self._record_migration(migration, False)
-                logger.log(LogLevel.ERROR, f"Migration {migration.version} failed")
+                logger.error(f"Migration {migration.version} failed")
                 return False
 
-        logger.log(LogLevel.INFO, "All migrations completed successfully")
+        logger.info("All migrations completed successfully")
         return True
 
     def get_migration_status(self) -> Dict[str, Any]:

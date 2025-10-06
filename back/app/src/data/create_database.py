@@ -10,6 +10,14 @@ import sqlite3
 import sys
 from pathlib import Path
 
+try:
+    from app.src.monitoring import get_logger
+    logger = get_logger(__name__)
+    USE_LOGGER = True
+except ImportError:
+    # Fallback when run as standalone script
+    USE_LOGGER = False
+
 
 def create_fresh_database(db_path: str) -> bool:
     """Create a fresh database with the complete schema."""
@@ -21,7 +29,10 @@ def create_fresh_database(db_path: str) -> bool:
         # Delete existing database if it exists
         if db_file.exists():
             db_file.unlink()
-            print(f"✅ Deleted existing database: {db_path}")
+            msg = f"✅ Deleted existing database: {db_path}"
+            if USE_LOGGER:
+                logger.info(msg)
+            print(msg)
 
         # Create new database with schema
         with sqlite3.connect(db_path) as conn:
@@ -72,17 +83,26 @@ def create_fresh_database(db_path: str) -> bool:
             """)
 
             conn.commit()
-            print(f"✅ Created fresh database with schema: {db_path}")
+            msg = f"✅ Created fresh database with schema: {db_path}"
+            if USE_LOGGER:
+                logger.info(msg)
+            print(msg)
 
             # Verify tables were created
             cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
             tables = [row[0] for row in cursor.fetchall()]
-            print(f"✅ Tables created: {', '.join(tables)}")
+            msg = f"✅ Tables created: {', '.join(tables)}"
+            if USE_LOGGER:
+                logger.info(msg)
+            print(msg)
 
             return True
 
     except Exception as e:
-        print(f"❌ Failed to create database: {e}")
+        msg = f"❌ Failed to create database: {e}"
+        if USE_LOGGER:
+            logger.error(msg)
+        print(msg)
         return False
 
 

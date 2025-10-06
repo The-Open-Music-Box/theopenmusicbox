@@ -5,6 +5,6 @@
 """Data access layer for TheOpenMusicBox."""
 
 from .connection_pool import ConnectionPool
-from .database_manager import DatabaseManager, get_database_manager, close_database_manager
+from .database_manager import DatabaseManager
 
-__all__ = ["ConnectionPool", "DatabaseManager", "get_database_manager", "close_database_manager"]
+__all__ = ["ConnectionPool", "DatabaseManager"]

@@ -14,7 +14,6 @@ import threading
 import queue
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_errors
 
 logger = get_logger(__name__)
@@ -74,7 +73,7 @@ class ConnectionPool:
         with self._lock:
             self._created_connections += 1
             self._current_size += 1
-        logger.log(LogLevel.DEBUG, f"Created DB connection (total: {self._created_connections})")
+        logger.debug(f"Created DB connection (total: {self._created_connections})")
         return conn
 
     def get_connection(self) -> sqlite3.Connection:
