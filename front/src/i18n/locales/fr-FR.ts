@@ -21,6 +21,21 @@ export default {
   nfc: {
     NFC_OK: 'Lecteur NFC prêt',
     NFC_NOT_AVAILABLE: 'Lecteur NFC non disponible',
+    associate: {
+      title: 'Association de Tag NFC',
+      ready: 'Prêt à associer un tag NFC avec cette playlist',
+      start: 'Démarrer l\'Association',
+      waiting: 'En attente d\'un tag NFC...',
+      forPlaylist: 'Pour la playlist',
+      timeout: 'Temps restant : {seconds}s',
+      success: 'Tag NFC associé avec succès !',
+      duplicate: 'Ce tag NFC est déjà associé à une autre playlist',
+      existingPlaylist: 'Actuellement associée à',
+      replace: 'Remplacer l\'Association',
+      error: 'Échec de l\'association du tag NFC',
+      cancelled: 'Association annulée',
+      timedOut: 'Association expirée',
+    },
   },
   common: {
     link: 'Lier',
