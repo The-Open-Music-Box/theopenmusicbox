@@ -15,11 +15,10 @@ from app.src.domain.upload.protocols.file_storage_protocol import (
     FileStorageProtocol,
     MetadataExtractionProtocol,
 )
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_service_errors
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class UploadApplicationService:
@@ -66,7 +65,7 @@ class UploadApplicationService:
         # Start cleanup task for expired sessions
         if not self._cleanup_task or self._cleanup_task.done():
             self._cleanup_task = asyncio.create_task(self._periodic_cleanup())
-        logger.log(LogLevel.INFO, "✅ Upload service started successfully")
+        logger.info("✅ Upload service started successfully")
         return {
             "status": "success",
             "message": "Upload service started",
@@ -112,7 +111,7 @@ class UploadApplicationService:
         await self._file_storage.create_session_directory(session.session_id)
         # Track session
         self._active_sessions[session.session_id] = session
-        logger.log(LogLevel.INFO, f"✅ Created upload session {session.session_id} for {filename}")
+        logger.info(f"✅ Created upload session {session.session_id} for {filename}")
         result = {
             "status": "success",
             "message": "Upload session created",
@@ -159,9 +158,8 @@ class UploadApplicationService:
         await self._file_storage.store_chunk(session_id, chunk)
         # Update session
         session.add_chunk(chunk)
-        logger.log(
-            LogLevel.DEBUG,
-            f"📦 Chunk {chunk_index} uploaded for session {session_id} ({session.progress_percentage:.1f}%)",
+        logger.debug(
+            f"📦 Chunk {chunk_index} uploaded for session {session_id} ({session.progress_percentage:.1f}%)"
         )
         result = {
             "status": "success",
@@ -218,7 +216,7 @@ class UploadApplicationService:
         session.mark_cancelled()
         # Cleanup session files
         await self._file_storage.cleanup_session(session_id)
-        logger.log(LogLevel.INFO, f"🛑 Cancelled upload session {session_id}")
+        logger.info(f"🛑 Cancelled upload session {session_id}")
         return {
             "status": "success",
             "message": "Upload session cancelled",
@@ -276,7 +274,7 @@ class UploadApplicationService:
         metadata_validation = self._validation_service.validate_audio_metadata(metadata)
         # Cleanup temporary files
         await self._file_storage.cleanup_session(session.session_id)
-        logger.log(LogLevel.INFO, f"🎉 Upload completed successfully: {session.filename}")
+        logger.info(f"🎉 Upload completed successfully: {session.filename}")
         result = {
             "completion_status": "success",
             "file_path": str(assembled_path),
@@ -304,12 +302,11 @@ class UploadApplicationService:
                 for session_id in expired_sessions:
                     await self._file_storage.cleanup_session(session_id)
                 if expired_sessions:
-                    logger.log(
-                        LogLevel.INFO,
-                        f"🧹 Cleaned up {len(expired_sessions)} expired upload sessions",
+                    logger.info(
+                        f"🧹 Cleaned up {len(expired_sessions)} expired upload sessions"
                     )
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.log(LogLevel.WARNING, f"⚠️ Error in upload cleanup: {e}")
+                logger.warning(f"⚠️ Error in upload cleanup: {e}")

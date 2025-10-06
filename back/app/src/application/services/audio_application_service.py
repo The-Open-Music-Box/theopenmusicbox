@@ -10,11 +10,13 @@ and external services, implementing audio use cases without containing business 
 """
 
 from typing import Dict, Any
-from app.src.monitoring import get_logger
-from app.src.services.error.unified_error_decorator import handle_service_errors
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 
-logger = get_logger(__name__)
+from app.src.services.error.unified_error_decorator import handle_service_errors
+from app.src.domain.data.models.playlist import Playlist
+from app.src.domain.data.models.track import Track
+
+logger = logging.getLogger(__name__)
 
 
 class AudioApplicationService:
@@ -65,9 +67,6 @@ class AudioApplicationService:
         if self._audio_container and self._audio_container.is_initialized:
             audio_engine = self._audio_container.audio_engine
             # Convert to domain entity for audio engine
-            from app.src.domain.data.models.playlist import Playlist
-            from app.src.domain.data.models.track import Track
-
             tracks = []
             for track_data in playlist_data["tracks"]:
                 track = Track(
@@ -91,9 +90,7 @@ class AudioApplicationService:
             # Set playlist in audio engine
             success = await audio_engine.set_playlist(playlist)
             if success:
-                logger.log(
-                    LogLevel.INFO, f"✅ Playing playlist via domain audio engine: {playlist_id}"
-                )
+                logger.info(f"✅ Playing playlist via domain audio engine: {playlist_id}")
                 # Broadcast state change if state manager available
                 if self._state_manager:
                     await self._state_manager.broadcast_playlist_started(playlist_id)
@@ -146,7 +143,7 @@ class AudioApplicationService:
                     "error_type": "validation_error",
                 }
             if success:
-                logger.log(LogLevel.INFO, f"✅ Playback control via domain engine: {action}")
+                logger.info(f"✅ Playback control via domain engine: {action}")
                 # Broadcast state change if state manager available
                 if self._state_manager:
                     await self._state_manager.broadcast_playback_changed(action)
@@ -214,7 +211,7 @@ class AudioApplicationService:
                 success = await audio_engine.set_volume(volume)
 
                 if success:
-                    logger.log(LogLevel.INFO, f"✅ Volume set via domain engine: {volume}")
+                    logger.info(f"✅ Volume set via domain engine: {volume}")
 
                     # Broadcast state change if state manager available
                     if self._state_manager:
@@ -239,7 +236,7 @@ class AudioApplicationService:
                 }
 
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"❌ Failed to set volume {volume}: {e}")
+            logger.error(f"❌ Failed to set volume {volume}: {e}")
             return {
                 "status": "error",
                 "message": f"Volume control failed: {str(e)}",

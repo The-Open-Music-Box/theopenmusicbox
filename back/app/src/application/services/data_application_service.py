@@ -53,22 +53,18 @@ class DataApplicationService:
             logger.error(f"Failed to get playlists: {e}")
             raise BusinessLogicError(f"Failed to retrieve playlists: {str(e)}")
 
-    async def get_playlist_use_case(self, playlist_id: str) -> Dict[str, Any]:
+    async def get_playlist_use_case(self, playlist_id: str) -> Optional[Dict[str, Any]]:
         """Get a single playlist with tracks.
 
         Args:
             playlist_id: The playlist ID
 
         Returns:
-            Playlist data with tracks
+            Playlist data with tracks or None if not found
         """
         try:
             playlist = await self._playlist_service.get_playlist(playlist_id)
-            if not playlist:
-                raise BusinessLogicError(f"Playlist {playlist_id} not found")
-            return playlist
-        except BusinessLogicError:
-            raise
+            return playlist  # Return None if not found (handled gracefully by API routes)
         except Exception as e:
             logger.error(f"Failed to get playlist {playlist_id}: {e}")
             raise BusinessLogicError(f"Failed to retrieve playlist: {str(e)}")
@@ -94,7 +90,7 @@ class DataApplicationService:
             logger.error(f"Failed to create playlist {name}: {e}")
             raise BusinessLogicError(f"Failed to create playlist: {str(e)}")
 
-    async def update_playlist_use_case(self, playlist_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
+    async def update_playlist_use_case(self, playlist_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Update playlist metadata.
 
         Args:
@@ -102,12 +98,17 @@ class DataApplicationService:
             updates: Dictionary of updates
 
         Returns:
-            Updated playlist data
+            Updated playlist data or None if not found
         """
         try:
             # Validate updates
             if 'title' in updates and not updates['title'].strip():
                 raise BusinessLogicError("Playlist title cannot be empty")
+
+            # Check if playlist exists first
+            existing = await self._playlist_service.get_playlist(playlist_id)
+            if not existing:
+                return None  # Playlist not found - return None instead of raising exception
 
             return await self._playlist_service.update_playlist(playlist_id, updates)
         except BusinessLogicError:
@@ -123,15 +124,13 @@ class DataApplicationService:
             playlist_id: The playlist ID
 
         Returns:
-            True if successful
+            True if successful, False if playlist not found
         """
         try:
+            # Call delete directly - it will return False if playlist doesn't exist
+            # No need to check existence first, as delete_playlist already does that
             success = await self._playlist_service.delete_playlist(playlist_id)
-            if not success:
-                raise BusinessLogicError(f"Failed to delete playlist {playlist_id}")
             return success
-        except BusinessLogicError:
-            raise
         except Exception as e:
             logger.error(f"Failed to delete playlist {playlist_id}: {e}")
             raise BusinessLogicError(f"Failed to delete playlist: {str(e)}")
@@ -275,6 +274,50 @@ class DataApplicationService:
         except Exception as e:
             logger.error(f"Failed to reorder tracks in playlist {playlist_id}: {e}")
             raise BusinessLogicError(f"Failed to reorder tracks: {str(e)}")
+
+    async def delete_tracks_use_case(self, playlist_id: str, track_numbers: List[int]) -> Dict[str, Any]:
+        """Delete tracks from a playlist by track numbers.
+
+        Args:
+            playlist_id: The playlist ID
+            track_numbers: List of track numbers to delete
+
+        Returns:
+            Dict with status and message
+        """
+        try:
+            if not track_numbers:
+                raise BusinessLogicError("Track numbers list cannot be empty")
+
+            # Get playlist with tracks
+            playlist = await self._playlist_service.get_playlist(playlist_id)
+            if not playlist:
+                raise BusinessLogicError(f"Playlist {playlist_id} not found")
+
+            # Delete each track by number
+            deleted_count = 0
+            for track_number in track_numbers:
+                # Find track by number
+                tracks = await self._track_service.get_tracks_by_playlist(playlist_id)
+                track_to_delete = next((t for t in tracks if t.get('track_number') == track_number), None)
+
+                if track_to_delete:
+                    await self._track_service.delete_track(track_to_delete['id'])
+                    deleted_count += 1
+
+            return {
+                "status": "success",
+                "message": f"Deleted {deleted_count} tracks",
+                "deleted_count": deleted_count
+            }
+        except BusinessLogicError:
+            raise
+        except Exception as e:
+            logger.error(f"Failed to delete tracks from playlist {playlist_id}: {e}")
+            return {
+                "status": "error",
+                "message": f"Failed to delete tracks: {str(e)}"
+            }
 
     async def get_next_track_use_case(
         self,
