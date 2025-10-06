@@ -12,7 +12,6 @@ from app.src.domain.upload.protocols.file_storage_protocol import FileStoragePro
 from app.src.domain.upload.value_objects.file_chunk import FileChunk
 from app.src.domain.upload.entities.upload_session import UploadSession
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_errors
 
 logger = get_logger(__name__)
@@ -45,7 +44,7 @@ class LocalFileStorageAdapter(FileStorageProtocol):
         session_dir = self._base_temp_path / session_id
         session_dir.mkdir(parents=True, exist_ok=True)
 
-        logger.log(LogLevel.DEBUG, f"📁 Created session directory: {session_dir}")
+        logger.debug(f"📁 Created session directory: {session_dir}")
         return session_dir
 
     @handle_errors("store_chunk")
@@ -62,7 +61,7 @@ class LocalFileStorageAdapter(FileStorageProtocol):
         # Write chunk data to file
         with open(chunk_file, "wb") as f:
             f.write(chunk.data)
-        logger.log(LogLevel.DEBUG, f"💾 Stored chunk {chunk.index} for session {session_id}")
+        logger.debug(f"💾 Stored chunk {chunk.index} for session {session_id}")
 
     @handle_errors("assemble_file")
     async def assemble_file(self, session: UploadSession, output_path: Path) -> Path:
@@ -94,7 +93,7 @@ class LocalFileStorageAdapter(FileStorageProtocol):
             raise ValueError(
                 f"Assembled file size ({actual_size}) does not match expected size ({session.total_size_bytes})"
             )
-        logger.log(LogLevel.INFO, f"🔧 Assembled file: {output_path} ({actual_size:,} bytes)")
+        logger.info(f"🔧 Assembled file: {output_path} ({actual_size:,} bytes)")
         return output_path
 
     @handle_errors("cleanup_session")
@@ -108,7 +107,7 @@ class LocalFileStorageAdapter(FileStorageProtocol):
 
         if session_dir.exists():
             shutil.rmtree(session_dir)
-            logger.log(LogLevel.DEBUG, f"🧹 Cleaned up session directory: {session_dir}")
+            logger.debug(f"🧹 Cleaned up session directory: {session_dir}")
 
     @handle_errors("get_chunk_info")
     async def get_chunk_info(self, session_id: str, chunk_index: int) -> Optional[Dict[str, Any]]:
@@ -147,21 +146,19 @@ class LocalFileStorageAdapter(FileStorageProtocol):
         """
         try:
             if not file_path.exists():
-                logger.log(LogLevel.ERROR, f"❌ File does not exist: {file_path}")
+                logger.error(f"❌ File does not exist: {file_path}")
                 return False
 
             actual_size = file_path.stat().st_size
             if actual_size != expected_size:
-                logger.log(
-                    LogLevel.ERROR,
-                    f"❌ Size mismatch: expected {expected_size:,}, got {actual_size:,}",
+                logger.error(f"❌ Size mismatch: expected {expected_size:,}, got {actual_size:,}",
                 )
                 return False
 
             # Additional checks could be added here (checksums, etc.)
-            logger.log(LogLevel.DEBUG, f"✅ File integrity verified: {file_path}")
+            logger.debug(f"✅ File integrity verified: {file_path}")
             return True
 
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"❌ Error verifying file integrity: {e}")
+            logger.error(f"❌ Error verifying file integrity: {e}")
             return False

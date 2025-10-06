@@ -15,13 +15,15 @@ from typing import Any, Dict, List, Optional, Union
 from contextlib import contextmanager
 from pathlib import Path
 
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 from app.src.domain.protocols.persistence_service_protocol import PersistenceServiceProtocol
 from app.src.data.connection_pool import ConnectionPool
 from app.src.services.error.unified_error_decorator import handle_infrastructure_errors
 
-logger = get_logger(__name__)
+def _handle_infrastructure_errors(component_name: str = "infrastructure"):
+    return handle_infrastructure_errors(component_name)
+
+logger = logging.getLogger(__name__)
 
 
 class SQLiteDatabaseService(PersistenceServiceProtocol):
@@ -53,9 +55,9 @@ class SQLiteDatabaseService(PersistenceServiceProtocol):
         try:
             with sqlite3.connect(self.database_path) as test_conn:
                 test_conn.execute("SELECT 1")
-            logger.log(LogLevel.INFO, f"✅ SQLite database accessible: {self.database_path}")
+            logger.info(f"✅ SQLite database accessible: {self.database_path}")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"❌ SQLite database setup failed: {e}")
+            logger.error(f"❌ SQLite database setup failed: {e}")
             raise
 
         # Initialize connection pool
@@ -103,7 +105,7 @@ class SQLiteDatabaseService(PersistenceServiceProtocol):
                     pass
                 raise
 
-    @handle_infrastructure_errors("database_service")
+    @_handle_infrastructure_errors("database_service")
     def execute_query(
         self,
         query: str,
@@ -126,14 +128,13 @@ class SQLiteDatabaseService(PersistenceServiceProtocol):
 
             execution_time = (time.time() - start_time) * 1000
             if execution_time > 100:
-                logger.log(
-                    LogLevel.WARNING,
+                logger.warning(
                     f"⚠️ Slow query: {operation_name} took {execution_time:.2f}ms"
                 )
 
             return results
 
-    @handle_infrastructure_errors("database_service")
+    @_handle_infrastructure_errors("database_service")
     def execute_single(
         self,
         query: str,
@@ -156,14 +157,13 @@ class SQLiteDatabaseService(PersistenceServiceProtocol):
 
             execution_time = (time.time() - start_time) * 1000
             if execution_time > 100:
-                logger.log(
-                    LogLevel.WARNING,
+                logger.warning(
                     f"⚠️ Slow query: {operation_name} took {execution_time:.2f}ms"
                 )
 
             return result
 
-    @handle_infrastructure_errors("database_service")
+    @_handle_infrastructure_errors("database_service")
     def execute_command(
         self,
         query: str,
@@ -185,14 +185,13 @@ class SQLiteDatabaseService(PersistenceServiceProtocol):
 
             execution_time = (time.time() - start_time) * 1000
             if execution_time > 100:
-                logger.log(
-                    LogLevel.WARNING,
+                logger.warning(
                     f"⚠️ Slow command: {operation_name} took {execution_time:.2f}ms"
                 )
 
             return rowcount
 
-    @handle_infrastructure_errors("database_service")
+    @_handle_infrastructure_errors("database_service")
     def execute_insert(
         self,
         query: str,
@@ -214,14 +213,13 @@ class SQLiteDatabaseService(PersistenceServiceProtocol):
 
             execution_time = (time.time() - start_time) * 1000
             if execution_time > 100:
-                logger.log(
-                    LogLevel.WARNING,
+                logger.warning(
                     f"⚠️ Slow insert: {operation_name} took {execution_time:.2f}ms"
                 )
 
             return lastrowid
 
-    @handle_infrastructure_errors("database_service")
+    @_handle_infrastructure_errors("database_service")
     def execute_batch(
         self,
         operations: List[Dict[str, Any]],
@@ -255,8 +253,7 @@ class SQLiteDatabaseService(PersistenceServiceProtocol):
 
             execution_time = (time.time() - start_time) * 1000
             if execution_time > 200:
-                logger.log(
-                    LogLevel.WARNING,
+                logger.warning(
                     f"⚠️ Slow batch: {operation_name} took {execution_time:.2f}ms"
                 )
 
@@ -293,4 +290,4 @@ class SQLiteDatabaseService(PersistenceServiceProtocol):
         """Clean up database service resources."""
         if self._connection_pool:
             self._connection_pool.close_all()
-            logger.log(LogLevel.INFO, "✅ SQLite database service cleaned up")
+            logger.info("✅ SQLite database service cleaned up")

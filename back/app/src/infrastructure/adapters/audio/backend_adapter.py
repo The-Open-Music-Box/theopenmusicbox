@@ -7,7 +7,6 @@
 from typing import Optional, Any
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
 
@@ -24,7 +23,7 @@ class BackendAdapter(AudioBackendProtocol):
             backend: Existing backend implementation
         """
         self._backend = backend
-        logger.log(LogLevel.INFO, f"BackendAdapter wrapping {type(backend).__name__}")
+        logger.info(f"BackendAdapter wrapping {type(backend).__name__}")
 
     # AudioBackendProtocol async methods
     @handle_errors("play")
@@ -110,7 +109,7 @@ class BackendAdapter(AudioBackendProtocol):
             self._backend.play(file_path)
             return True
         else:
-            logger.log(LogLevel.ERROR, "Backend does not support play_file")
+            logger.error("Backend does not support play_file")
             return False
 
     @handle_errors("pause_playback")
@@ -120,7 +119,7 @@ class BackendAdapter(AudioBackendProtocol):
             result = self._backend.pause()
             return bool(result) if result is not None else True
         else:
-            logger.log(LogLevel.WARNING, "Backend does not support pause")
+            logger.warning("Backend does not support pause")
             return False
 
     @handle_errors("resume_playback")
@@ -130,7 +129,7 @@ class BackendAdapter(AudioBackendProtocol):
             result = self._backend.resume()
             return bool(result) if result is not None else True
         else:
-            logger.log(LogLevel.WARNING, "Backend does not support resume")
+            logger.warning("Backend does not support resume")
             return False
 
     @handle_errors("stop_playback")
@@ -140,7 +139,7 @@ class BackendAdapter(AudioBackendProtocol):
             result = self._backend.stop()
             return bool(result) if result is not None else True
         else:
-            logger.log(LogLevel.WARNING, "Backend does not support stop")
+            logger.warning("Backend does not support stop")
             return False
 
     @handle_errors("set_volume_sync")
@@ -150,7 +149,7 @@ class BackendAdapter(AudioBackendProtocol):
             result = self._backend.set_volume(volume)
             return bool(result) if result is not None else True
         else:
-            logger.log(LogLevel.WARNING, "Backend does not support set_volume")
+            logger.warning("Backend does not support set_volume")
             return False
 
     @handle_errors("get_volume_sync")
@@ -182,7 +181,7 @@ class BackendAdapter(AudioBackendProtocol):
             result = self._backend.set_position(position_seconds)
             return bool(result) if result is not None else True
         else:
-            logger.log(LogLevel.WARNING, "Backend does not support set_position")
+            logger.warning("Backend does not support set_position")
             return False
 
     @handle_errors("get_duration_sync")
@@ -210,6 +209,6 @@ class BackendAdapter(AudioBackendProtocol):
         try:
             if hasattr(self._backend, "cleanup"):
                 self._backend.cleanup()
-            logger.log(LogLevel.DEBUG, "Backend cleanup completed")
+            logger.debug("Backend cleanup completed")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error during cleanup: {e}")
+            logger.error(f"Error during cleanup: {e}")

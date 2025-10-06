@@ -12,7 +12,7 @@ from enum import Enum
 from dataclasses import dataclass
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
 logger = get_logger(__name__)
@@ -86,9 +86,8 @@ class UnifiedErrorHandler:
         for severity in ErrorSeverity:
             self._error_count_by_severity[severity] = 0
 
-        logger.log(LogLevel.INFO, "UnifiedErrorHandler initialized")
+        logger.info("UnifiedErrorHandler initialized")
 
-    @handle_errors("handle_error")
     def handle_error(self, error: Exception, context: ErrorContext, reraise: bool = False) -> None:
         """Handle an error with context information.
 
@@ -96,27 +95,41 @@ class UnifiedErrorHandler:
             error: The exception that occurred
             context: Context information about the error
             reraise: Whether to reraise the exception after handling
+
+        Note:
+            This method does NOT use @handle_errors decorator to prevent recursion.
+            It has its own try/catch to prevent error handler crashes.
         """
-        # Create error record
-        error_record = ErrorRecord(
-            timestamp=time.time(),
-            error_type=type(error).__name__,
-            message=str(error),
-            context=context,
-            traceback_str=traceback.format_exc() if sys.exc_info()[0] else None,
-        )
-        # Store record
-        self._add_error_record(error_record)
-        # Update counters
-        self._error_count_by_category[context.category] += 1
-        self._error_count_by_severity[context.severity] += 1
-        # Log the error
-        self._log_error(error_record)
-        # Notify callbacks
-        self._notify_callbacks(error_record)
-        # Handle critical errors
-        if context.severity == ErrorSeverity.CRITICAL:
-            self._handle_critical_error(error_record)
+        try:
+            # Create error record
+            error_record = ErrorRecord(
+                timestamp=time.time(),
+                error_type=type(error).__name__,
+                message=str(error),
+                context=context,
+                traceback_str=traceback.format_exc() if sys.exc_info()[0] else None,
+            )
+            # Store record
+            self._add_error_record(error_record)
+            # Update counters
+            self._error_count_by_category[context.category] += 1
+            self._error_count_by_severity[context.severity] += 1
+            # Log the error
+            self._log_error(error_record)
+            # Notify callbacks
+            self._notify_callbacks(error_record)
+            # Handle critical errors
+            if context.severity == ErrorSeverity.CRITICAL:
+                self._handle_critical_error(error_record)
+        except Exception as handler_error:
+            # Last resort: print to stderr to avoid infinite recursion
+            # Cannot use logger here since the logging system may have failed
+            # This ensures critical errors are visible even when error handling crashes
+            import sys
+            print(f"CRITICAL: Error handler itself failed: {handler_error}", file=sys.stderr)
+            print(f"Original error was: {error}", file=sys.stderr)
+
+        # Reraise original error if requested (after handling completes)
         if reraise:
             raise error
 
@@ -239,9 +252,8 @@ class UnifiedErrorHandler:
             if not error_record.resolved:
                 error_record.resolved = True
                 error_record.resolution_time = time.time()
-                logger.log(
-                    LogLevel.INFO,
-                    f"Error resolved: {error_record.error_type} in {error_record.context.component}",
+                logger.info(
+                    f"Error resolved: {error_record.error_type} in {error_record.context.component}"
                 )
                 return True
 
@@ -308,7 +320,7 @@ class UnifiedErrorHandler:
         cleared_count = initial_count - len(self._error_records)
 
         if cleared_count > 0:
-            logger.log(LogLevel.INFO, f"Cleared {cleared_count} old error records")
+            logger.info(f"Cleared {cleared_count} old error records")
 
         return cleared_count
 
@@ -396,7 +408,7 @@ class UnifiedErrorHandler:
             record.context.severity in [ErrorSeverity.HIGH, ErrorSeverity.CRITICAL]
             and record.traceback_str
         ):
-            logger.log(LogLevel.DEBUG, f"Traceback:\n{record.traceback_str}")
+            logger.debug(f"Traceback:\n{record.traceback_str}")
 
     @handle_errors("_notify_callbacks")
     def _notify_callbacks(self, record: ErrorRecord) -> None:
@@ -408,9 +420,8 @@ class UnifiedErrorHandler:
 
     def _handle_critical_error(self, record: ErrorRecord) -> None:
         """Handle critical errors with special attention."""
-        logger.log(
-            LogLevel.ERROR,
-            f"🔥 CRITICAL ERROR detected: {record.error_type} in {record.context.component}",
+        logger.error(
+            f"🔥 CRITICAL ERROR detected: {record.error_type} in {record.context.component}"
         )
 
         # Could add additional actions like:
@@ -418,15 +429,15 @@ class UnifiedErrorHandler:
         # - Trigger system recovery
         # - Create incident reports
 
-    def _severity_to_log_level(self, severity: ErrorSeverity) -> LogLevel:
+    def _severity_to_log_level(self, severity: ErrorSeverity) -> int:
         """Convert error severity to log level."""
         mapping = {
-            ErrorSeverity.LOW: LogLevel.DEBUG,
-            ErrorSeverity.MEDIUM: LogLevel.WARNING,
-            ErrorSeverity.HIGH: LogLevel.ERROR,
-            ErrorSeverity.CRITICAL: LogLevel.ERROR,
+            ErrorSeverity.LOW: logging.DEBUG,
+            ErrorSeverity.MEDIUM: logging.WARNING,
+            ErrorSeverity.HIGH: logging.ERROR,
+            ErrorSeverity.CRITICAL: logging.ERROR,
         }
-        return mapping.get(severity, LogLevel.WARNING)
+        return mapping.get(severity, logging.WARNING)
 
     def _calculate_average_resolution_time(self) -> Optional[float]:
         """Calculate average resolution time for resolved errors."""
@@ -491,4 +502,7 @@ class ProcessingError(Exception):
 
 
 # Global instance
+# Note: UnifiedErrorHandler should be retrieved from DI container
+# Use: container.get("unified_error_handler")
+# Legacy global instance kept for backward compatibility during transition
 unified_error_handler = UnifiedErrorHandler()

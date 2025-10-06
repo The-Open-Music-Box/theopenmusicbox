@@ -2,34 +2,38 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""NFC Factory for creating configured NFC services."""
+"""NFC Factory for creating configured NFC services.
+
+Follows dependency injection principles for NFC infrastructure components.
+"""
 
 import asyncio
 from typing import Optional, Any
+import logging
 
 from app.src.domain.nfc import NfcAssociationService, NfcHardwareProtocol, NfcRepositoryProtocol
 from app.src.infrastructure.adapters.nfc.nfc_adapter import NFCHandlerAdapter
-from app.src.application.services.nfc_application_service import NfcApplicationService
 from app.src.infrastructure.hardware.nfc import create_nfc_hardware
 from app.src.config.nfc_config import NFCConfig
-from .adapters.nfc_hardware_adapter import NfcHardwareAdapter, MockNfcHardwareAdapter
-from .repositories.nfc_memory_repository import NfcMemoryRepository
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+from app.src.infrastructure.nfc.adapters.nfc_hardware_adapter import (
+    NfcHardwareAdapter,
+    MockNfcHardwareAdapter,
+)
+from app.src.infrastructure.nfc.repositories.nfc_memory_repository import NfcMemoryRepository
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class NfcFactory:
     """Factory for creating NFC services with proper dependency injection."""
 
     @staticmethod
-    def create_nfc_application_service(
+    def create_nfc_infrastructure_components(
         legacy_nfc_handler: Optional[Any] = None,
         use_mock_hardware: bool = False,
         repository: Optional[NfcRepositoryProtocol] = None,
-    ) -> NfcApplicationService:
-        """Create a fully configured NFC application service.
+    ) -> tuple[NfcHardwareProtocol, NfcRepositoryProtocol, NfcAssociationService]:
+        """Create infrastructure components for NFC services.
 
         Args:
             legacy_nfc_handler: Legacy NFC handler for backward compatibility
@@ -37,7 +41,7 @@ class NfcFactory:
             repository: Custom repository implementation
 
         Returns:
-            Configured NFC application service
+            Tuple of (hardware, repository, domain_service) for use by Application layer
         """
         # Create repository
         nfc_repository = repository or NfcMemoryRepository()
@@ -51,21 +55,16 @@ class NfcFactory:
         # Create domain service
         nfc_association_service = NfcAssociationService(nfc_repository)
 
-        # Create application service
-        return NfcApplicationService(
-            nfc_hardware=nfc_hardware,
-            nfc_repository=nfc_repository,
-            nfc_association_service=nfc_association_service,
-        )
+        return nfc_hardware, nfc_repository, nfc_association_service
 
     @staticmethod
-    def create_mock_nfc_service() -> NfcApplicationService:
-        """Create NFC service with mock hardware for testing.
+    def create_mock_nfc_components() -> tuple[NfcHardwareProtocol, NfcRepositoryProtocol, NfcAssociationService]:
+        """Create NFC infrastructure components with mock hardware for testing.
 
         Returns:
-            NFC application service with mock implementations
+            NFC infrastructure components with mock implementations
         """
-        return NfcFactory.create_nfc_application_service(use_mock_hardware=True)
+        return NfcFactory.create_nfc_infrastructure_components(use_mock_hardware=True)
 
     @staticmethod
     async def create_nfc_handler_adapter(nfc_lock: Optional[asyncio.Lock] = None) -> NFCHandlerAdapter:
@@ -77,7 +76,7 @@ class NfcFactory:
         Returns:
             NFCHandlerAdapter wrapping the appropriate hardware implementation
         """
-        logger.log(LogLevel.INFO, "🏭 Creating NFC handler with new infrastructure...")
+        logger.info("🏭 Creating NFC handler with new infrastructure...")
 
         # Create NFC configuration
         config = NFCConfig()
@@ -93,6 +92,6 @@ class NfcFactory:
         adapter = NFCHandlerAdapter(hardware)
 
         hardware_info = "Mock" if adapter._is_mock else "Real PN532"
-        logger.log(LogLevel.INFO, f"✅ NFC handler created with {hardware_info} hardware")
+        logger.info(f"✅ NFC handler created with {hardware_info} hardware")
 
         return adapter

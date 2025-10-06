@@ -23,11 +23,10 @@ from app.src.domain.events.physical_control_events import (
     EncoderRotatedEvent,
     PhysicalControlErrorEvent,
 )
-from app.src.config.hardware_config import HardwareConfig
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+from typing import Any
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 # Check if we're in mock mode or if GPIO is available
 USE_MOCK_HARDWARE = os.getenv("USE_MOCK_HARDWARE", "false").lower() == "true"
@@ -42,13 +41,13 @@ if not USE_MOCK_HARDWARE:
         from gpiozero import Button, RotaryEncoder, Device
         from gpiozero.pins.rpigpio import RPiGPIOFactory
         Device.pin_factory = RPiGPIOFactory()
-        logger.log(LogLevel.INFO, "✅ GPIO hardware available - using RPi.GPIO backend")
+        logger.info("✅ GPIO hardware available - using RPi.GPIO backend")
         GPIO_AVAILABLE = True
         gpio_backend_initialized = True
     except ImportError as e:
-        logger.log(LogLevel.DEBUG, f"RPi.GPIO backend not available: {e}")
+        logger.debug(f"RPi.GPIO backend not available: {e}")
     except Exception as e:
-        logger.log(LogLevel.DEBUG, f"RPi.GPIO initialization failed: {e}")
+        logger.debug(f"RPi.GPIO initialization failed: {e}")
 
     # If RPi.GPIO didn't work, try lgpio
     if not gpio_backend_initialized:
@@ -56,13 +55,13 @@ if not USE_MOCK_HARDWARE:
             from gpiozero import Button, RotaryEncoder, Device
             from gpiozero.pins.lgpio import LgpioFactory
             Device.pin_factory = LgpioFactory()
-            logger.log(LogLevel.INFO, "✅ GPIO hardware available - using lgpio backend")
+            logger.info("✅ GPIO hardware available - using lgpio backend")
             GPIO_AVAILABLE = True
             gpio_backend_initialized = True
         except ImportError as e:
-            logger.log(LogLevel.DEBUG, f"lgpio backend not available: {e}")
+            logger.debug(f"lgpio backend not available: {e}")
         except Exception as e:
-            logger.log(LogLevel.WARNING, f"⚠️ lgpio initialization failed: {e}")
+            logger.warning(f"⚠️ lgpio initialization failed: {e}")
 
     # If neither worked, try pigpio (requires pigpiod daemon)
     if not gpio_backend_initialized:
@@ -70,27 +69,27 @@ if not USE_MOCK_HARDWARE:
             from gpiozero import Button, RotaryEncoder, Device
             from gpiozero.pins.pigpio import PiGPIOFactory
             Device.pin_factory = PiGPIOFactory()
-            logger.log(LogLevel.INFO, "✅ GPIO hardware available - using pigpio backend")
+            logger.info("✅ GPIO hardware available - using pigpio backend")
             GPIO_AVAILABLE = True
             gpio_backend_initialized = True
         except ImportError as e:
-            logger.log(LogLevel.DEBUG, f"pigpio backend not available: {e}")
+            logger.debug(f"pigpio backend not available: {e}")
         except Exception as e:
-            logger.log(LogLevel.DEBUG, f"pigpio initialization failed: {e}")
+            logger.debug(f"pigpio initialization failed: {e}")
 
     # If still no backend available, fall back to mock
     if not gpio_backend_initialized:
-        logger.log(LogLevel.WARNING, "⚠️ No GPIO backend available - falling back to mock mode")
+        logger.warning("⚠️ No GPIO backend available - falling back to mock mode")
         GPIO_AVAILABLE = False
 else:
-    logger.log(LogLevel.INFO, "🧪 Mock hardware mode enabled")
+    logger.info("🧪 Mock hardware mode enabled")
     GPIO_AVAILABLE = False
 
 
 class GPIOPhysicalControls(PhysicalControlsProtocol):
     """GPIO-based implementation of physical controls."""
 
-    def __init__(self, hardware_config: HardwareConfig):
+    def __init__(self, hardware_config: Any):
         """Initialize GPIO physical controls.
 
         Args:
@@ -110,18 +109,18 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
         try:
             with self._lock:
                 if self._is_initialized:
-                    logger.log(LogLevel.WARNING, "GPIO controls already initialized")
+                    logger.warning("GPIO controls already initialized")
                     return True
 
                 # Validate hardware configuration
                 self.config.validate()
 
                 if not GPIO_AVAILABLE:
-                    logger.log(LogLevel.INFO, "🧪 Mock mode: GPIO controls initialized (no real hardware)")
+                    logger.info("🧪 Mock mode: GPIO controls initialized (no real hardware)")
                     self._is_initialized = True
                     return True
 
-                logger.log(LogLevel.INFO, "🔌 Initializing GPIO physical controls...")
+                logger.info("🔌 Initializing GPIO physical controls...")
 
                 # Count successful initializations
                 initial_device_count = len(self._devices)
@@ -130,30 +129,29 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
                 try:
                     self._init_buttons()
                 except Exception as e:
-                    logger.log(LogLevel.WARNING, f"⚠️ Button initialization had errors: {e}")
+                    logger.warning(f"⚠️ Button initialization had errors: {e}")
 
                 # Initialize rotary encoder (don't fail if encoder fails)
                 try:
                     self._init_encoder()
                 except Exception as e:
-                    logger.log(LogLevel.WARNING, f"⚠️ Encoder initialization failed: {e}")
+                    logger.warning(f"⚠️ Encoder initialization failed: {e}")
 
                 # Check if at least some devices were initialized
                 final_device_count = len(self._devices)
                 if final_device_count > initial_device_count:
                     self._is_initialized = True
-                    logger.log(
-                        LogLevel.INFO,
+                    logger.info(
                         f"✅ GPIO physical controls partially initialized "
                         f"({final_device_count - initial_device_count} devices)"
                     )
                     return True
                 else:
-                    logger.log(LogLevel.WARNING, "⚠️ No GPIO devices could be initialized")
+                    logger.warning("⚠️ No GPIO devices could be initialized")
                     return False
 
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"❌ Failed to initialize GPIO controls: {e}")
+            logger.error(f"❌ Failed to initialize GPIO controls: {e}")
             await self._emit_error_event(f"Initialization failed: {e}", "initialization", "gpio_controls")
             return False
 
@@ -180,9 +178,9 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
                 except:
                     pass  # Pin might not have been initialized
 
-            logger.log(LogLevel.DEBUG, "GPIO pins cleaned before initialization")
+            logger.debug("GPIO pins cleaned before initialization")
         except Exception as e:
-            logger.log(LogLevel.DEBUG, f"GPIO cleanup attempt: {e}")
+            logger.debug(f"GPIO cleanup attempt: {e}")
 
         # Try to initialize buttons with error recovery
         buttons_config = [
@@ -201,10 +199,10 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
                     hold_time=self.config.button_hold_time
                 )
                 self._devices[device_name].when_pressed = handler
-                logger.log(LogLevel.INFO, f"✅ {description} button initialized on GPIO {pin}")
+                logger.info(f"✅ {description} button initialized on GPIO {pin}")
 
             except Exception as e:
-                logger.log(LogLevel.WARNING, f"⚠️ Failed to init {description} on GPIO {pin} with pull_up: {e}")
+                logger.warning(f"⚠️ Failed to init {description} on GPIO {pin} with pull_up: {e}")
 
                 # Try without pull_up if the pin might have external pull-up
                 try:
@@ -214,10 +212,10 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
                         bounce_time=self.config.button_debounce_time
                     )
                     self._devices[device_name].when_pressed = handler
-                    logger.log(LogLevel.INFO, f"✅ {description} button initialized on GPIO {pin} (no pull_up)")
+                    logger.info(f"✅ {description} button initialized on GPIO {pin} (no pull_up)")
 
                 except Exception as e2:
-                    logger.log(LogLevel.ERROR, f"❌ Failed to init {description} button on GPIO {pin}: {e2}")
+                    logger.error(f"❌ Failed to init {description} button on GPIO {pin}: {e2}")
                     # Continue with other buttons even if one fails
 
     def _init_encoder(self) -> None:
@@ -248,44 +246,43 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
             self._devices['volume_encoder'].when_rotated_clockwise = self._on_volume_up
             self._devices['volume_encoder'].when_rotated_counter_clockwise = self._on_volume_down
 
-            logger.log(
-                LogLevel.INFO,
+            logger.info(
                 f"✅ Volume encoder initialized on GPIO {self.config.gpio_volume_encoder_clk}/"
                 f"{self.config.gpio_volume_encoder_dt}"
             )
 
         except Exception as e:
-            logger.log(LogLevel.WARNING, f"⚠️ Failed to initialize encoder: {e}")
-            logger.log(LogLevel.INFO, "Volume control via encoder will not be available")
+            logger.warning(f"⚠️ Failed to initialize encoder: {e}")
+            logger.info("Volume control via encoder will not be available")
             # Don't raise - allow system to work without encoder
 
     def _on_next_button_pressed(self) -> None:
         """Handle next track button press."""
-        logger.log(LogLevel.INFO, "🔘 Next track button pressed")
+        logger.info("🔘 Next track button pressed")
         self._emit_button_event("next", self.config.gpio_next_track_button)
         self._trigger_event(PhysicalControlEvent.BUTTON_NEXT_TRACK)
 
     def _on_previous_button_pressed(self) -> None:
         """Handle previous track button press."""
-        logger.log(LogLevel.INFO, "🔘 Previous track button pressed")
+        logger.info("🔘 Previous track button pressed")
         self._emit_button_event("previous", self.config.gpio_previous_track_button)
         self._trigger_event(PhysicalControlEvent.BUTTON_PREVIOUS_TRACK)
 
     def _on_play_pause_button_pressed(self) -> None:
         """Handle play/pause button press."""
-        logger.log(LogLevel.INFO, "🔘 Play/pause button pressed")
+        logger.info("🔘 Play/pause button pressed")
         self._emit_button_event("play_pause", self.config.gpio_volume_encoder_sw)
         self._trigger_event(PhysicalControlEvent.BUTTON_PLAY_PAUSE)
 
     def _on_volume_up(self) -> None:
         """Handle volume encoder rotation clockwise (volume up)."""
-        logger.log(LogLevel.DEBUG, "🔊 Volume encoder: UP")
+        logger.debug("🔊 Volume encoder: UP")
         self._emit_encoder_event("up", self.config.gpio_volume_encoder_clk)
         self._trigger_event(PhysicalControlEvent.ENCODER_VOLUME_UP)
 
     def _on_volume_down(self) -> None:
         """Handle volume encoder rotation counter-clockwise (volume down)."""
-        logger.log(LogLevel.DEBUG, "🔉 Volume encoder: DOWN")
+        logger.debug("🔉 Volume encoder: DOWN")
         self._emit_encoder_event("down", self.config.gpio_volume_encoder_dt)
         self._trigger_event(PhysicalControlEvent.ENCODER_VOLUME_DOWN)
 
@@ -296,7 +293,7 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
             source_pin=pin,
             button_type=button_type
         )
-        logger.log(LogLevel.DEBUG, f"Button event emitted: {button_type} on pin {pin}")
+        logger.debug(f"Button event emitted: {button_type} on pin {pin}")
 
     def _emit_encoder_event(self, direction: str, pin: int) -> None:
         """Emit an encoder rotated event."""
@@ -306,7 +303,7 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
             direction=direction,
             steps=1
         )
-        logger.log(LogLevel.DEBUG, f"Encoder event emitted: {direction} on pin {pin}")
+        logger.debug(f"Encoder event emitted: {direction} on pin {pin}")
 
     async def _emit_error_event(self, message: str, error_type: str, component: str) -> None:
         """Emit an error event."""
@@ -316,7 +313,7 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
             error_type=error_type,
             component=component
         )
-        logger.log(LogLevel.ERROR, f"Control error event: {message}")
+        logger.error(f"Control error event: {message}")
 
     def _trigger_event(self, event_type: PhysicalControlEvent) -> None:
         """Trigger a registered event handler."""
@@ -325,15 +322,15 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
             try:
                 handler()
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"❌ Error in event handler for {event_type}: {e}")
+                logger.error(f"❌ Error in event handler for {event_type}: {e}")
         else:
-            logger.log(LogLevel.DEBUG, f"No handler registered for event: {event_type}")
+            logger.debug(f"No handler registered for event: {event_type}")
 
     def set_event_handler(self, event_type: PhysicalControlEvent, handler: Callable[[], None]) -> None:
         """Set event handler for a specific control event."""
         with self._lock:
             self._event_handlers[event_type] = handler
-            logger.log(LogLevel.DEBUG, f"Event handler set for: {event_type}")
+            logger.debug(f"Event handler set for: {event_type}")
 
     async def cleanup(self) -> None:
         """Clean up GPIO resources."""
@@ -342,25 +339,25 @@ class GPIOPhysicalControls(PhysicalControlsProtocol):
                 if not self._is_initialized:
                     return
 
-                logger.log(LogLevel.INFO, "🧹 Cleaning up GPIO controls...")
+                logger.info("🧹 Cleaning up GPIO controls...")
 
                 # Close all GPIO devices
                 for device_name, device in self._devices.items():
                     try:
                         if hasattr(device, 'close'):
                             device.close()
-                        logger.log(LogLevel.DEBUG, f"Device {device_name} closed")
+                        logger.debug(f"Device {device_name} closed")
                     except Exception as e:
-                        logger.log(LogLevel.ERROR, f"Error closing {device_name}: {e}")
+                        logger.error(f"Error closing {device_name}: {e}")
 
                 self._devices.clear()
                 self._event_handlers.clear()
                 self._is_initialized = False
 
-                logger.log(LogLevel.INFO, "✅ GPIO controls cleanup completed")
+                logger.info("✅ GPIO controls cleanup completed")
 
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"❌ Error during GPIO controls cleanup: {e}")
+            logger.error(f"❌ Error during GPIO controls cleanup: {e}")
 
     def is_initialized(self) -> bool:
         """Check if GPIO controls are initialized."""

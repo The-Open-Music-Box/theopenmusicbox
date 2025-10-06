@@ -8,24 +8,21 @@ Mock Physical Controls Implementation.
 Mock implementation for testing and development without real hardware.
 """
 
-from typing import Callable, Dict
+from typing import Callable, Dict, Any
 import asyncio
+import logging
 
 from app.src.domain.protocols.physical_controls_protocol import (
     PhysicalControlsProtocol,
     PhysicalControlEvent,
 )
-from app.src.config.hardware_config import HardwareConfig
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
-
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class MockPhysicalControls(PhysicalControlsProtocol):
     """Mock implementation of physical controls for testing."""
 
-    def __init__(self, hardware_config: HardwareConfig):
+    def __init__(self, hardware_config: Any):
         """Initialize mock physical controls.
 
         Args:
@@ -37,22 +34,22 @@ class MockPhysicalControls(PhysicalControlsProtocol):
 
     async def initialize(self) -> bool:
         """Initialize mock controls."""
-        logger.log(LogLevel.INFO, "🧪 Initializing mock physical controls...")
+        logger.info("🧪 Initializing mock physical controls...")
         self._is_initialized = True
-        logger.log(LogLevel.INFO, "✅ Mock physical controls initialized")
+        logger.info("✅ Mock physical controls initialized")
         return True
 
     async def cleanup(self) -> None:
         """Clean up mock controls."""
-        logger.log(LogLevel.INFO, "🧹 Cleaning up mock physical controls...")
+        logger.info("🧹 Cleaning up mock physical controls...")
         self._is_initialized = False
         self._event_handlers.clear()
-        logger.log(LogLevel.INFO, "✅ Mock physical controls cleanup completed")
+        logger.info("✅ Mock physical controls cleanup completed")
 
     def set_event_handler(self, event_type: PhysicalControlEvent, handler: Callable[[], None]) -> None:
         """Set event handler for a specific control event."""
         self._event_handlers[event_type] = handler
-        logger.log(LogLevel.DEBUG, f"Mock event handler set for: {event_type}")
+        logger.debug(f"Mock event handler set for: {event_type}")
 
     def is_initialized(self) -> bool:
         """Check if mock controls are initialized."""
@@ -80,18 +77,18 @@ class MockPhysicalControls(PhysicalControlsProtocol):
             event_type: Type of control event to simulate
         """
         if not self._is_initialized:
-            logger.log(LogLevel.WARNING, "Cannot simulate button press - mock controls not initialized")
+            logger.warning("Cannot simulate button press - mock controls not initialized")
             return
 
         handler = self._event_handlers.get(event_type)
         if handler:
-            logger.log(LogLevel.INFO, f"🧪 Simulating control event: {event_type}")
+            logger.info(f"🧪 Simulating control event: {event_type}")
             try:
                 handler()
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"❌ Error in simulated event handler for {event_type}: {e}")
+                logger.error(f"❌ Error in simulated event handler for {event_type}: {e}")
         else:
-            logger.log(LogLevel.WARNING, f"No handler registered for simulated event: {event_type}")
+            logger.warning(f"No handler registered for simulated event: {event_type}")
 
     async def simulate_next_track(self) -> None:
         """Simulate next track button press."""

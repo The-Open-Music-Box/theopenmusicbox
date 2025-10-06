@@ -9,23 +9,19 @@ Factory for creating physical controls implementations based on environment.
 """
 
 import os
-from typing import Optional
+from typing import Optional, Any
+import logging
 
 from app.src.domain.protocols.physical_controls_protocol import PhysicalControlsProtocol
-from app.src.config.hardware_config import HardwareConfig
-from app.src.infrastructure.hardware.controls.gpio_controls_implementation import GPIOPhysicalControls
-from app.src.infrastructure.hardware.controls.mock_controls_implementation import MockPhysicalControls
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class PhysicalControlsFactory:
     """Factory for creating physical controls implementations."""
 
     @staticmethod
-    def create_controls(hardware_config: HardwareConfig) -> PhysicalControlsProtocol:
+    def create_controls(hardware_config: Any) -> PhysicalControlsProtocol:
         """Create physical controls implementation based on environment.
 
         Args:
@@ -41,14 +37,16 @@ class PhysicalControlsFactory:
         )
 
         if use_mock:
-            logger.log(LogLevel.INFO, "🧪 Creating mock physical controls implementation")
+            logger.info("🧪 Creating mock physical controls implementation")
+            from app.src.infrastructure.hardware.controls.mock_controls_implementation import MockPhysicalControls
             return MockPhysicalControls(hardware_config)
         else:
-            logger.log(LogLevel.INFO, "🔌 Creating GPIO physical controls implementation")
+            logger.info("🔌 Creating GPIO physical controls implementation")
+            from app.src.infrastructure.hardware.controls.gpio_controls_implementation import GPIOPhysicalControls
             return GPIOPhysicalControls(hardware_config)
 
     @staticmethod
-    def create_mock_controls(hardware_config: HardwareConfig) -> MockPhysicalControls:
+    def create_mock_controls(hardware_config: Any):
         """Create mock controls implementation for testing.
 
         Args:
@@ -57,5 +55,6 @@ class PhysicalControlsFactory:
         Returns:
             MockPhysicalControls implementation
         """
-        logger.log(LogLevel.INFO, "🧪 Creating mock physical controls for testing")
+        logger.info("🧪 Creating mock physical controls for testing")
+        from app.src.infrastructure.hardware.controls.mock_controls_implementation import MockPhysicalControls
         return MockPhysicalControls(hardware_config)

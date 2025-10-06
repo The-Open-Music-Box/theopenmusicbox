@@ -14,7 +14,6 @@ from mutagen.id3 import ID3NoHeaderError
 from app.src.domain.upload.protocols.file_storage_protocol import MetadataExtractionProtocol
 from app.src.domain.upload.value_objects.file_metadata import FileMetadata
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_errors
 
 logger = get_logger(__name__)
@@ -53,9 +52,9 @@ class MutagenMetadataExtractor(MetadataExtractionProtocol):
             if audio_file is not None:
                 metadata = self._extract_audio_metadata(audio_file, metadata)
             else:
-                logger.log(LogLevel.WARNING, f"⚠️ Could not read audio metadata from {file_path}")
+                logger.warning(f"⚠️ Could not read audio metadata from {file_path}")
         except (ID3NoHeaderError, Exception) as e:
-            logger.log(LogLevel.WARNING, f"⚠️ Error extracting metadata from {file_path}: {e}")
+            logger.warning(f"⚠️ Error extracting metadata from {file_path}: {e}")
 
         return metadata
 
@@ -168,7 +167,7 @@ class MutagenMetadataExtractor(MetadataExtractionProtocol):
         duration = getattr(audio_file.info, "length", 0)
         if duration <= 0:
             return False
-        logger.log(LogLevel.DEBUG, f"✅ Audio file validation passed: {file_path.name}")
+        logger.debug(f"✅ Audio file validation passed: {file_path.name}")
         return True
 
 

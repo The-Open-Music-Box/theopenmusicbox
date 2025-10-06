@@ -7,22 +7,23 @@
 import asyncio
 import os
 import sys
-from typing import Optional
+from typing import Optional, Any
+import logging
 
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.error.unified_error_decorator import handle_errors
-from app.src.config.nfc_config import NFCConfig
 from .nfc_hardware_interface import NFCHardwareInterface
 from .mock_nfc_hardware import MockNFCHardware
+from app.src.services.error.unified_error_decorator import handle_errors
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
+
+def _handle_errors(operation_name: str):
+    return handle_errors(operation_name)
 
 
-@handle_errors("create_nfc_hardware")
+@_handle_errors("create_nfc_hardware")
 async def create_nfc_hardware(
     bus_lock: Optional[asyncio.Lock] = None,
-    config: Optional[NFCConfig] = None,
+    config: Optional[Any] = None,
     force_mock: bool = False,
 ) -> NFCHardwareInterface:
     """Create appropriate NFC hardware implementation.
@@ -41,7 +42,9 @@ async def create_nfc_hardware(
     Raises:
         RuntimeError: If hardware initialization fails
     """
-    config = config or NFCConfig()
+    if config is None:
+        from app.src.config.nfc_config import NFCConfig
+        config = NFCConfig()
 
     # Determine if we should use mock hardware
     use_mock = (
@@ -52,31 +55,31 @@ async def create_nfc_hardware(
     )
 
     if use_mock:
-        logger.log(LogLevel.INFO, "🎭 Creating Mock NFC hardware for development/testing")
+        logger.info("🎭 Creating Mock NFC hardware for development/testing")
         hardware = MockNFCHardware()
         await hardware.initialize()
         return hardware
 
     # Try to create real PN532 hardware
-    logger.log(LogLevel.INFO, "🔧 Attempting to create PN532 NFC hardware...")
+    logger.info("🔧 Attempting to create PN532 NFC hardware...")
     if not bus_lock:
-        logger.log(LogLevel.WARNING, "⚠️ No bus_lock provided, creating default lock")
+        logger.warning("⚠️ No bus_lock provided, creating default lock")
         bus_lock = asyncio.Lock()
-    # Import and create PN532 hardware
+    # Import PN532 hardware
     from .pn532_nfc_hardware import PN532NFCHardware
 
     hardware = PN532NFCHardware(bus_lock, config)
     await hardware.initialize()
-    logger.log(LogLevel.INFO, "✅ PN532 NFC hardware created successfully")
+    logger.info("✅ PN532 NFC hardware created successfully")
     return hardware
     # Fallback to mock if real hardware fails
-    logger.log(LogLevel.INFO, "🎭 Falling back to Mock NFC hardware")
+    logger.info("🎭 Falling back to Mock NFC hardware")
     hardware = MockNFCHardware()
     await hardware.initialize()
     return hardware
 
 
-@handle_errors("get_hardware_info")
+@_handle_errors("get_hardware_info")
 def get_hardware_info() -> dict:
     """Get information about available NFC hardware options.
 
@@ -97,7 +100,7 @@ def get_hardware_info() -> dict:
     import busio
 
     info["pn532_libraries_available"] = True
-    logger.log(LogLevel.DEBUG, "✅ PN532 libraries are available")
+    logger.debug("✅ PN532 libraries are available")
     # Check if we're on a platform that could have PN532 hardware
     if sys.platform.startswith("linux") and info["pn532_libraries_available"]:
         # Could potentially have hardware, but we'd need to actually try to connect

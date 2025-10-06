@@ -8,7 +8,6 @@ import asyncio
 from typing import Optional, Callable, Protocol
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
 
@@ -59,10 +58,10 @@ class NFCHandlerAdapter:
         # Subscribe to hardware tag events if available
         if hasattr(hardware, "tag_subject"):
             hardware.tag_subject.subscribe(self._on_hardware_tag_event)
-            logger.log(LogLevel.DEBUG, "🔗 NFCHandlerAdapter subscribed to hardware tag events")
+            logger.debug("🔗 NFCHandlerAdapter subscribed to hardware tag events")
 
         hardware_type = "Mock" if self._is_mock else "Real"
-        logger.log(LogLevel.INFO, f"✅ NFCHandlerAdapter initialized with {hardware_type} hardware")
+        logger.info(f"✅ NFCHandlerAdapter initialized with {hardware_type} hardware")
 
     @property
     def tag_subject(self):
@@ -85,7 +84,7 @@ class NFCHandlerAdapter:
         """Direct tag reading method (synchronous compatibility)."""
         # This is a compatibility method for legacy code
         # The preferred way is to use the tag_subject for event-driven detection
-        logger.log(LogLevel.DEBUG, "Direct read_tag called (compatibility mode)")
+        logger.debug("Direct read_tag called (compatibility mode)")
         return None  # Return None as events should come through tag_subject
 
     async def read_nfc(self):
@@ -99,9 +98,7 @@ class NFCHandlerAdapter:
             callback: Function to call when tag is detected, receives tag UID as string
         """
         self._tag_callbacks.append(callback)
-        logger.log(
-            LogLevel.DEBUG,
-            f"✅ Tag detected callback registered (total: {len(self._tag_callbacks)})",
+        logger.debug(f"✅ Tag detected callback registered (total: {len(self._tag_callbacks)})",
         )
 
     def set_tag_removed_callback(self, callback: Callable[[], None]) -> None:
@@ -111,20 +108,18 @@ class NFCHandlerAdapter:
             callback: Function to call when tag is removed
         """
         self._tag_removed_callbacks.append(callback)
-        logger.log(
-            LogLevel.DEBUG,
-            f"✅ Tag removed callback registered (total: {len(self._tag_removed_callbacks)})",
+        logger.debug(f"✅ Tag removed callback registered (total: {len(self._tag_removed_callbacks)})",
         )
 
     async def start_detection(self) -> None:
         """Start NFC tag detection - compatibility method for NfcApplicationService."""
         await self.start_nfc_reader()
-        logger.log(LogLevel.DEBUG, "✅ NFC detection started via compatibility method")
+        logger.debug("✅ NFC detection started via compatibility method")
 
     async def stop_detection(self) -> None:
         """Stop NFC tag detection - compatibility method for NfcApplicationService."""
         await self.stop_nfc_reader()
-        logger.log(LogLevel.DEBUG, "✅ NFC detection stopped via compatibility method")
+        logger.debug("✅ NFC detection stopped via compatibility method")
 
     def is_detecting(self) -> bool:
         """Check if currently detecting tags.
@@ -154,7 +149,7 @@ class NFCHandlerAdapter:
         Args:
             tag_data: Tag event data from hardware (can be dict or other format)
         """
-        logger.log(LogLevel.DEBUG, f"🔄 NFCHandlerAdapter processing tag event: {tag_data}")
+        logger.debug(f"🔄 NFCHandlerAdapter processing tag event: {tag_data}")
         # Extract tag UID from various possible formats
         tag_uid = None
         if isinstance(tag_data, dict):
@@ -168,7 +163,7 @@ class NFCHandlerAdapter:
 
     def cleanup(self):
         """Cleanup NFC resources."""
-        logger.log(LogLevel.INFO, "🧹 NFCHandlerAdapter cleaning up...")
+        logger.info("🧹 NFCHandlerAdapter cleaning up...")
         self._hardware.cleanup()
 
 

@@ -29,27 +29,56 @@ class DataPlaylistRepository(PlaylistRepositoryProtocol):
 
     async def get_all(self, skip: int = 0, limit: int = 100) -> List[Dict[str, Any]]:
         """Get all playlists with pagination."""
-        return await self._repo.get_playlists_paginated(skip, limit)
+        playlists = await self._repo.find_all(limit=limit, offset=skip)
+        # Convert Playlist domain objects to dictionaries, filter out None values
+        return [self._playlist_to_dict(playlist) for playlist in playlists if playlist is not None]
 
     async def get_by_id(self, playlist_id: str) -> Optional[Dict[str, Any]]:
         """Get a playlist by its ID."""
-        return await self._repo.get_playlist_by_id(playlist_id)
+        playlist = await self._repo.find_by_id(playlist_id)
+        return self._playlist_to_dict(playlist) if playlist else None
 
     async def get_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
         """Get a playlist by its associated NFC tag."""
-        return await self._repo.get_playlist_by_nfc_tag(nfc_tag_id)
+        playlist = await self._repo.find_by_nfc_tag(nfc_tag_id)
+        return self._playlist_to_dict(playlist) if playlist else None
 
     async def create(self, playlist_data: Dict[str, Any]) -> str:
         """Create a new playlist."""
-        return await self._repo.create_playlist(playlist_data)
+        from app.src.domain.data.models.playlist import Playlist
+        # Convert dict to domain object using API compatibility factory
+        playlist = Playlist.from_api_data(
+            title=playlist_data.get('title', ''),
+            description=playlist_data.get('description', ''),
+            id=playlist_data.get('id'),
+            nfc_tag_id=playlist_data.get('nfc_tag_id'),
+            tracks=[]
+        )
+        saved_playlist = await self._repo.save(playlist)
+        return saved_playlist.id
 
     async def update(self, playlist_id: str, playlist_data: Dict[str, Any]) -> bool:
         """Update an existing playlist."""
-        return await self._repo.update_playlist(playlist_id, playlist_data)
+        # Get existing playlist
+        existing = await self._repo.find_by_id(playlist_id)
+        if not existing:
+            return False
+
+        # Update fields
+        if 'title' in playlist_data:
+            existing.title = playlist_data['title']
+        if 'description' in playlist_data:
+            existing.description = playlist_data['description']
+        if 'nfc_tag_id' in playlist_data:
+            existing.nfc_tag_id = playlist_data['nfc_tag_id']
+
+        # Save updated playlist
+        await self._repo.update(existing)
+        return True
 
     async def delete(self, playlist_id: str) -> bool:
         """Delete a playlist."""
-        return await self._repo.delete_playlist(playlist_id)
+        return await self._repo.delete(playlist_id)
 
     async def exists(self, playlist_id: str) -> bool:
         """Check if a playlist exists."""
@@ -58,4 +87,35 @@ class DataPlaylistRepository(PlaylistRepositoryProtocol):
 
     async def count(self) -> int:
         """Count total playlists."""
-        return await self._repo.count_playlists()
+        return await self._repo.count()
+
+    def _playlist_to_dict(self, playlist) -> Optional[Dict[str, Any]]:
+        """Convert Playlist domain object to dictionary."""
+        if not playlist:
+            return None
+
+        return {
+            'id': playlist.id,
+            'title': playlist.title,
+            'description': playlist.description or '',  # Ensure empty string instead of None
+            'nfc_tag_id': playlist.nfc_tag_id or '',  # Ensure empty string instead of None
+            'tracks': [self._track_to_dict(track) for track in playlist.tracks if track is not None],
+            'created_at': getattr(playlist, 'created_at', '') or '',  # Ensure empty string instead of None
+            'updated_at': getattr(playlist, 'updated_at', '') or ''  # Ensure empty string instead of None
+        }
+
+    def _track_to_dict(self, track) -> Dict[str, Any]:
+        """Convert Track domain object to dictionary."""
+        if not track:
+            return None
+
+        return {
+            'id': track.id,
+            'track_number': track.track_number,
+            'title': track.title,
+            'filename': track.filename,
+            'file_path': track.file_path,
+            'duration_ms': track.duration_ms,
+            'artist': track.artist,
+            'album': track.album
+        }

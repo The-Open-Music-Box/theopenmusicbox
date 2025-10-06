@@ -10,7 +10,6 @@ from typing import Optional, Callable, Any, Dict
 from app.src.domain.nfc.protocols.nfc_hardware_protocol import NfcHardwareProtocol
 from app.src.domain.nfc.value_objects.tag_identifier import TagIdentifier
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.services.error.unified_error_decorator import handle_errors
 
 logger = get_logger(__name__)
@@ -48,7 +47,7 @@ class NfcHardwareAdapter(NfcHardwareProtocol):
             elif hasattr(self._legacy_handler, "start"):
                 await self._legacy_handler.start()
         self._detecting = True
-        logger.log(LogLevel.INFO, "✅ NFC hardware detection started")
+        logger.info("✅ NFC hardware detection started")
 
     @handle_errors("stop_detection")
     async def stop_detection(self) -> None:
@@ -60,7 +59,7 @@ class NfcHardwareAdapter(NfcHardwareProtocol):
             elif hasattr(self._legacy_handler, "stop"):
                 await self._legacy_handler.stop()
         self._detecting = False
-        logger.log(LogLevel.INFO, "✅ NFC hardware detection stopped")
+        logger.info("✅ NFC hardware detection stopped")
 
     def is_detecting(self) -> bool:
         """Check if currently detecting tags."""
@@ -114,14 +113,14 @@ class NfcHardwareAdapter(NfcHardwareProtocol):
         else:
             tag_uid = str(tag_data)
         if not tag_uid:
-            logger.log(LogLevel.WARNING, "⚠️ Received tag event without UID")
+            logger.warning("⚠️ Received tag event without UID")
             return
         # Create domain tag identifier
         tag_identifier = TagIdentifier.from_raw_data(tag_uid)
         # Notify callback
         if self._tag_detected_callback:
             self._tag_detected_callback(tag_identifier)
-        logger.log(LogLevel.DEBUG, f"📱 Tag detected: {tag_identifier}")
+        logger.debug(f"📱 Tag detected: {tag_identifier}")
 
     @handle_errors("inject_test_tag")
     def inject_test_tag(self, tag_uid: str) -> None:
@@ -133,7 +132,7 @@ class NfcHardwareAdapter(NfcHardwareProtocol):
         tag_identifier = TagIdentifier(uid=tag_uid)
         if self._tag_detected_callback:
             self._tag_detected_callback(tag_identifier)
-        logger.log(LogLevel.INFO, f"🧪 Injected test tag: {tag_identifier}")
+        logger.info(f"🧪 Injected test tag: {tag_identifier}")
 
 
 class MockNfcHardwareAdapter(NfcHardwareProtocol):
@@ -148,12 +147,22 @@ class MockNfcHardwareAdapter(NfcHardwareProtocol):
     async def start_detection(self) -> None:
         """Start mock detection."""
         self._detecting = True
-        logger.log(LogLevel.INFO, "✅ Mock NFC detection started")
+        logger.info("✅ Mock NFC detection started")
+
+    async def start(self) -> None:
+        """Start mock NFC hardware (legacy compatibility method)."""
+        await self.start_detection()
+        logger.info("✅ Mock NFC hardware started (legacy compatibility)")
 
     async def stop_detection(self) -> None:
         """Stop mock detection."""
         self._detecting = False
-        logger.log(LogLevel.INFO, "✅ Mock NFC detection stopped")
+        logger.info("✅ Mock NFC detection stopped")
+
+    async def stop(self) -> None:
+        """Stop mock NFC hardware (legacy compatibility method)."""
+        await self.stop_detection()
+        logger.info("✅ Mock NFC hardware stopped (legacy compatibility)")
 
     def is_detecting(self) -> bool:
         """Check if mock is detecting."""
@@ -184,10 +193,10 @@ class MockNfcHardwareAdapter(NfcHardwareProtocol):
         if self._tag_detected_callback:
             tag_identifier = TagIdentifier(uid=tag_uid)
             self._tag_detected_callback(tag_identifier)
-            logger.log(LogLevel.INFO, f"🧪 Simulated tag detection: {tag_identifier}")
+            logger.info(f"🧪 Simulated tag detection: {tag_identifier}")
 
     def simulate_tag_removal(self) -> None:
         """Simulate tag removal for testing."""
         if self._tag_removed_callback:
             self._tag_removed_callback()
-            logger.log(LogLevel.INFO, "🧪 Simulated tag removal")
+            logger.info("🧪 Simulated tag removal")

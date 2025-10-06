@@ -10,14 +10,15 @@ Follows proper dependency injection and pure DDD principles.
 """
 
 from typing import Any, Dict, List, Optional
-
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
-from app.src.services.error.unified_error_decorator import handle_repository_errors
+import logging
 from app.src.domain.data.models.playlist import Playlist
 from app.src.domain.data.models.track import Track
+from app.src.services.error.unified_error_decorator import handle_repository_errors
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
+
+def _handle_repository_errors(component_name: str):
+    return handle_repository_errors(component_name)
 
 
 class PurePlaylistRepositoryAdapter:
@@ -30,22 +31,22 @@ class PurePlaylistRepositoryAdapter:
     def __init__(self):
         """Initialize pure DDD repository adapter.
 
-        Uses dependency injection to get repository from dependencies.
-        No direct instantiation of infrastructure components.
+        Uses direct container access to avoid circular dependencies.
         """
         self._repository = None  # Will be injected via property
-        logger.log(LogLevel.INFO, "✅ Pure DDD Playlist Repository Adapter initialized")
+        logger.info("✅ Pure DDD Playlist Repository Adapter initialized")
 
     @property
     def _repo(self):
-        """Lazy-loaded repository instance from dependencies."""
+        """Lazy-loaded repository instance from container."""
         if self._repository is None:
-            from app.src.dependencies import get_playlist_repository
-            self._repository = get_playlist_repository()
-            logger.log(LogLevel.INFO, "✅ Repository lazily loaded via dependency injection")
+            # Direct container access to avoid circular dependency
+            from app.src.infrastructure.repositories.pure_sqlite_playlist_repository import PureSQLitePlaylistRepository
+            self._repository = PureSQLitePlaylistRepository()
+            logger.info("✅ Repository directly instantiated to avoid circular dependency")
         return self._repository
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def create_playlist(self, playlist_data: Dict[str, Any]) -> str:
         """Create playlist using pure DDD principles."""
         # Create tracks first from data
@@ -74,10 +75,10 @@ class PurePlaylistRepositoryAdapter:
 
         # Save using pure DDD repository
         saved_playlist = await self._repo.save(playlist)
-        logger.log(LogLevel.INFO, f"✅ Created playlist: {playlist.name}")
+        logger.info(f"✅ Created playlist: {playlist.name}")
         return saved_playlist.id
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def get_playlist_by_id(self, playlist_id: str) -> Optional[Dict[str, Any]]:
         """Get playlist by ID using pure DDD principles."""
         playlist = await self._repo.find_by_id(playlist_id)
@@ -85,7 +86,7 @@ class PurePlaylistRepositoryAdapter:
             return self._domain_to_dict(playlist)
         return None
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def get_playlist_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
         """Get playlist by NFC tag using pure DDD principles."""
         playlist = await self._repo.find_by_nfc_tag(nfc_tag_id)
@@ -93,39 +94,39 @@ class PurePlaylistRepositoryAdapter:
             return self._domain_to_dict(playlist)
         return None
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def find_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Dict[str, Any]]:
         """Find playlist by NFC tag ID using pure DDD principles."""
         return await self.get_playlist_by_nfc_tag(nfc_tag_id)
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def update_nfc_tag_association(self, playlist_id: str, nfc_tag_id: str) -> bool:
         """Update NFC tag association using pure DDD principles."""
         return await self._repo.update_nfc_tag_association(playlist_id, nfc_tag_id)
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def remove_nfc_tag_association(self, nfc_tag_id: str) -> bool:
         """Remove NFC tag association using pure DDD principles."""
         return await self._repo.remove_nfc_tag_association(nfc_tag_id)
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def find_all(self, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         """Get all playlists using pure DDD principles."""
         playlists = await self._repo.find_all(limit=limit, offset=offset)
         return [self._domain_to_dict(p) for p in playlists]
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def count(self) -> int:
         """Count playlists using pure DDD principles."""
         return await self._repo.count()
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def add_track(self, playlist_id: str, track_data: Dict[str, Any]) -> bool:
         """Add track to playlist using pure DDD principles."""
         # Get playlist
         playlist = await self._repo.find_by_id(playlist_id)
         if playlist is None:
-            logger.log(LogLevel.ERROR, f"❌ Playlist {playlist_id} not found")
+            logger.error(f"❌ Playlist {playlist_id} not found")
             return False
 
         # Create track from dict
@@ -146,67 +147,66 @@ class PurePlaylistRepositoryAdapter:
         # Save updated playlist
         await self._repo.update(playlist)
 
-        logger.log(LogLevel.INFO, f"✅ Added track '{track.title}' to playlist '{playlist.name}'")
+        logger.info(f"✅ Added track '{track.title}' to playlist '{playlist.name}'")
         return True
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def delete_playlist(self, playlist_id: str) -> bool:
         """Delete playlist using pure DDD principles."""
-        logger.log(LogLevel.INFO, f"🗑️ Starting deletion of playlist: {playlist_id}")
+        logger.info(f"🗑️ Starting deletion of playlist: {playlist_id}")
 
         # First get playlist info before deletion for filesystem cleanup
         playlist = await self._repo.find_by_id(playlist_id)
-        logger.log(LogLevel.INFO, f"🗑️ Playlist found for deletion: {playlist is not None}")
+        logger.info(f"🗑️ Playlist found for deletion: {playlist is not None}")
 
         if playlist is not None:
             try:
                 # playlist is a domain entity, not a dict
                 playlist_title = playlist.name
                 playlist_path = playlist.path
-                logger.log(LogLevel.INFO, f"🗑️ Playlist to delete: '{playlist_title}', path: '{playlist_path}'")
+                logger.info(f"🗑️ Playlist to delete: '{playlist_title}', path: '{playlist_path}'")
             except Exception as e:
-                logger.log(LogLevel.ERROR, f"🗑️ Error accessing playlist properties: {e}")
+                logger.error(f"🗑️ Error accessing playlist properties: {e}")
                 import traceback
-                logger.log(LogLevel.ERROR, f"🗑️ Traceback: {traceback.format_exc()}")
+                logger.error(f"🗑️ Traceback: {traceback.format_exc()}")
                 # Continue anyway, but log the issue
                 playlist_title = "UNKNOWN"
                 playlist_path = "UNKNOWN"
 
         # Delete from database
         success = await self._repo.delete(playlist_id)
-        logger.log(LogLevel.INFO, f"🗑️ Database deletion result: {success}")
+        logger.info(f"🗑️ Database deletion result: {success}")
 
         if success and playlist is not None:
             # Also clean up associated filesystem folder using playlist info
-            logger.log(LogLevel.INFO, f"🗑️ Starting filesystem cleanup...")
+            logger.info(f"🗑️ Starting filesystem cleanup...")
             await self._cleanup_playlist_folder_by_data(playlist)
-            logger.log(LogLevel.INFO, f"✅ Deleted playlist and cleaned up folder: {playlist_id}")
+            logger.info(f"✅ Deleted playlist and cleaned up folder: {playlist_id}")
         elif success:
-            logger.log(LogLevel.INFO, f"✅ Deleted playlist: {playlist_id}")
+            logger.info(f"✅ Deleted playlist: {playlist_id}")
         else:
-            logger.log(LogLevel.ERROR, f"❌ Failed to delete playlist: {playlist_id}")
+            logger.error(f"❌ Failed to delete playlist: {playlist_id}")
 
         return success
 
     async def _cleanup_playlist_folder_by_data(self, playlist) -> None:
         """Clean up the filesystem folder associated with a playlist using playlist data."""
         try:
-            from app.src.dependencies import get_config
+            from app.src.config import config as app_config
             from pathlib import Path
             from app.src.utils.path_utils import normalize_folder_name
             import shutil
 
-            logger.log(LogLevel.INFO, f"🧹 Starting folder cleanup for playlist")
+            logger.info(f"🧹 Starting folder cleanup for playlist")
 
-            config = get_config()
-            upload_folder = Path(config.upload_folder)
+            upload_folder = Path(app_config.upload_folder)
 
             # Get playlist title and path - playlist is a domain entity
             playlist_title = playlist.name
             playlist_path = playlist.path
             playlist_id = playlist.id
 
-            logger.log(LogLevel.INFO, f"🧹 Playlist data: title='{playlist_title}', path='{playlist_path}', id='{playlist_id}'")
+            logger.info(f"🧹 Playlist data: title='{playlist_title}', path='{playlist_path}', id='{playlist_id}'")
 
             # List of possible folder names to check
             possible_folders = []
@@ -215,51 +215,51 @@ class PurePlaylistRepositoryAdapter:
             if playlist_path:
                 folder_path = upload_folder / playlist_path
                 possible_folders.append(folder_path)
-                logger.log(LogLevel.DEBUG, f"🧹 Added path from DB: {folder_path}")
+                logger.debug(f"🧹 Added path from DB: {folder_path}")
 
             # 2. Try normalized path based on title (in case path is missing)
             if playlist_title:
                 normalized_path = normalize_folder_name(playlist_title)
                 folder_path = upload_folder / normalized_path
                 possible_folders.append(folder_path)
-                logger.log(LogLevel.DEBUG, f"🧹 Added normalized path: {folder_path}")
+                logger.debug(f"🧹 Added normalized path: {folder_path}")
 
                 # 3. Try original title as folder name (old format)
                 folder_path = upload_folder / playlist_title
                 possible_folders.append(folder_path)
-                logger.log(LogLevel.DEBUG, f"🧹 Added original title path: {folder_path}")
+                logger.debug(f"🧹 Added original title path: {folder_path}")
 
             # 4. Fallback: try playlist ID as folder name
             if playlist_id:
                 folder_path = upload_folder / playlist_id
                 possible_folders.append(folder_path)
-                logger.log(LogLevel.DEBUG, f"🧹 Added ID path: {folder_path}")
+                logger.debug(f"🧹 Added ID path: {folder_path}")
 
-            logger.log(LogLevel.DEBUG, f"🧹 Total possible folders to check: {len(possible_folders)}")
+            logger.debug(f"🧹 Total possible folders to check: {len(possible_folders)}")
 
             # Try to remove any of the possible folders
             removed_folders = []
             for i, folder_path in enumerate(possible_folders):
-                logger.log(LogLevel.DEBUG, f"🧹 Checking folder {i+1}/{len(possible_folders)}: {folder_path}")
-                logger.log(LogLevel.DEBUG, f"🧹 Folder exists: {folder_path.exists()}, is_dir: {folder_path.is_dir() if folder_path.exists() else 'N/A'}")
+                logger.debug(f"🧹 Checking folder {i+1}/{len(possible_folders)}: {folder_path}")
+                logger.debug(f"🧹 Folder exists: {folder_path.exists()}, is_dir: {folder_path.is_dir() if folder_path.exists() else 'N/A'}")
 
                 if folder_path.exists() and folder_path.is_dir():
-                    logger.log(LogLevel.INFO, f"🧹 Removing folder: {folder_path}")
+                    logger.info(f"🧹 Removing folder: {folder_path}")
                     shutil.rmtree(folder_path)
                     removed_folders.append(str(folder_path))
-                    logger.log(LogLevel.INFO, f"🗂️ Removed playlist folder: {folder_path}")
+                    logger.info(f"🗂️ Removed playlist folder: {folder_path}")
 
             if not removed_folders:
-                logger.log(LogLevel.WARNING, f"📁 No folder found to clean up for playlist: {playlist_title}")
+                logger.warning(f"📁 No folder found to clean up for playlist: {playlist_title}")
             elif len(removed_folders) > 1:
-                logger.log(LogLevel.INFO, f"🗂️ Removed multiple folders: {removed_folders}")
+                logger.info(f"🗂️ Removed multiple folders: {removed_folders}")
             else:
-                logger.log(LogLevel.INFO, f"🗂️ Removed folder: {removed_folders[0]}")
+                logger.info(f"🗂️ Removed folder: {removed_folders[0]}")
 
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"⚠️ Failed to clean up folder for playlist {playlist_title}: {e}")
+            logger.error(f"⚠️ Failed to clean up folder for playlist {playlist_title}: {e}")
             import traceback
-            logger.log(LogLevel.ERROR, f"⚠️ Traceback: {traceback.format_exc()}")
+            logger.error(f"⚠️ Traceback: {traceback.format_exc()}")
             # Don't fail the delete operation if folder cleanup fails
 
     async def _cleanup_playlist_folder(self, playlist_id: str) -> None:
@@ -270,9 +270,9 @@ class PurePlaylistRepositoryAdapter:
         if playlist:
             await self._cleanup_playlist_folder_by_data(playlist)
         else:
-            logger.log(LogLevel.WARNING, f"⚠️ Could not find playlist data for cleanup: {playlist_id}")
+            logger.warning(f"⚠️ Could not find playlist data for cleanup: {playlist_id}")
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def associate_nfc_tag(self, playlist_id: str, nfc_tag_id: str) -> bool:
         """Associate NFC tag with playlist using pure DDD principles."""
         playlist = await self._repo.find_by_id(playlist_id)
@@ -283,7 +283,7 @@ class PurePlaylistRepositoryAdapter:
         await self._repo.update(playlist)
         return True
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def disassociate_nfc_tag(self, playlist_id: str) -> bool:
         """Disassociate NFC tag from playlist using pure DDD principles."""
         playlist = await self._repo.find_by_id(playlist_id)
@@ -294,19 +294,19 @@ class PurePlaylistRepositoryAdapter:
         await self._repo.update(playlist)
         return True
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def get_all_playlists(self, limit: int = None, offset: int = 0) -> List[Dict[str, Any]]:
         """Get all playlists using pure DDD principles."""
         playlists = await self._repo.find_all(limit=limit, offset=offset)
         return [self._domain_to_dict(p) for p in playlists]
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def update_playlist(self, playlist_id: str, updates: Dict[str, Any]) -> bool:
         """Update playlist using pure DDD principles."""
         # Get existing playlist
         playlist = await self._repo.find_by_id(playlist_id)
         if playlist is None:
-            logger.log(LogLevel.ERROR, f"❌ Playlist {playlist_id} not found")
+            logger.error(f"❌ Playlist {playlist_id} not found")
             return False
 
         # Apply updates to domain entity
@@ -321,16 +321,16 @@ class PurePlaylistRepositoryAdapter:
 
         # Save updated playlist
         await self._repo.update(playlist)
-        logger.log(LogLevel.INFO, f"✅ Updated playlist '{playlist.name}' ({playlist_id})")
+        logger.info(f"✅ Updated playlist '{playlist.name}' ({playlist_id})")
         return True
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def replace_tracks(self, playlist_id: str, tracks_data: List[Dict[str, Any]]) -> bool:
         """Replace all tracks in a playlist using pure DDD principles."""
         # Get existing playlist
         playlist = await self._repo.find_by_id(playlist_id)
         if playlist is None:
-            logger.log(LogLevel.ERROR, f"❌ Playlist {playlist_id} not found")
+            logger.error(f"❌ Playlist {playlist_id} not found")
             return False
 
         # Clear existing tracks and add new ones
@@ -351,10 +351,10 @@ class PurePlaylistRepositoryAdapter:
 
         # Save updated playlist
         await self._repo.update(playlist)
-        logger.log(LogLevel.INFO, f"✅ Replaced tracks for playlist '{playlist.name}' with {len(tracks_data)} tracks")
+        logger.info(f"✅ Replaced tracks for playlist '{playlist.name}' with {len(tracks_data)} tracks")
         return True
 
-    @handle_repository_errors("playlist_adapter")
+    @_handle_repository_errors("playlist_adapter")
     async def update_track_numbers(self, playlist_id: str, track_number_mapping: Dict[int, int]) -> bool:
         """Update track numbers for reordering using pure DDD principles.
 
@@ -369,13 +369,11 @@ class PurePlaylistRepositoryAdapter:
         success = await self._repo.update_track_numbers(playlist_id, track_number_mapping)
 
         if success:
-            logger.log(
-                LogLevel.INFO,
+            logger.info(
                 f"✅ Updated track numbers for playlist {playlist_id}: {len(track_number_mapping)} tracks"
             )
         else:
-            logger.log(
-                LogLevel.ERROR,
+            logger.error(
                 f"❌ Failed to update track numbers for playlist {playlist_id}"
             )
 
