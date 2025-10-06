@@ -89,6 +89,18 @@ try:
 except ImportError:
     pass  # If dotenv is not installed, skip loading .env
 
+# Ensure data domain services are registered for tests
+@pytest.fixture(scope="session", autouse=True)
+def ensure_data_domain_services():
+    """Ensure data domain services are registered before tests run."""
+    from app.src.infrastructure.di.data_container import register_data_domain_services
+    try:
+        register_data_domain_services()
+    except Exception:
+        # May already be registered, ignore
+        pass
+    yield
+
 # Filter out specific deprecation warnings from rx library
 warnings.filterwarnings(
     "ignore",

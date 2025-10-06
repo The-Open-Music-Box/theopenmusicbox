@@ -126,10 +126,11 @@ class TestCircularDependencies:
 
         # Detailed analysis of dependency graph structure
         total_modules = len(self.dependency_graph)
-        total_dependencies = sum(len(deps) for deps in self.dependency_graph.values())
+        total_dependencies = sum(len(list(self.dependency_graph.successors(node))) for node in self.dependency_graph.nodes())
 
         layer_stats = {}
-        for module, dependencies in self.dependency_graph.items():
+        for module in self.dependency_graph.nodes():
+            dependencies = list(self.dependency_graph.successors(module))
             layer = get_layer_from_module(module)
             if layer not in layer_stats:
                 layer_stats[layer] = {'modules': 0, 'dependencies': 0}
@@ -162,7 +163,8 @@ class TestCircularDependencies:
         """Verify no module depends on itself."""
         self_dependencies = []
 
-        for module, dependencies in self.dependency_graph.items():
+        for module in self.dependency_graph.nodes():
+            dependencies = list(self.dependency_graph.successors(module))
             if module in dependencies:
                 self_dependencies.append(module)
 
@@ -182,7 +184,8 @@ class TestCircularDependencies:
         """Verify minimal coupling between architectural layers."""
         layer_coupling = {}
 
-        for module, dependencies in self.dependency_graph.items():
+        for module in self.dependency_graph.nodes():
+            dependencies = list(self.dependency_graph.successors(module))
             module_layer = get_layer_from_module(module)
 
             for dependency in dependencies:
@@ -229,7 +232,8 @@ class TestCircularDependencies:
             visited.add(module)
             max_depth = depth
 
-            for dependency in self.dependency_graph.get(module, []):
+            dependencies = list(self.dependency_graph.successors(module)) if module in self.dependency_graph else []
+            for dependency in dependencies:
                 dep_depth = get_max_depth(dependency, visited.copy(), depth + 1)
                 max_depth = max(max_depth, dep_depth)
 
@@ -237,7 +241,7 @@ class TestCircularDependencies:
 
         # Analyze dependency depths
         depth_analysis = {}
-        for module in self.dependency_graph.keys():
+        for module in self.dependency_graph.nodes():
             depth = get_max_depth(module)
             layer = get_layer_from_module(module)
 
@@ -255,7 +259,7 @@ class TestCircularDependencies:
 
         # Check for excessive dependency chains
         excessive_depth_modules = []
-        for module in self.dependency_graph.keys():
+        for module in self.dependency_graph.nodes():
             depth = get_max_depth(module)
             if depth > 10:  # Threshold for excessive depth
                 excessive_depth_modules.append(f"{module}: depth {depth}")

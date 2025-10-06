@@ -189,7 +189,7 @@ class TestNFCRoutesSocketIOIntegration:
         mock_broadcasting_service.broadcast_nfc_association.assert_called_once()
 
         call_kwargs = mock_broadcasting_service.broadcast_nfc_association.call_args.kwargs
-        assert call_kwargs["association_state"] == "completed", "Should broadcast 'completed' state"
+        assert call_kwargs["association_state"] == "success", "Should broadcast 'success' state"
         assert call_kwargs["playlist_id"] == "integration-test-playlist", "Should broadcast playlist ID"
 
         print("✅ INTEGRATION TEST: NFC association triggers Socket.IO broadcast")
@@ -249,12 +249,12 @@ class TestNFCRoutesSocketIOIntegration:
 
         # First event: success
         success_call = broadcast_calls[0]
-        assert success_call["state"] == "completed", "First broadcast should be completed"
+        assert success_call["state"] == "success", "First broadcast should be success"
         assert success_call["playlist_id"] == "workflow-playlist", "Should broadcast correct playlist"
 
-        # Second event: error (duplicate)
+        # Second event: duplicate
         error_call = broadcast_calls[1]
-        assert error_call["state"] == "error", "Second broadcast should be error"
+        assert error_call["state"] == "duplicate", "Second broadcast should be duplicate"
         assert error_call["playlist_id"] == "other-playlist", "Should broadcast attempted playlist"
 
         print("✅ INTEGRATION TEST: Multiple NFC events broadcast correctly")
@@ -348,7 +348,7 @@ class TestNFCRoutesSocketIOIntegration:
             assert field in payload, f"Payload missing required field: {field}"
 
         # Verify field values
-        assert payload["association_state"] == "completed", "State should be mapped correctly"
+        assert payload["association_state"] == "success", "State should be mapped correctly"
         assert payload["playlist_id"] == "payload-test-playlist", "Playlist ID should be preserved"
         assert payload["tag_id"] == "PAYLOAD01", "Tag ID should be preserved"
         assert payload["session_id"] == "payload-test-session", "Session ID should be preserved"

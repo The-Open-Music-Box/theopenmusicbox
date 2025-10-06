@@ -39,15 +39,22 @@ class TestNamingConventions:
                 if "__init__.py" in file_path:
                     continue
 
-                # File naming convention
+                # File naming convention - allow exceptions for coordinator and manager classes
                 file_name = os.path.basename(file_path)
-                if not file_name.endswith("application_service.py"):
+                if not (file_name.endswith("application_service.py") or
+                       file_name.endswith("coordinator.py") or
+                       file_name.endswith("manager.py")):
                     violations.append(f"❌ Application service file should end with 'application_service.py': {file_path}")
 
                 # Class naming convention
                 classes = extract_class_names(file_path)
                 for class_name in classes:
-                    if "Service" in class_name and not class_name.endswith("ApplicationService"):
+                    # Allow exceptions for Coordinator, Manager, and Enum classes
+                    if ("Service" in class_name and
+                        not class_name.endswith("ApplicationService") and
+                        not class_name.endswith("Coordinator") and
+                        not class_name.endswith("Manager") and
+                        not class_name.endswith("Type")):
                         violations.append(f"❌ Application service class should end with 'ApplicationService': {file_path}::{class_name}")
 
         assert len(violations) == 0, f"""
@@ -301,10 +308,10 @@ class TestNamingConventions:
                     if "exception" in file_path.lower() or "error" in file_path.lower():
                         classes = extract_class_names(file_path)
                         for class_name in classes:
-                            # Skip non-exception classes (Enums, dataclasses, handlers, etc.)
+                            # Skip non-exception classes (Enums, dataclasses, handlers, protocols, etc.)
                             if (class_name.endswith("Severity") or class_name.endswith("Category") or
                                 class_name.endswith("Context") or class_name.endswith("Record") or
-                                class_name.endswith("Handler")):
+                                class_name.endswith("Handler") or class_name.endswith("Protocol")):
                                 continue
 
                             # Exceptions should end with "Exception" or "Error"

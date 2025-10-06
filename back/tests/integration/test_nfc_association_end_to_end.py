@@ -38,6 +38,16 @@ class MockNfcRepository:
 class MockPlaylistRepository:
     """Mock playlist repository for testing."""
 
+    def __init__(self):
+        self.playlists = {}
+
+    async def find_by_nfc_tag(self, nfc_tag_id: str):
+        """Find playlist by NFC tag ID."""
+        for playlist in self.playlists.values():
+            if hasattr(playlist, 'nfc_tag_id') and playlist.nfc_tag_id == nfc_tag_id:
+                return playlist
+        return None
+
     async def update_nfc_tag_association(self, playlist_id: str, tag_id: str):
         return True
 
@@ -291,7 +301,7 @@ class TestNfcAssociationSocketIOIntegration:
         mock_broadcasting_service.broadcast_nfc_association.assert_called_once()
 
         call_args = mock_broadcasting_service.broadcast_nfc_association.call_args
-        assert call_args.kwargs["association_state"] == "completed", "Should map 'association_success' to 'completed'"
+        assert call_args.kwargs["association_state"] == "success", "Should map 'association_success' to 'success'"
         assert call_args.kwargs["playlist_id"] == "test-playlist-456", "Should pass playlist ID"
         assert call_args.kwargs["tag_id"] == "ABCDEF12", "Should pass tag ID"
         assert call_args.kwargs["session_id"] == "test-session-123", "Should pass session ID"
@@ -314,8 +324,8 @@ class TestNfcAssociationSocketIOIntegration:
         # Test cases for state mapping
         test_cases = [
             # (domain_action, session_state, expected_frontend_state)
-            ("association_success", "success", "completed"),
-            ("duplicate_association", "duplicate", "error"),
+            ("association_success", "success", "success"),
+            ("duplicate_association", "duplicate", "duplicate"),
             ("unknown_action", "TIMEOUT", "timeout"),
             ("unknown_action", "LISTENING", "waiting"),
             ("unknown_action", "unknown", "error"),
@@ -438,7 +448,7 @@ class TestNfcServiceContracts:
         assert len(broadcast_calls) > 0, "❌ CONTRACT VIOLATION: Application MUST broadcast Socket.IO events for association callbacks"
 
         broadcast_call = broadcast_calls[0]
-        assert broadcast_call["association_state"] == "completed", "Should broadcast 'completed' state"
+        assert broadcast_call["association_state"] == "success", "Should broadcast 'success' state"
         assert broadcast_call["playlist_id"] == "contract-playlist", "Should broadcast playlist ID"
 
         print("✅ CONTRACT TEST PASSED: Application Socket.IO broadcasting contract verified")

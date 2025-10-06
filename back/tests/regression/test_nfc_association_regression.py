@@ -172,7 +172,7 @@ class TestNfcAssociationRegressionPrevention:
         # ❌ THESE ASSERTIONS WOULD HAVE FAILED BEFORE THE FIX
         assert broadcast_called, "🐛 REGRESSION: Socket.IO broadcast not called! Original bug has returned!"
         assert broadcast_params is not None, "🐛 REGRESSION: Broadcast called but no parameters!"
-        assert broadcast_params["association_state"] == "completed", "🐛 REGRESSION: Wrong state mapping!"
+        assert broadcast_params["association_state"] == "success", "🐛 REGRESSION: Wrong state mapping!"
         assert broadcast_params["playlist_id"] == "regression-playlist", "🐛 REGRESSION: Wrong playlist ID!"
 
         print("✅ REGRESSION TEST PASSED: Socket.IO broadcasts are triggered correctly")
@@ -243,7 +243,7 @@ class TestNfcAssociationRegressionPrevention:
         assert len(socketio_events) > 0, "🐛 REGRESSION: Socket.IO chain broken! (Step 2/3 failed)"
 
         socketio_event = socketio_events[0]
-        assert socketio_event["state"] == "completed", "🐛 REGRESSION: Wrong Socket.IO state!"
+        assert socketio_event["state"] == "success", "🐛 REGRESSION: Wrong Socket.IO state!"
         assert socketio_event["playlist_id"] == "e2e-regression-playlist", "🐛 REGRESSION: Wrong playlist in Socket.IO!"
 
         print("✅ REGRESSION TEST PASSED: Complete end-to-end workflow integration working")
@@ -305,7 +305,7 @@ class TestNfcAssociationRegressionPrevention:
         assert len(socketio_broadcasts) > 0, "🐛 REGRESSION: Duplicate error not broadcasted!"
 
         error_broadcast = socketio_broadcasts[0]
-        assert error_broadcast["state"] == "error", "🐛 REGRESSION: Should broadcast error state for duplicate!"
+        assert error_broadcast["state"] == "duplicate", "🐛 REGRESSION: Should broadcast duplicate state for duplicate association!"
 
         print("✅ REGRESSION TEST PASSED: Duplicate association error workflow working")
 
@@ -356,10 +356,11 @@ class TestNfcAssociationRegressionPrevention:
 
         # Test all expected state mappings
         test_cases = [
-            ("association_success", "success", "completed"),
-            ("duplicate_association", "duplicate", "error"),
+            ("association_success", "success", "success"),
+            ("duplicate_association", "duplicate", "duplicate"),
             ("timeout_action", "TIMEOUT", "timeout"),
             ("unknown_action", "LISTENING", "waiting"),
+            ("unknown_action", "CANCELLED", "cancelled"),
             ("unknown_action", "unknown_state", "error"),
         ]
 

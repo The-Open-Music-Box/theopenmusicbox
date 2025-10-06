@@ -64,6 +64,14 @@ class MockPlaylistRepository:
         """Initialize mock repository."""
         self._playlists = {}
 
+    async def find_by_nfc_tag(self, nfc_tag_id: str):
+        """Find playlist by NFC tag ID."""
+        # Return playlist if found, None otherwise
+        for playlist in self._playlists.values():
+            if hasattr(playlist, 'nfc_tag_id') and playlist.nfc_tag_id == nfc_tag_id:
+                return playlist
+        return None
+
     async def update_nfc_tag_association(self, playlist_id: str, tag_id: str) -> bool:
         """Update NFC tag association."""
         # Simulate successful update
@@ -286,9 +294,9 @@ class TestNfcDomainIntegration:
         result = await association_service.stop_association_session(session2.session_id)
         assert result is True
 
-        # Verify session was stopped
+        # Verify session was cancelled (updated behavior)
         updated_session2 = await association_service.get_association_session(session2.session_id)
-        assert updated_session2.state == SessionState.STOPPED
+        assert updated_session2.state == SessionState.CANCELLED
 
     @pytest.mark.asyncio
     async def test_event_publisher_integration(self, event_publisher):

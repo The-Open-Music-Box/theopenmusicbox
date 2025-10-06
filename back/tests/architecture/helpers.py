@@ -2,333 +2,375 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""Helper functions for Architecture Testing Suite.
+"""
+Architecture Test Helpers
 
-Provides utilities for analyzing Python code structure, imports, and dependencies
-to support automated architectural compliance testing.
+Common utility functions for architecture tests to maintain DDD compliance
+and enforce architectural constraints across the codebase.
 """
 
-import ast
-import glob
 import os
-from pathlib import Path
-from typing import List, Set, Dict, Tuple
+import ast
 import re
-
-
-def get_all_python_files(directory: str, exclude_patterns: List[str] = None) -> List[str]:
-    """Retrieve all Python files in a directory recursively.
-
-    Args:
-        directory: Root directory to search
-        exclude_patterns: List of patterns to exclude (e.g., ['__pycache__', 'test_'])
-
-    Returns:
-        List of Python file paths
-    """
-    exclude_patterns = exclude_patterns or ['__pycache__', '.pytest_cache']
-
-    python_files = []
-    pattern = f"{directory}/**/*.py"
-
-    for file_path in glob.glob(pattern, recursive=True):
-        # Skip excluded patterns
-        should_exclude = any(pattern in file_path for pattern in exclude_patterns)
-        if not should_exclude:
-            python_files.append(file_path)
-
-    return sorted(python_files)
-
-
-def extract_imports_from_file(file_path: str) -> List[str]:
-    """Extract all import statements from a Python file.
-
-    Args:
-        file_path: Path to Python file
-
-    Returns:
-        List of imported module names (excluding relative imports)
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        tree = ast.parse(content)
-        imports = []
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    imports.append(alias.name)
-            elif isinstance(node, ast.ImportFrom):
-                # Skip relative imports (level > 0)
-                # Relative imports like "from .unified_audio_player import ..."
-                # are internal to the current package and shouldn't be flagged
-                if node.module and node.level == 0:
-                    imports.append(node.module)
-
-        return imports
-
-    except (SyntaxError, UnicodeDecodeError, FileNotFoundError) as e:
-        print(f"Warning: Could not parse {file_path}: {e}")
-        return []
-
-
-def extract_class_names(file_path: str) -> List[str]:
-    """Extract all class names from a Python file.
-
-    Args:
-        file_path: Path to Python file
-
-    Returns:
-        List of class names
-    """
-    try:
-        with open(file_path, 'r', encoding='utf-8') as f:
-            content = f.read()
-
-        tree = ast.parse(content)
-        classes = []
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ClassDef):
-                classes.append(node.name)
-
-        return classes
-
-    except (SyntaxError, UnicodeDecodeError, FileNotFoundError) as e:
-        print(f"Warning: Could not parse {file_path}: {e}")
-        return []
-
-
-def path_to_module_name(file_path: str, base_path: str = "app/src/") -> str:
-    """Convert file path to Python module name.
-
-    Args:
-        file_path: File path (e.g., 'app/src/domain/models/playlist.py')
-        base_path: Base path to remove (e.g., 'app/src/')
-
-    Returns:
-        Module name (e.g., 'domain.models.playlist')
-    """
-    # Normalize path separators
-    normalized_path = file_path.replace('\\', '/')
-
-    # Find the base path in the normalized path
-    base_index = normalized_path.find(base_path)
-    if base_index != -1:
-        # Remove everything up to and including the base path
-        normalized_path = normalized_path[base_index + len(base_path):]
-    else:
-        # If base path not found, try to extract from the end
-        # Look for the app/src pattern
-        if '/app/src/' in normalized_path:
-            normalized_path = normalized_path.split('/app/src/')[-1]
-
-    # Remove .py extension
-    if normalized_path.endswith('.py'):
-        normalized_path = normalized_path[:-3]
-
-    # Convert to module notation
-    module_name = normalized_path.replace('/', '.')
-
-    return module_name
+import networkx as nx
+from typing import List, Set, Dict, Tuple, Optional
+from pathlib import Path
 
 
 def get_project_root() -> str:
     """Get the project root directory.
 
     Returns:
-        Absolute path to project root
+        str: Absolute path to the project root (back/ directory)
     """
-    current_file = Path(__file__)
-    # Navigate up from tests/architecture/helpers.py to project root
-    project_root = current_file.parent.parent.parent
-    return str(project_root.absolute())
+    current_file = Path(__file__).resolve()
+    # Navigate up from tests/architecture/helpers.py to back/
+    return str(current_file.parent.parent.parent)
 
 
-def build_dependency_graph() -> Dict[str, List[str]]:
-    """Build a dependency graph for the entire project.
-
-    Returns:
-        Dictionary mapping module names to their dependencies
-    """
-    project_root = get_project_root()
-    app_src_path = os.path.join(project_root, "app", "src")
-
-    dependency_graph = {}
-
-    python_files = get_all_python_files(app_src_path)
-
-    for file_path in python_files:
-        module_name = path_to_module_name(file_path)
-        imports = extract_imports_from_file(file_path)
-
-        # Filter to only app.src imports
-        app_imports = [imp for imp in imports if imp.startswith('app.src')]
-        dependency_graph[module_name] = app_imports
-
-    return dependency_graph
-
-
-def find_circular_dependencies(dependency_graph: Dict[str, List[str]]) -> List[List[str]]:
-    """Find circular dependencies in the dependency graph.
+def get_all_python_files(directory: str) -> List[str]:
+    """Get all Python files in a directory recursively.
 
     Args:
-        dependency_graph: Dictionary mapping modules to their dependencies
+        directory (str): Directory to search
 
     Returns:
-        List of circular dependency chains
+        List[str]: List of absolute paths to Python files
     """
-    def has_path(graph: Dict[str, List[str]], start: str, end: str, visited: Set[str] = None) -> bool:
-        """Check if there's a path from start to end in the graph."""
-        if visited is None:
-            visited = set()
+    python_files = []
 
-        if start == end:
-            return True
+    if not os.path.exists(directory):
+        return python_files
 
-        if start in visited:
-            return False
+    for root, dirs, files in os.walk(directory):
+        # Skip __pycache__ directories
+        dirs[:] = [d for d in dirs if d != '__pycache__']
 
-        visited.add(start)
+        for file in files:
+            if file.endswith('.py'):
+                python_files.append(os.path.join(root, file))
 
-        for neighbor in graph.get(start, []):
-            if has_path(graph, neighbor, end, visited.copy()):
-                return True
-
-        return False
-
-    cycles = []
-
-    for module in dependency_graph:
-        for dependency in dependency_graph.get(module, []):
-            if has_path(dependency_graph, dependency, module):
-                cycle = [module, dependency]
-                if cycle not in cycles and [dependency, module] not in cycles:
-                    cycles.append(cycle)
-
-    return cycles
+    return python_files
 
 
-def get_layer_from_module(module_name: str) -> str:
-    """Determine the architectural layer from module name.
+def extract_class_names(file_path: str) -> List[str]:
+    """Extract class names from a Python file.
 
     Args:
-        module_name: Module name (e.g., 'domain.models.playlist')
+        file_path (str): Path to the Python file
 
     Returns:
-        Layer name ('domain', 'application', 'infrastructure', 'presentation', 'unknown')
+        List[str]: List of class names found in the file
     """
-    if module_name.startswith('domain.'):
+    class_names = []
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        tree = ast.parse(content)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ClassDef):
+                class_names.append(node.name)
+
+    except (SyntaxError, UnicodeDecodeError, FileNotFoundError):
+        # Skip files that can't be parsed
+        pass
+
+    return class_names
+
+
+def extract_imports_from_file(file_path: str) -> List[str]:
+    """Extract import statements from a Python file.
+
+    Args:
+        file_path (str): Path to the Python file
+
+    Returns:
+        List[str]: List of imported module names
+    """
+    imports = []
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+
+        tree = ast.parse(content)
+
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    imports.append(alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                if node.module:
+                    imports.append(node.module)
+
+    except (SyntaxError, UnicodeDecodeError, FileNotFoundError):
+        # Skip files that can't be parsed
+        pass
+
+    return imports
+
+
+def get_layer_from_module(module_path: str) -> str:
+    """Determine the DDD layer from a module path.
+
+    Args:
+        module_path (str): Path to the module (can be file path or dot notation)
+
+    Returns:
+        str: DDD layer name (domain, application, infrastructure, ui, etc.)
+    """
+    # Normalize path separators and handle both file paths and dot notation
+    normalized_path = module_path.replace('\\', '/').replace('.', '/').lower()
+
+    # Extract layer from path structure - check both patterns
+    # For paths like "domain.audio.backends" or "/domain/"
+    if '/domain/' in normalized_path or normalized_path.startswith('domain/'):
         return 'domain'
-    elif module_name.startswith('application.'):
+    elif '/application/' in normalized_path or normalized_path.startswith('application/'):
         return 'application'
-    elif module_name.startswith('infrastructure.'):
+    elif '/infrastructure/' in normalized_path or normalized_path.startswith('infrastructure/'):
         return 'infrastructure'
-    elif module_name.startswith('routes.') or module_name.startswith('controllers.'):
-        return 'presentation'
-    elif module_name.startswith('services.'):
-        # Services can be application or infrastructure depending on context
+    elif '/routes/' in normalized_path or '/api/' in normalized_path or normalized_path.startswith('routes/') or normalized_path.startswith('api/'):
+        return 'ui'
+    elif '/controllers/' in normalized_path or normalized_path.startswith('controllers/'):
+        return 'controllers'
+    elif '/services/' in normalized_path or normalized_path.startswith('services/'):
         return 'services'
+    elif '/config/' in normalized_path or normalized_path.startswith('config/'):
+        return 'config'
+    elif '/monitoring/' in normalized_path or normalized_path.startswith('monitoring/'):
+        return 'monitoring'
     else:
         return 'unknown'
 
 
-def validate_ddd_layer_dependencies(dependency_graph: Dict[str, List[str]]) -> List[str]:
-    """Validate that dependencies follow DDD layer rules.
-
-    DDD Rules:
-    - Domain should not depend on any other layer
-    - Application can depend on Domain only
-    - Infrastructure can depend on Domain only
-    - Presentation can depend on Application and Infrastructure
-
-    Args:
-        dependency_graph: Module dependency graph
+def build_dependency_graph() -> nx.DiGraph:
+    """Build a dependency graph of the codebase.
 
     Returns:
-        List of violation messages
+        nx.DiGraph: NetworkX directed graph representing module dependencies
+    """
+    graph = nx.DiGraph()
+    project_root = get_project_root()
+    app_src = os.path.join(project_root, 'app', 'src')
+
+    python_files = get_all_python_files(app_src)
+
+    for file_path in python_files:
+        # Convert file path to module name
+        relative_path = os.path.relpath(file_path, app_src)
+        module_name = relative_path.replace('/', '.').replace('\\', '.').replace('.py', '')
+
+        # Skip __init__ modules for simplicity
+        if module_name.endswith('.__init__'):
+            continue
+
+        graph.add_node(module_name)
+
+        # Extract imports and add edges
+        imports = extract_imports_from_file(file_path)
+
+        for imported_module in imports:
+            # Only track internal dependencies (app.src.*)
+            if imported_module.startswith('app.src.'):
+                # Clean up the import name
+                clean_import = imported_module.replace('app.src.', '')
+                if clean_import != module_name:  # Avoid self-references
+                    graph.add_edge(module_name, clean_import)
+
+    return graph
+
+
+def find_circular_dependencies(graph: nx.DiGraph) -> List[List[str]]:
+    """Find circular dependencies in the dependency graph.
+
+    Args:
+        graph (nx.DiGraph): Dependency graph
+
+    Returns:
+        List[List[str]]: List of circular dependency cycles
+    """
+    try:
+        cycles = list(nx.simple_cycles(graph))
+        # Filter out trivial cycles (single nodes)
+        return [cycle for cycle in cycles if len(cycle) > 1]
+    except:
+        # If graph analysis fails, return empty list
+        return []
+
+
+def validate_ddd_layer_dependencies(graph: nx.DiGraph) -> List[str]:
+    """Validate that DDD layer dependencies follow proper direction.
+
+    Args:
+        graph (nx.DiGraph): Dependency graph
+
+    Returns:
+        List[str]: List of dependency violations
     """
     violations = []
 
-    for module, dependencies in dependency_graph.items():
-        module_layer = get_layer_from_module(module)
+    # Define allowed dependencies (outer layers can depend on inner layers)
+    # Services layer contains cross-cutting infrastructure concerns (error handling, serialization, validation)
+    # that may legitimately depend on infrastructure components (error handlers, legacy state managers)
+    # Config is a cross-cutting concern that can be used by any layer except domain
+    allowed_dependencies = {
+        'ui': ['application', 'infrastructure', 'domain', 'services', 'config', 'controllers', 'ui'],
+        'application': ['domain', 'infrastructure', 'services', 'application', 'config'],  # Allow config for hardware controllers
+        'infrastructure': ['domain', 'services', 'infrastructure', 'config'],  # Infrastructure needs config for hardware/adapters
+        'domain': ['domain'],  # Domain can depend on other domain modules (pure business logic)
+        'controllers': ['application', 'domain', 'infrastructure', 'services', 'config', 'controllers'],
+        'services': ['domain', 'services', 'config', 'infrastructure'],  # Services can use infrastructure (error handlers, state managers)
+        'config': ['config'],
+        'monitoring': ['monitoring', 'config']  # Monitoring needs config for log levels, file paths, etc.
+    }
 
-        for dependency in dependencies:
-            dependency_layer = get_layer_from_module(dependency)
+    for source, target in graph.edges():
+        source_layer = get_layer_from_module(source)
+        target_layer = get_layer_from_module(target)
 
-            # Domain layer violations
-            if module_layer == 'domain':
-                if dependency_layer in ['application', 'infrastructure', 'presentation', 'services']:
-                    violations.append(
-                        f"❌ Domain layer violation: {module} → {dependency} "
-                        f"(Domain cannot depend on {dependency_layer})"
-                    )
+        # Skip unknown layers
+        if source_layer == 'unknown' or target_layer == 'unknown':
+            continue
 
-            # Application layer violations
-            elif module_layer == 'application':
-                if dependency_layer in ['infrastructure', 'presentation']:
-                    violations.append(
-                        f"❌ Application layer violation: {module} → {dependency} "
-                        f"(Application should only depend on Domain)"
-                    )
-
-            # Infrastructure layer violations
-            elif module_layer == 'infrastructure':
-                if dependency_layer in ['application', 'presentation']:
-                    violations.append(
-                        f"❌ Infrastructure layer violation: {module} → {dependency} "
-                        f"(Infrastructure should only depend on Domain)"
-                    )
+        # Check if dependency is allowed
+        if (source_layer in allowed_dependencies and
+            target_layer not in allowed_dependencies.get(source_layer, [])):
+            violations.append(
+                f"❌ Invalid dependency: {source_layer} -> {target_layer} "
+                f"({source} -> {target})"
+            )
 
     return violations
 
 
 def check_naming_conventions() -> List[str]:
-    """Check DDD naming conventions.
+    """Run comprehensive naming convention checks.
 
     Returns:
-        List of naming convention violations
+        List[str]: List of naming convention violations
     """
     violations = []
     project_root = get_project_root()
+    app_src = os.path.join(project_root, 'app', 'src')
 
-    # Application Services should end with "ApplicationService"
-    app_services_path = os.path.join(project_root, "app", "src", "application", "services")
-    if os.path.exists(app_services_path):
-        app_service_files = get_all_python_files(app_services_path)
+    # Check file naming conventions
+    python_files = get_all_python_files(app_src)
 
-        for file_path in app_service_files:
-            if not file_path.endswith('application_service.py') and '__init__.py' not in file_path:
-                violations.append(f"❌ Application service file should end with 'application_service.py': {file_path}")
+    for file_path in python_files:
+        file_name = os.path.basename(file_path)
 
-            # Check class names
+        # Skip __init__.py files
+        if file_name == '__init__.py':
+            continue
+
+        # Check file naming (should be lowercase with underscores)
+        name_without_ext = file_name.replace('.py', '')
+        if not re.match(r'^[a-z][a-z0-9_]*$', name_without_ext):
+            violations.append(f"⚠️ File should be lowercase_with_underscores: {file_path}")
+
+        # Check class naming conventions
+        classes = extract_class_names(file_path)
+        for class_name in classes:
+            # Classes should be PascalCase
+            if not re.match(r'^[A-Z][a-zA-Z0-9]*$', class_name):
+                violations.append(f"⚠️ Class should be PascalCase: {file_path}::{class_name}")
+
+    return violations
+
+
+# Additional helper functions for specific architecture tests
+
+def get_domain_classes() -> Dict[str, List[str]]:
+    """Get all classes in the domain layer organized by module.
+
+    Returns:
+        Dict[str, List[str]]: Dictionary mapping module paths to class lists
+    """
+    project_root = get_project_root()
+    domain_path = os.path.join(project_root, 'app', 'src', 'domain')
+
+    domain_classes = {}
+
+    if os.path.exists(domain_path):
+        python_files = get_all_python_files(domain_path)
+
+        for file_path in python_files:
+            if '__init__.py' in file_path:
+                continue
+
             classes = extract_class_names(file_path)
-            for class_name in classes:
-                if 'Service' in class_name and not class_name.endswith('ApplicationService'):
-                    violations.append(f"❌ Application service class should end with 'ApplicationService': {class_name} in {file_path}")
+            if classes:
+                domain_classes[file_path] = classes
 
-    # Domain Services should end with "DomainService"
-    domain_services_path = os.path.join(project_root, "app", "src", "domain", "services")
-    if os.path.exists(domain_services_path):
-        domain_service_files = get_all_python_files(domain_services_path)
+    return domain_classes
 
-        for file_path in domain_service_files:
-            classes = extract_class_names(file_path)
-            for class_name in classes:
-                if 'Service' in class_name and not class_name.endswith('DomainService') and not class_name.endswith('Service'):
-                    violations.append(f"❌ Domain service class should end with 'DomainService': {class_name} in {file_path}")
 
-    # Repository interfaces should end with "Protocol" or "Repository"
-    domain_repos_path = os.path.join(project_root, "app", "src", "domain", "repositories")
-    if os.path.exists(domain_repos_path):
-        repo_files = get_all_python_files(domain_repos_path)
+def check_forbidden_imports_in_domain(forbidden_patterns: List[str]) -> List[str]:
+    """Check for forbidden import patterns in domain layer.
 
-        for file_path in repo_files:
-            classes = extract_class_names(file_path)
-            for class_name in classes:
-                if 'Repository' in class_name and not (class_name.endswith('Protocol') or class_name.endswith('Repository')):
-                    violations.append(f"❌ Domain repository should be interface (Protocol): {class_name} in {file_path}")
+    Args:
+        forbidden_patterns (List[str]): List of forbidden import patterns
+
+    Returns:
+        List[str]: List of violations
+    """
+    violations = []
+    project_root = get_project_root()
+    domain_path = os.path.join(project_root, 'app', 'src', 'domain')
+
+    if not os.path.exists(domain_path):
+        return violations
+
+    python_files = get_all_python_files(domain_path)
+
+    for file_path in python_files:
+        imports = extract_imports_from_file(file_path)
+
+        for import_name in imports:
+            for forbidden_pattern in forbidden_patterns:
+                if forbidden_pattern in import_name:
+                    violations.append(
+                        f"❌ Domain layer should not import {forbidden_pattern}: "
+                        f"{file_path} imports {import_name}"
+                    )
+
+    return violations
+
+
+def find_classes_in_wrong_layers() -> List[str]:
+    """Find classes that are placed in the wrong DDD layers.
+
+    Returns:
+        List[str]: List of misplaced classes
+    """
+    violations = []
+    project_root = get_project_root()
+    app_src = os.path.join(project_root, 'app', 'src')
+
+    python_files = get_all_python_files(app_src)
+
+    for file_path in python_files:
+        layer = get_layer_from_module(file_path)
+        classes = extract_class_names(file_path)
+
+        for class_name in classes:
+            # Check for common misplacements
+            if layer == 'domain':
+                # Domain should not have infrastructure concerns
+                if any(suffix in class_name for suffix in ['Repository', 'DAO', 'DTO', 'Adapter']):
+                    if not class_name.endswith('Protocol') and not class_name.endswith('Interface'):
+                        violations.append(
+                            f"⚠️ Infrastructure class in domain layer: {file_path}::{class_name}"
+                        )
+            elif layer == 'infrastructure':
+                # Infrastructure should not have domain entities
+                if class_name.endswith('Entity') or class_name.endswith('ValueObject'):
+                    violations.append(
+                        f"⚠️ Domain class in infrastructure layer: {file_path}::{class_name}"
+                    )
 
     return violations

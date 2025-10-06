@@ -9,7 +9,7 @@ from pathlib import Path
 app_path = Path(__file__).parent / "app"
 sys.path.insert(0, str(app_path))
 
-from app.src.application.services.playlist_application_service import playlist_app_service
+from app.src.dependencies import get_data_application_service
 from app.src.monitoring.logging.log_level import LogLevel
 from app.src.monitoring import get_logger
 
@@ -24,6 +24,7 @@ async def test_nfc_lookup():
     try:
         # Test the lookup
         logger.log(LogLevel.INFO, "📋 Testing with playlist application service...")
+        playlist_app_service = get_data_application_service()
         playlist_data = await playlist_app_service.get_playlist_by_nfc_tag(tag_uid)
         logger.log(LogLevel.INFO, f"📋 Application service returned: {playlist_data}")
         

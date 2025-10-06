@@ -49,7 +49,7 @@ class TestClassPlacement:
         {chr(10).join(violations)}
 
         ✅ Solution: Move controllers to:
-        - app/src/routes/ (for HTTP endpoints)
+        - app/src/routes/factories/ (for HTTP endpoint factories)
         - app/src/application/controllers/ (for application coordination)
         """
 
@@ -151,6 +151,10 @@ class TestClassPlacement:
         for file_path in domain_files:
             classes = extract_class_names(file_path)
             for class_name in classes:
+                # Skip Protocol classes - they define contracts and are domain-agnostic
+                if class_name.endswith("Protocol"):
+                    continue
+
                 for keyword in web_keywords:
                     if keyword in class_name:
                         violations.append(f"❌ Web class in Domain: {file_path}::{class_name}")

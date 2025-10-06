@@ -9,7 +9,7 @@ from pathlib import Path
 app_path = Path(__file__).parent / "app"
 sys.path.insert(0, str(app_path))
 
-from app.src.application.services.playlist_application_service import playlist_app_service
+from app.src.dependencies import get_data_application_service
 from app.src.monitoring.logging.log_level import LogLevel
 from app.src.monitoring import get_logger
 
@@ -25,6 +25,9 @@ async def test_sync():
         
         logger.log(LogLevel.INFO, f"📁 Syncing with folder: {upload_folder}")
         
+        # Get application service via dependency injection
+        playlist_app_service = get_data_application_service()
+
         # Call sync method
         sync_result = await playlist_app_service.sync_playlists_with_filesystem_use_case(
             upload_folder_path=str(upload_folder)

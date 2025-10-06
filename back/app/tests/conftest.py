@@ -184,10 +184,10 @@ def test_app(mock_container, mock_state_manager, mock_audio_controller):
     app.container = mock_container
     app.state_manager = mock_state_manager
 
-    # Set up playlist_routes_state attribute for audio controller resolution
-    mock_playlist_routes_state = Mock()
-    mock_playlist_routes_state.audio_controller = mock_audio_controller
-    app.playlist_routes_state = mock_playlist_routes_state
+    # Set up playlist_routes_ddd attribute for audio controller resolution
+    mock_playlist_routes_ddd = Mock()
+    mock_playlist_routes_ddd.audio_controller = mock_audio_controller
+    app.playlist_routes_ddd = mock_playlist_routes_ddd
 
     # Link state_manager to container as well
     mock_container.state_manager = mock_state_manager

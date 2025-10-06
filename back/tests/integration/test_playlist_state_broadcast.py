@@ -13,7 +13,8 @@ import pytest
 import asyncio
 from unittest.mock import Mock, AsyncMock, patch
 
-from app.src.services.state_manager import StateManager, StateEventType
+from app.src.domain.audio.engine.state_manager import StateManager
+from app.src.common.socket_events import StateEventType
 from app.src.services.player_state_service import PlayerStateService
 from app.src.common.data_models import PlayerStateModel, PlaybackState
 

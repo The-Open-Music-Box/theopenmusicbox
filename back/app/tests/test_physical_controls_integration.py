@@ -12,7 +12,7 @@ import pytest
 import asyncio
 from unittest.mock import Mock, patch, AsyncMock
 
-from app.src.controllers.physical_controls_manager import PhysicalControlsManager
+from app.src.application.controllers.physical_controls_controller import PhysicalControlsManager
 from app.src.domain.protocols.physical_controls_protocol import PhysicalControlEvent
 from app.src.infrastructure.hardware.controls.mock_controls_implementation import MockPhysicalControls
 from app.src.infrastructure.hardware.controls.controls_factory import PhysicalControlsFactory
@@ -36,10 +36,16 @@ class TestPhysicalControlsIntegration:
 
     @pytest.fixture
     def mock_audio_controller(self):
-        """Create mock audio controller."""
+        """Create mock audio controller that supports both AudioController and PlaybackCoordinator methods."""
         controller = Mock()
+        # PlaybackCoordinator style methods (preferred)
         controller.next_track = Mock(return_value=True)
         controller.previous_track = Mock(return_value=True)
+        controller.toggle_pause = Mock(return_value=True)
+        controller.get_volume = Mock(return_value=50)
+        controller.set_volume = Mock(return_value=True)
+
+        # AudioController style methods (fallback)
         controller.toggle_playback = Mock(return_value=True)
         controller.increase_volume = Mock(return_value=True)
         controller.decrease_volume = Mock(return_value=True)
@@ -110,7 +116,7 @@ class TestPhysicalControlsIntegration:
 
         # Test play/pause
         physical_controls_manager.handle_play_pause()
-        mock_audio_controller.toggle_playback.assert_called_once()
+        mock_audio_controller.toggle_pause.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_volume_control_handlers(self, physical_controls_manager, mock_audio_controller):
@@ -120,11 +126,15 @@ class TestPhysicalControlsIntegration:
 
         # Test volume up
         physical_controls_manager.handle_volume_change("up")
-        mock_audio_controller.increase_volume.assert_called_once()
+        mock_audio_controller.set_volume.assert_called_once_with(55)  # 50 + 5
+
+        # Reset mocks for next test
+        mock_audio_controller.reset_mock()
+        mock_audio_controller.get_volume.return_value = 50
 
         # Test volume down
         physical_controls_manager.handle_volume_change("down")
-        mock_audio_controller.decrease_volume.assert_called_once()
+        mock_audio_controller.set_volume.assert_called_once_with(45)  # 50 - 5
 
     @pytest.mark.asyncio
     async def test_mock_controls_simulation(self, physical_controls_manager):
@@ -174,22 +184,30 @@ class TestPhysicalControlsIntegration:
             mock_audio_controller.previous_track.assert_called_once()
 
             await mock_controls.simulate_play_pause()
-            mock_audio_controller.toggle_playback.assert_called_once()
+            mock_audio_controller.toggle_pause.assert_called_once()
+
+            # Reset mock for next test
+            mock_audio_controller.reset_mock()
+            mock_audio_controller.get_volume.return_value = 50
 
             await mock_controls.simulate_volume_up()
-            mock_audio_controller.increase_volume.assert_called_once()
+            mock_audio_controller.set_volume.assert_called_once_with(55)  # 50 + 5
+
+            # Reset mock for next test
+            mock_audio_controller.reset_mock()
+            mock_audio_controller.get_volume.return_value = 50
 
             await mock_controls.simulate_volume_down()
-            mock_audio_controller.decrease_volume.assert_called_once()
+            mock_audio_controller.set_volume.assert_called_once_with(45)  # 50 - 5
 
         finally:
             await manager.cleanup()
 
     def test_error_handling_no_audio_controller(self, hardware_config):
         """Test error handling when no audio controller is provided."""
-        # This should still work as it uses unified_controller fallback
-        manager = PhysicalControlsManager(None, hardware_config)
-        assert manager.audio_controller is not None
+        # Should raise RuntimeError when audio_domain_container is not initialized
+        with pytest.raises(RuntimeError, match="Audio domain container is not initialized"):
+            PhysicalControlsManager(None, hardware_config)
 
     @pytest.mark.asyncio
     async def test_initialization_failure_handling(self, hardware_config):
