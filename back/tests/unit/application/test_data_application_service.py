@@ -85,8 +85,10 @@ class TestDataApplicationService:
         """Test getting a playlist that doesn't exist."""
         mock_playlist_service.get_playlist.return_value = None
 
-        with pytest.raises(BusinessLogicError, match="Playlist playlist-1 not found"):
-            await service.get_playlist_use_case('playlist-1')
+        result = await service.get_playlist_use_case('playlist-1')
+
+        # Service returns None when playlist not found (API routes handle 404)
+        assert result is None
 
     @pytest.mark.asyncio
     async def test_create_playlist_use_case_success(self, service, mock_playlist_service):
@@ -113,6 +115,9 @@ class TestDataApplicationService:
         """Test successful playlist update."""
         updates = {'title': 'Updated Title'}
         expected_playlist = {'id': 'playlist-1', 'title': 'Updated Title'}
+
+        # Mock that playlist exists and can be updated
+        mock_playlist_service.get_playlist.return_value = {'id': 'playlist-1', 'title': 'Old Title'}
         mock_playlist_service.update_playlist.return_value = expected_playlist
 
         result = await service.update_playlist_use_case('playlist-1', updates)
@@ -130,6 +135,8 @@ class TestDataApplicationService:
     @pytest.mark.asyncio
     async def test_delete_playlist_use_case_success(self, service, mock_playlist_service):
         """Test successful playlist deletion."""
+        # Mock that playlist exists and can be deleted
+        mock_playlist_service.get_playlist.return_value = {'id': 'playlist-1', 'title': 'Test Playlist'}
         mock_playlist_service.delete_playlist.return_value = True
 
         result = await service.delete_playlist_use_case('playlist-1')
@@ -138,11 +145,14 @@ class TestDataApplicationService:
 
     @pytest.mark.asyncio
     async def test_delete_playlist_use_case_failure(self, service, mock_playlist_service):
-        """Test playlist deletion failure."""
+        """Test playlist deletion failure - playlist not found."""
+        # Mock that delete returns False (playlist doesn't exist)
         mock_playlist_service.delete_playlist.return_value = False
 
-        with pytest.raises(BusinessLogicError, match="Failed to delete playlist"):
-            await service.delete_playlist_use_case('playlist-1')
+        result = await service.delete_playlist_use_case('playlist-1')
+
+        # Service returns False when playlist not found
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_add_track_use_case_success(self, service, mock_track_service):

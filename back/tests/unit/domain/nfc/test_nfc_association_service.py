@@ -92,22 +92,56 @@ class TestNfcAssociationService:
         playlist1 = "playlist123"
         playlist2 = "playlist456"
         tag_id = TagIdentifier(uid="abcd1234")
-        
+
         # Create tag already associated with playlist1
         existing_tag = NfcTag(identifier=tag_id)
         existing_tag.associate_with_playlist(playlist1)
         await nfc_repository.save_tag(existing_tag)
-        
+
         # Start session for playlist2
         session = await association_service.start_association_session(playlist2)
-        
+
         # Process tag detection
         result = await association_service.process_tag_detection(tag_id)
-        
+
         assert result["action"] == "duplicate_association"
         assert result["playlist_id"] == playlist2
         assert result["existing_playlist_id"] == playlist1
         assert result["session_state"] == SessionState.DUPLICATE.value
+        assert result["is_same_playlist"] == False
+
+        # Verify session is still active (DUPLICATE state should keep it active)
+        active_sessions = association_service.get_active_sessions()
+        assert len(active_sessions) == 1
+        assert active_sessions[0].state == SessionState.DUPLICATE
+
+    @pytest.mark.asyncio
+    async def test_process_tag_detection_duplicate_same_playlist(self, association_service, nfc_repository):
+        """Test tag detection when trying to re-associate with the same playlist."""
+        playlist_id = "playlist123"
+        tag_id = TagIdentifier(uid="abcd1234")
+
+        # Create tag already associated with the playlist
+        existing_tag = NfcTag(identifier=tag_id)
+        existing_tag.associate_with_playlist(playlist_id)
+        await nfc_repository.save_tag(existing_tag)
+
+        # Start session for the SAME playlist
+        session = await association_service.start_association_session(playlist_id)
+
+        # Process tag detection
+        result = await association_service.process_tag_detection(tag_id)
+
+        assert result["action"] == "duplicate_association"
+        assert result["playlist_id"] == playlist_id
+        assert result["existing_playlist_id"] == playlist_id
+        assert result["is_same_playlist"] == True
+        assert result["session_state"] == SessionState.DUPLICATE.value
+
+        # Verify session is still active to prevent playback
+        active_sessions = association_service.get_active_sessions()
+        assert len(active_sessions) == 1
+        assert active_sessions[0].state == SessionState.DUPLICATE
     
     @pytest.mark.asyncio
     async def test_process_tag_no_active_sessions(self, association_service):
@@ -124,18 +158,18 @@ class TestNfcAssociationService:
     async def test_stop_association_session(self, association_service):
         """Test stopping an association session."""
         playlist_id = "playlist123"
-        
+
         session = await association_service.start_association_session(playlist_id)
         session_id = session.session_id
-        
+
         # Stop session
         success = await association_service.stop_association_session(session_id)
         assert success is True
-        
-        # Session should be stopped
+
+        # Session should be cancelled (updated behavior)
         retrieved_session = await association_service.get_association_session(session_id)
-        assert retrieved_session.state == SessionState.STOPPED
-        
+        assert retrieved_session.state == SessionState.CANCELLED
+
         # No active sessions
         active_sessions = association_service.get_active_sessions()
         assert len(active_sessions) == 0
