@@ -56,20 +56,21 @@ describe('ApiResponseHandler', () => {
       expect(result).toEqual(mockData)
     })
 
-    it('should throw StandardApiError for success response without data field', () => {
+    it('should handle success response without data field by returning undefined', () => {
       const mockResponse: AxiosResponse<any> = {
         status: 200,
         statusText: 'OK',
         data: {
           status: 'success'
-          // Missing data field
+          // Missing data field - this is normal for operations like DELETE
         },
         headers: { 'content-type': 'application/json' },
         config: {} as any
       }
 
-      expect(() => ApiResponseHandler.extractData(mockResponse)).toThrow(StandardApiError)
-      expect(() => ApiResponseHandler.extractData(mockResponse)).toThrow('Success response missing data field')
+      // Should not throw an error, but return undefined for operations like DELETE
+      const result = ApiResponseHandler.extractData(mockResponse)
+      expect(result).toBeUndefined()
     })
 
     it('should handle error responses correctly', () => {
