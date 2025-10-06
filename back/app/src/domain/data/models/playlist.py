@@ -32,6 +32,10 @@ class Playlist:
     nfc_tag_id: Optional[str] = None
     path: Optional[str] = None
 
+    def __post_init__(self):
+        """Handle API compatibility for title parameter."""
+        # If no name but title was somehow passed, this will be handled by the factory methods
+
     # Domain property alias for API compatibility
     @property
     def title(self) -> str:
@@ -42,6 +46,25 @@ class Playlist:
     def title(self, value: str) -> None:
         """API compatibility setter for frontend integration."""
         self.name = value
+
+    @classmethod
+    def from_api_data(cls, title: Optional[str] = None, name: Optional[str] = None, **kwargs) -> "Playlist":
+        """Domain factory method: Create a playlist from API data.
+
+        Args:
+            title: API title parameter (for API compatibility)
+            name: Domain name parameter
+            **kwargs: Additional attributes to set on the playlist
+
+        Returns:
+            A new Playlist domain entity
+        """
+        # Handle API compatibility: title parameter maps to name
+        playlist_name = title or name
+        if not playlist_name:
+            raise ValueError("Either title or name must be provided")
+
+        return cls(name=playlist_name, **kwargs)
 
     @classmethod
     def from_files(cls, name: str, file_paths: List[str], **kwargs) -> "Playlist":

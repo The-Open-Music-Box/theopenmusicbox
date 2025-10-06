@@ -9,25 +9,22 @@ import uuid
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from datetime import datetime
+from dataclasses import asdict
+import logging
 
-from app.src.monitoring import get_logger
 from app.src.domain.decorators.error_handler import handle_domain_errors
-from app.src.domain.data.protocols.repository_protocol import (
-    PlaylistRepositoryProtocol,
-    TrackRepositoryProtocol
-)
-from app.src.domain.data.protocols.service_protocol import PlaylistServiceProtocol
+from app.src.domain.data.models.playlist import Playlist
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
-class PlaylistService(PlaylistServiceProtocol):
+class PlaylistService:
     """Service for managing playlist data operations."""
 
     def __init__(
         self,
-        playlist_repository: PlaylistRepositoryProtocol,
-        track_repository: TrackRepositoryProtocol
+        playlist_repository: Any,
+        track_repository: Any
     ):
         """Initialize the playlist service.
 
@@ -53,13 +50,21 @@ class PlaylistService(PlaylistServiceProtocol):
         skip = (page - 1) * page_size
 
         # Get playlists and total count
-        playlists = await self._playlist_repo.get_all(skip=skip, limit=page_size)
+        playlist_entities = await self._playlist_repo.find_all(offset=skip, limit=page_size)
         total = await self._playlist_repo.count()
 
-        # Add track count for each playlist
-        for playlist in playlists:
-            tracks = await self._track_repo.get_by_playlist(playlist['id'])
-            playlist['track_count'] = len(tracks)
+        # Convert Playlist entities to dicts
+        playlists = []
+        for playlist_entity in playlist_entities:
+            if playlist_entity is None:
+                continue
+            playlist_dict = asdict(playlist_entity)
+            # Add track count for each playlist
+            playlist_dict['track_count'] = len(playlist_entity.tracks)
+            # Ensure title field exists (for API compatibility)
+            if 'title' not in playlist_dict and 'name' in playlist_dict:
+                playlist_dict['title'] = playlist_dict['name']
+            playlists.append(playlist_dict)
 
         return {
             'playlists': playlists,
@@ -79,16 +84,19 @@ class PlaylistService(PlaylistServiceProtocol):
         Returns:
             Playlist data with tracks or None
         """
-        playlist = await self._playlist_repo.get_by_id(playlist_id)
-        if not playlist:
+        playlist_entity = await self._playlist_repo.find_by_id(playlist_id)
+        if playlist_entity is None:
             return None
 
-        # Get tracks for the playlist
-        tracks = await self._track_repo.get_by_playlist(playlist_id)
-        playlist['tracks'] = tracks
-        playlist['track_count'] = len(tracks)
+        # Convert entity to dict
+        playlist_dict = asdict(playlist_entity)
+        # Add track count
+        playlist_dict['track_count'] = len(playlist_entity.tracks)
+        # Ensure title field exists (for API compatibility)
+        if 'title' not in playlist_dict and 'name' in playlist_dict:
+            playlist_dict['title'] = playlist_dict['name']
 
-        return playlist
+        return playlist_dict
 
     @handle_domain_errors(operation_name="create_playlist")
     async def create_playlist(self, name: str, description: Optional[str] = None) -> Dict[str, Any]:
@@ -102,19 +110,24 @@ class PlaylistService(PlaylistServiceProtocol):
             Created playlist data
         """
         playlist_id = str(uuid.uuid4())
-        playlist_data = {
-            'id': playlist_id,
-            'title': name,
-            'description': description or '',
-            'type': 'album',
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
-        }
+        # Create Playlist entity
+        playlist_entity = Playlist(
+            id=playlist_id,
+            name=name,
+            description=description or '',
+            tracks=[],  # New playlists start with no tracks
+        )
 
-        await self._playlist_repo.create(playlist_data)
+        await self._playlist_repo.save(playlist_entity)
         logger.info(f"✅ Created playlist: {name} (ID: {playlist_id})")
 
-        return await self.get_playlist(playlist_id)
+        # Convert to dict for return
+        playlist_dict = asdict(playlist_entity)
+        playlist_dict['track_count'] = 0  # New playlists start with no tracks
+        # Ensure title field exists (for API compatibility)
+        if 'title' not in playlist_dict and 'name' in playlist_dict:
+            playlist_dict['title'] = playlist_dict['name']
+        return playlist_dict
 
     @handle_domain_errors(operation_name="update_playlist")
     async def update_playlist(self, playlist_id: str, updates: Dict[str, Any]) -> Dict[str, Any]:
@@ -128,14 +141,17 @@ class PlaylistService(PlaylistServiceProtocol):
             Updated playlist data
         """
         # Check if playlist exists
-        if not await self._playlist_repo.exists(playlist_id):
+        playlist_entity = await self._playlist_repo.find_by_id(playlist_id)
+        if not playlist_entity:
             raise ValueError(f"Playlist {playlist_id} not found")
 
-        # Add updated timestamp
-        updates['updated_at'] = datetime.utcnow().isoformat()
+        # Update the playlist entity with new values
+        for key, value in updates.items():
+            if hasattr(playlist_entity, key):
+                setattr(playlist_entity, key, value)
 
-        success = await self._playlist_repo.update(playlist_id, updates)
-        if not success:
+        updated_entity = await self._playlist_repo.update(playlist_entity)
+        if not updated_entity:
             raise RuntimeError(f"Failed to update playlist {playlist_id}")
 
         logger.info(f"✅ Updated playlist {playlist_id}")
@@ -152,8 +168,8 @@ class PlaylistService(PlaylistServiceProtocol):
             True if successful
         """
         # Delete all tracks first
-        deleted_tracks = await self._track_repo.delete_by_playlist(playlist_id)
-        logger.info(f"Deleted {deleted_tracks} tracks from playlist {playlist_id}")
+        deleted_tracks = await self._track_repo.delete_tracks_by_playlist(playlist_id)
+        logger.info(f"Deleted tracks from playlist {playlist_id}")
 
         # Delete the playlist
         success = await self._playlist_repo.delete(playlist_id)
@@ -196,13 +212,20 @@ class PlaylistService(PlaylistServiceProtocol):
         Returns:
             Playlist data or None
         """
-        playlist = await self._playlist_repo.get_by_nfc_tag(nfc_tag_id)
-        if playlist:
-            tracks = await self._track_repo.get_by_playlist(playlist['id'])
-            playlist['tracks'] = tracks
-            playlist['track_count'] = len(tracks)
+        # Use find_by_nfc_tag to match repository interface
+        playlist_entity = await self._playlist_repo.find_by_nfc_tag(nfc_tag_id)
+        if not playlist_entity:
+            return None
 
-        return playlist
+        # Convert entity to dict (tracks are already included in entity)
+        from dataclasses import asdict
+        playlist_dict = asdict(playlist_entity)
+        playlist_dict['track_count'] = len(playlist_entity.tracks)
+        # Ensure title field exists (for API compatibility)
+        if 'title' not in playlist_dict and 'name' in playlist_dict:
+            playlist_dict['title'] = playlist_dict['name']
+
+        return playlist_dict
 
     @handle_domain_errors(operation_name="sync_with_filesystem")
     async def sync_with_filesystem(self, upload_folder: str) -> Dict[str, Any]:

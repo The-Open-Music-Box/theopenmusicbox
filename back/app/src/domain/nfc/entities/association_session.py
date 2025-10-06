@@ -20,6 +20,7 @@ class SessionState(Enum):
     DUPLICATE = "duplicate"
     SUCCESS = "success"
     STOPPED = "stopped"
+    CANCELLED = "cancelled"
     TIMEOUT = "timeout"
     ERROR = "error"
 
@@ -40,6 +41,7 @@ class AssociationSession:
     detected_tag: Optional[TagIdentifier] = None
     conflict_playlist_id: Optional[str] = None
     error_message: Optional[str] = None
+    override_mode: bool = False  # If True, force association even if tag is already associated
 
     def __post_init__(self):
         """Validate session on creation."""
@@ -58,8 +60,13 @@ class AssociationSession:
         return datetime.now(timezone.utc) > self.timeout_at
 
     def is_active(self) -> bool:
-        """Check if this session is active (listening and not expired)."""
-        return self.state == SessionState.LISTENING and not self.is_expired()
+        """Check if this session is active.
+
+        A session is active if it's in LISTENING or DUPLICATE state and not expired.
+        DUPLICATE state keeps the session active to prevent playback while waiting
+        for user decision (override or cancel).
+        """
+        return self.state in [SessionState.LISTENING, SessionState.DUPLICATE] and not self.is_expired()
 
     def detect_tag(self, tag_identifier: TagIdentifier) -> None:
         """Record tag detection in this session.
@@ -98,6 +105,13 @@ class AssociationSession:
 
         self.state = SessionState.STOPPED
 
+    def mark_cancelled(self) -> None:
+        """Mark this session as cancelled by user."""
+        if self.state not in [SessionState.LISTENING, SessionState.DUPLICATE]:
+            raise ValueError("Can only cancel active sessions")
+
+        self.state = SessionState.CANCELLED
+
     def mark_timeout(self) -> None:
         """Mark this session as timed out."""
         if self.state != SessionState.LISTENING:
@@ -134,4 +148,5 @@ class AssociationSession:
             "detected_tag": str(self.detected_tag) if self.detected_tag else None,
             "conflict_playlist_id": self.conflict_playlist_id,
             "error_message": self.error_message,
+            "override_mode": self.override_mode,
         }

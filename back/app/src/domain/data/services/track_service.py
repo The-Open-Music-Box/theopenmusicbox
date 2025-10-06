@@ -6,26 +6,23 @@
 
 import uuid
 from typing import Dict, Any, List, Optional
+import logging
 from datetime import datetime
 
-from app.src.monitoring import get_logger
 from app.src.domain.decorators.error_handler import handle_domain_errors
-from app.src.domain.data.protocols.repository_protocol import (
-    PlaylistRepositoryProtocol,
-    TrackRepositoryProtocol
-)
-from app.src.domain.data.protocols.service_protocol import TrackServiceProtocol
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
+
+ 
 
 
-class TrackService(TrackServiceProtocol):
+class TrackService:
     """Service for managing track data operations."""
 
     def __init__(
         self,
-        track_repository: TrackRepositoryProtocol,
-        playlist_repository: PlaylistRepositoryProtocol
+        track_repository: Any,
+        playlist_repository: Any
     ):
         """Initialize the track service.
 
@@ -52,7 +49,8 @@ class TrackService(TrackServiceProtocol):
             raise ValueError(f"Playlist {playlist_id} not found")
 
         tracks = await self._track_repo.get_by_playlist(playlist_id)
-        return sorted(tracks, key=lambda t: t.get('track_number', 0))
+        # Handle both Track objects and dictionaries
+        return sorted(tracks, key=lambda t: t.track_number if hasattr(t, 'track_number') else t.get('track_number', 0))
 
     @handle_domain_errors(operation_name="add_track")
     async def add_track(self, playlist_id: str, track_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -157,7 +155,7 @@ class TrackService(TrackServiceProtocol):
 
         # Verify all tracks belong to the playlist
         existing_tracks = await self._track_repo.get_by_playlist(playlist_id)
-        existing_track_ids = {t['id'] for t in existing_tracks}
+        existing_track_ids = {t.id if hasattr(t, 'id') else t['id'] for t in existing_tracks}
 
         for track_id in track_ids:
             if track_id not in existing_track_ids:
@@ -201,7 +199,8 @@ class TrackService(TrackServiceProtocol):
         # Find current track index
         current_index = None
         for i, track in enumerate(tracks):
-            if track['id'] == current_track_id:
+            track_id = track.id if hasattr(track, 'id') else track['id']
+            if track_id == current_track_id:
                 current_index = i
                 break
 
@@ -242,7 +241,8 @@ class TrackService(TrackServiceProtocol):
         # Find current track index
         current_index = None
         for i, track in enumerate(tracks):
-            if track['id'] == current_track_id:
+            track_id = track.id if hasattr(track, 'id') else track['id']
+            if track_id == current_track_id:
                 current_index = i
                 break
 

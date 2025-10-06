@@ -8,7 +8,6 @@ import time
 from typing import Dict, Any, Optional
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 from app.src.domain.data.models.playlist import Playlist
 
@@ -55,9 +54,7 @@ class AudioEngine(AudioEngineProtocol):
 
         # Validate state manager has required methods
         if not hasattr(state_manager, "set_state"):
-            logger.log(
-                LogLevel.ERROR,
-                f"❌ Invalid StateManager type: {type(state_manager).__name__} lacks set_state method",
+            logger.error(f"❌ Invalid StateManager type: {type(state_manager).__name__} lacks set_state method",
             )
             raise ValueError(
                 f"StateManager must have set_state method, got {type(state_manager).__name__}"
@@ -66,9 +63,7 @@ class AudioEngine(AudioEngineProtocol):
         # Subscribe to state changes for event generation
         self._setup_event_subscriptions()
 
-        logger.log(
-            LogLevel.INFO,
-            f"AudioEngine initialized with {type(backend).__name__} and {type(state_manager).__name__}",
+        logger.info(f"AudioEngine initialized with {type(backend).__name__} and {type(state_manager).__name__}",
         )
 
     def _has_playlist_manager(self) -> bool:
@@ -86,9 +81,7 @@ class AudioEngine(AudioEngineProtocol):
         if hasattr(self._state_manager, "set_state"):
             self._state_manager.set_state(state)
         else:
-            logger.log(
-                LogLevel.ERROR,
-                f"❌ StateManager {type(self._state_manager).__name__} lacks set_state method",
+            logger.error(f"❌ StateManager {type(self._state_manager).__name__} lacks set_state method",
             )
 
     @handle_errors("_safe_get_current_state")
@@ -97,9 +90,7 @@ class AudioEngine(AudioEngineProtocol):
         if hasattr(self._state_manager, "get_current_state"):
             return self._state_manager.get_current_state()
         else:
-            logger.log(
-                LogLevel.WARNING,
-                f"⚠️ StateManager {type(self._state_manager).__name__} lacks get_current_state method",
+            logger.warning(f"⚠️ StateManager {type(self._state_manager).__name__} lacks get_current_state method",
             )
             return PlaybackState.STOPPED  # Safe fallback
 
@@ -157,7 +148,7 @@ class AudioEngine(AudioEngineProtocol):
         self._is_running = True
         self._startup_time = time.time()
         self._safe_set_state(PlaybackState.STOPPED)
-        logger.log(LogLevel.INFO, "🎛️ AudioEngine started successfully")
+        logger.info("🎛️ AudioEngine started successfully")
 
     @handle_errors("stop")
     async def stop(self) -> None:
@@ -174,9 +165,9 @@ class AudioEngine(AudioEngineProtocol):
                 self._backend.cleanup()
             self._is_running = False
             self._safe_set_state(PlaybackState.STOPPED)
-            logger.log(LogLevel.INFO, "🎛️ AudioEngine stopped")
+            logger.info("🎛️ AudioEngine stopped")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error during audio engine stop: {e}")
+            logger.error(f"Error during audio engine stop: {e}")
             # Don't re-raise during shutdown to prevent recursion
         finally:
             self._is_stopping = False
@@ -201,7 +192,7 @@ class AudioEngine(AudioEngineProtocol):
     async def load_playlist(self, playlist: Playlist) -> bool:
         """Load a playlist for playback."""
         if not self._is_running:
-            logger.log(LogLevel.ERROR, "Engine not running")
+            logger.error("Engine not running")
             return False
 
         try:
@@ -239,12 +230,12 @@ class AudioEngine(AudioEngineProtocol):
     async def play_playlist(self, playlist: Playlist) -> bool:
         """Load and start playing a playlist."""
         if not playlist or not playlist.tracks:
-            logger.log(LogLevel.ERROR, "No playlist or empty playlist")
+            logger.error("No playlist or empty playlist")
             return False
 
         for idx, track in enumerate(playlist.tracks):
             if track and hasattr(track, 'file_path') and track.file_path:
-                logger.log(LogLevel.INFO, f"Playing track {idx} from playlist: {track.file_path}")
+                logger.info(f"Playing track {idx} from playlist: {track.file_path}")
                 success = await self.play_file(track.file_path)
                 if success:
                     # Update playlist info in state manager
@@ -255,7 +246,7 @@ class AudioEngine(AudioEngineProtocol):
                     })
                     return True
 
-        logger.log(LogLevel.ERROR, "No valid tracks found in playlist")
+        logger.error("No valid tracks found in playlist")
         return False
 
     @handle_errors("set_playlist")
@@ -277,42 +268,41 @@ class AudioEngine(AudioEngineProtocol):
         try:
             loop = asyncio.get_running_loop()
             # We're in an async context, create a task
-            logger.log(LogLevel.INFO, f"✅ In async context, creating task to play playlist: {playlist.name}")
+            logger.info(f"✅ In async context, creating task to play playlist: {playlist.name}")
             task = loop.create_task(self.play_playlist(playlist))
             # For legacy compatibility, we return immediately
             # The actual result will be handled asynchronously
-            logger.log(
-                LogLevel.INFO, f"✅ AudioEngine.set_playlist called for playlist: {playlist.name}"
+            logger.info(f"✅ AudioEngine.set_playlist called for playlist: {playlist.name}"
             )
             return True
         except RuntimeError:
             # Not in an async context, handle synchronously
-            logger.log(LogLevel.WARNING, "AudioEngine.set_playlist called outside async context")
+            logger.warning("AudioEngine.set_playlist called outside async context")
 
             # For test compatibility, attempt synchronous playback directly
             if not self._is_running:
-                logger.log(LogLevel.ERROR, "AudioEngine not running")
+                logger.error("AudioEngine not running")
                 return False
 
             if not playlist:
-                logger.log(LogLevel.ERROR, "No playlist provided")
+                logger.error("No playlist provided")
                 return False
 
             if not playlist.tracks:
-                logger.log(LogLevel.ERROR, f"Playlist '{getattr(playlist, 'name', 'unknown')}' has no tracks")
+                logger.error(f"Playlist '{getattr(playlist, 'name', 'unknown')}' has no tracks")
                 return False
 
-            logger.log(LogLevel.INFO, f"Playlist has {len(playlist.tracks)} tracks")
+            logger.info(f"Playlist has {len(playlist.tracks)} tracks")
 
             # Get first valid track
             for idx, track in enumerate(playlist.tracks):
-                logger.log(LogLevel.DEBUG, f"Checking track {idx}: {track}")
+                logger.debug(f"Checking track {idx}: {track}")
                 if track and hasattr(track, 'file_path') and track.file_path:
-                    logger.log(LogLevel.INFO, f"Playing track {idx}: {track.file_path}")
+                    logger.info(f"Playing track {idx}: {track.file_path}")
                     try:
                         # Direct backend playback
                         success = self._backend.play_file(track.file_path)
-                        logger.log(LogLevel.INFO, f"Backend play_file returned: {success}")
+                        logger.info(f"Backend play_file returned: {success}")
                         if success:
                             self._safe_set_state(PlaybackState.PLAYING)
                             # Update state manager with playlist and track info for test compatibility
@@ -333,74 +323,98 @@ class AudioEngine(AudioEngineProtocol):
                             self._state_manager.update_track_info(track_info)
                             return True
                     except Exception as e:
-                        logger.log(LogLevel.ERROR, f"Failed to play track: {e}")
+                        logger.error(f"Failed to play track: {e}")
                         continue
 
             return False
 
     async def next_track(self) -> bool:
-        """Advance to next track."""
+        """Advance to next track.
+
+        Note: This method is not implemented at the AudioEngine level because
+        playlist navigation is the responsibility of the PlaybackCoordinator
+        in the application layer. The AudioEngine (domain layer) only handles
+        audio playback of individual files.
+
+        For playlist navigation, use PlaybackCoordinator.next_track() instead.
+
+        Returns:
+            bool: Always False - playlist navigation not supported at this level
+        """
         if not self._is_running:
             return False
 
-        try:
-            # TODO: Implement next track logic without playlist manager
-            logger.log(LogLevel.WARNING, "next_track not implemented without playlist manager")
-            return False
-        except Exception as e:
-            await self._event_bus.publish(
-                ErrorEvent("AudioEngine", f"Failed to go to next track: {e}")
-            )
-            return False
+        logger.debug(
+            "next_track() called on AudioEngine - "
+            "playlist navigation should use PlaybackCoordinator"
+        )
+        return False
 
     async def previous_track(self) -> bool:
-        """Go to previous track."""
+        """Go to previous track.
+
+        Note: This method is not implemented at the AudioEngine level because
+        playlist navigation is the responsibility of the PlaybackCoordinator
+        in the application layer. The AudioEngine (domain layer) only handles
+        audio playback of individual files.
+
+        For playlist navigation, use PlaybackCoordinator.previous_track() instead.
+
+        Returns:
+            bool: Always False - playlist navigation not supported at this level
+        """
         if not self._is_running:
             return False
 
-        try:
-            # TODO: Implement previous track logic without playlist manager
-            logger.log(LogLevel.WARNING, "previous_track not implemented without playlist manager")
-            return False
-        except Exception as e:
-            await self._event_bus.publish(
-                ErrorEvent("AudioEngine", f"Failed to go to previous track: {e}")
-            )
-            return False
+        logger.debug(
+            "previous_track() called on AudioEngine - "
+            "playlist navigation should use PlaybackCoordinator"
+        )
+        return False
 
     async def play_track_by_index(self, index: int) -> bool:
-        """Play track by index."""
+        """Play track by index.
+
+        Note: This method is not implemented at the AudioEngine level because
+        playlist navigation is the responsibility of the PlaybackCoordinator
+        in the application layer. The AudioEngine (domain layer) only handles
+        audio playback of individual files.
+
+        For playlist navigation, use PlaybackCoordinator.goto_track() instead.
+
+        Args:
+            index: Track index (not used at this level)
+
+        Returns:
+            bool: Always False - playlist navigation not supported at this level
+        """
         if not self._is_running:
             return False
 
-        try:
-            # TODO: Implement play track by index logic without playlist manager
-            logger.log(LogLevel.WARNING, "play_track_by_index not implemented without playlist manager")
-            return False
-        except Exception as e:
-            await self._event_bus.publish(
-                ErrorEvent("AudioEngine", f"Failed to play track {index}: {e}")
-            )
-            return False
+        logger.debug(
+            f"play_track_by_index({index}) called on AudioEngine - "
+            "playlist navigation should use PlaybackCoordinator"
+        )
+        return False
 
     # === Direct Playback Operations ===
 
     async def play_file(self, file_path: str) -> bool:
         """Play a single audio file."""
-        logger.log(LogLevel.INFO, f"AudioEngine.play_file called with: {file_path}")
+        logger.info(f"AudioEngine.play_file called with: {file_path}")
 
         if not self._is_running:
-            logger.log(LogLevel.ERROR, "AudioEngine not running")
+            logger.error("AudioEngine not running")
             return False
 
         try:
-            logger.log(LogLevel.DEBUG, f"Getting current state...")
+            logger.debug(f"Getting current state...")
             old_state = self._safe_get_current_state()
-            logger.log(LogLevel.DEBUG, f"Current state: {old_state}")
+            logger.debug(f"Current state: {old_state}")
 
-            logger.log(LogLevel.INFO, f"Calling backend.play_file({file_path})")
+            logger.info(f"Calling backend.play_file({file_path})")
             success = self._backend.play_file(file_path)
-            logger.log(LogLevel.INFO, f"Backend play_file returned: {success}")
+            logger.info(f"Backend play_file returned: {success}")
 
             if success:
                 self._safe_set_state(PlaybackState.PLAYING)
@@ -488,7 +502,7 @@ class AudioEngine(AudioEngineProtocol):
                 )
             return success
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error stopping playback: {e}")
+            logger.error(f"Error stopping playback: {e}")
             # Still set stopped state on error
             self._safe_set_state(PlaybackState.STOPPED)
             return False
@@ -518,8 +532,8 @@ class AudioEngine(AudioEngineProtocol):
         """Get current state as dictionary."""
         base_state = self._state_manager.get_state_dict()
 
-        # Add basic playlist information from state manager
-        # TODO: Implement proper playlist state tracking
+        # Note: Playlist state tracking is handled by PlaybackStateManager
+        # in the application layer, not at the AudioEngine (domain) level
 
         # Add engine metadata
         base_state.update(

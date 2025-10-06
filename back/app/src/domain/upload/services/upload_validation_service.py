@@ -10,10 +10,9 @@ from pathlib import Path
 from ..entities.upload_session import UploadSession
 from ..value_objects.file_chunk import FileChunk
 from ..value_objects.file_metadata import FileMetadata
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class UploadValidationService:
@@ -96,9 +95,8 @@ class UploadValidationService:
 
         is_valid = len(errors) == 0
 
-        logger.log(
-            LogLevel.INFO if is_valid else LogLevel.WARNING,
-            f"Upload validation for {filename}: {'✅ Valid' if is_valid else '❌ Invalid'}",
+        (logger.info if is_valid else logger.warning)(
+            f"Upload validation for {filename}: {'✅ Valid' if is_valid else '❌ Invalid'}"
         )
 
         return {

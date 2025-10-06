@@ -11,6 +11,7 @@ purely on audio playback, leaving playlist management to the PlaylistController.
 
 import os
 import asyncio
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -21,9 +22,9 @@ except ImportError:
     PYGAME_AVAILABLE = False
     pygame = None
 
+
 from app.src.monitoring import get_logger
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
 
 from .base_audio_backend import BaseAudioBackend
@@ -44,8 +45,17 @@ class MacOSAudioBackend(BaseAudioBackend):
         super().__init__(playback_subject)
         self._mixer_initialized = False
 
+        # Time tracking for position calculation
+        self._play_start_time = None
+        self._pause_time = None
+        self._is_paused = False
+
+        # Track current file and its duration
+        self._current_file_path = None
+        self._current_file_duration = None  # in seconds
+
         if not PYGAME_AVAILABLE:
-            logger.log(LogLevel.ERROR, "❌ pygame not available for macOS audio backend")
+            logger.error("❌ pygame not available for macOS audio backend")
             raise ImportError("pygame is required for macOS audio backend but not installed")
 
         # Set macOS-compatible pygame audio settings
@@ -54,33 +64,32 @@ class MacOSAudioBackend(BaseAudioBackend):
         pygame.mixer.pre_init(frequency=44100, size=-16, channels=2, buffer=2048)
         pygame.mixer.init()
         self._mixer_initialized = True
-        logger.log(LogLevel.INFO, "✓ macOS Audio Backend initialized with Core Audio")
+        logger.info("✓ macOS Audio Backend initialized with Core Audio")
 
     @handle_errors("play_file")
-    def play_file(self, file_path: str) -> bool:
+    def play_file(self, file_path: str, duration_ms: Optional[int] = None) -> bool:
         """Play a single audio file.
 
         Args:
             file_path: Path to the audio file to play
+            duration_ms: Optional track duration in milliseconds from playlist
 
         Returns:
             bool: True if playback started successfully, False otherwise
         """
         if not self._mixer_initialized:
-            logger.log(LogLevel.ERROR, "Audio mixer not initialized")
+            logger.error("Audio mixer not initialized")
             return False
 
         with self._state_lock:
             path = Path(file_path)
             if not path.exists():
-                logger.log(LogLevel.ERROR, f"Audio file not found: {path}")
+                logger.error(f"Audio file not found: {path}")
                 return False
             # Stop any current playback with proper cleanup
             if pygame.mixer.music.get_busy():
                 pygame.mixer.music.stop()
                 # Wait for mixer to fully stop to avoid race conditions
-                import time
-
                 time.sleep(0.1)
             # Ensure mixer is in clean state
             pygame.mixer.music.unload()
@@ -89,13 +98,19 @@ class MacOSAudioBackend(BaseAudioBackend):
             pygame.mixer.music.play()
             # Verify playback actually started
             if not pygame.mixer.music.get_busy():
-                logger.log(
-                    LogLevel.WARNING, f"⚠️️ macOS: Playback may not have started for {path.name}"
+                logger.warning(f"⚠️️ macOS: Playback may not have started for {path.name}"
                 )
-            # Update state
+            # Update state and start timing
             self._is_playing = True
             self._current_file_path = str(path)
-            logger.log(LogLevel.INFO, f"🎵 macOS: Started playing {path.name}")
+
+            # Use duration from playlist if provided, convert to seconds
+            self._current_file_duration = (duration_ms / 1000.0) if duration_ms else None
+
+            self._play_start_time = time.time()
+            self._pause_time = None
+            self._is_paused = False
+            logger.info(f"🎵 macOS: Started playing {path.name}")
             return True
 
     @handle_errors("stop")
@@ -109,14 +124,17 @@ class MacOSAudioBackend(BaseAudioBackend):
             if pygame.mixer.music.get_busy():
                 pygame.mixer.music.stop()
                 # Brief pause to ensure clean stop
-                import time
-
                 time.sleep(0.05)
             # Properly unload to free resources
             pygame.mixer.music.unload()
             self._is_playing = False
             self._current_file_path = None
-        logger.log(LogLevel.INFO, "⏹️ macOS: Playback stopped")
+            self._current_file_duration = None
+            # Reset timing
+            self._play_start_time = None
+            self._pause_time = None
+            self._is_paused = False
+        logger.info("⏹️ macOS: Playback stopped")
         return True
 
     @handle_errors("pause")
@@ -132,7 +150,9 @@ class MacOSAudioBackend(BaseAudioBackend):
         with self._state_lock:
             pygame.mixer.music.pause()
             self._is_playing = False
-        logger.log(LogLevel.INFO, "⏸️ macOS: Playback paused")
+            self._is_paused = True
+            self._pause_time = time.time()
+        logger.info("⏸️ macOS: Playback paused")
         return True
 
     @handle_errors("resume")
@@ -148,7 +168,15 @@ class MacOSAudioBackend(BaseAudioBackend):
         with self._state_lock:
             pygame.mixer.music.unpause()
             self._is_playing = True
-        logger.log(LogLevel.INFO, "▶️ macOS: Playback resumed")
+
+            # Adjust play start time to account for pause duration
+            if self._pause_time and self._play_start_time:
+                pause_duration = time.time() - self._pause_time
+                self._play_start_time += pause_duration
+
+            self._pause_time = None
+            self._is_paused = False
+        logger.info("▶️ macOS: Playback resumed")
         return True
 
     @handle_errors("get_position")
@@ -159,12 +187,20 @@ class MacOSAudioBackend(BaseAudioBackend):
             float: Current position in seconds, 0.0 if not available
         """
         with self._state_lock:
-            if not self._is_playing or not self._current_file_path:
+            if not self._current_file_path or not self._play_start_time:
                 return 0.0
-            # pygame doesn't provide direct position info,
-            # so this is a simplified implementation
-            # The PlaylistController will handle more sophisticated position tracking
-            return 0.0
+
+            # Calculate position based on elapsed time
+            if self._is_paused and self._pause_time:
+                # If paused, calculate position up to pause time
+                position = self._pause_time - self._play_start_time
+            elif self._is_playing:
+                # If playing, calculate current position
+                position = time.time() - self._play_start_time
+            else:
+                return 0.0
+
+            return max(0.0, position)
 
     @handle_errors("set_volume")
     def set_volume(self, volume: int) -> bool:
@@ -181,7 +217,7 @@ class MacOSAudioBackend(BaseAudioBackend):
             # pygame volume is 0.0 to 1.0
             pygame_volume = self._volume / 100.0
             pygame.mixer.music.set_volume(pygame_volume)
-        logger.log(LogLevel.DEBUG, f"🔊 macOS: Volume set to {self._volume}%")
+        logger.debug(f"🔊 macOS: Volume set to {self._volume}%")
         return True
 
     @property
@@ -195,7 +231,7 @@ class MacOSAudioBackend(BaseAudioBackend):
             # Sync with pygame state
             if self._is_playing and not pygame.mixer.music.get_busy():
                 self._is_playing = False
-                logger.log(LogLevel.DEBUG, "macOS: Track finished, updated internal state")
+                logger.debug("macOS: Track finished, updated internal state")
 
             return self._is_playing
 
@@ -214,27 +250,33 @@ class MacOSAudioBackend(BaseAudioBackend):
             # Update internal state based on pygame state
             if self._is_playing and not pygame_busy:
                 self._is_playing = False
-                logger.log(LogLevel.DEBUG, "macOS: Track ended, backend no longer busy")
+                logger.debug("macOS: Track ended, backend no longer busy")
 
             return pygame_busy
 
     @handle_errors("cleanup")
     def cleanup(self) -> None:
         """Clean up audio resources."""
-        logger.log(LogLevel.INFO, "🧹 Cleaning up macOS audio backend")
+        logger.info("🧹 Cleaning up macOS audio backend")
         with self._state_lock:
-            pygame.mixer.music.stop()
+            if self._mixer_initialized:
+                pygame.mixer.music.stop()
             self._is_playing = False
             self._current_file_path = None
+            self._current_file_duration = None
+            # Reset timing
+            self._play_start_time = None
+            self._pause_time = None
+            self._is_paused = False
         if self._mixer_initialized:
             pygame.mixer.quit()
             self._mixer_initialized = False
-        logger.log(LogLevel.INFO, "✓ macOS audio backend cleanup completed")
+        logger.info("✓ macOS audio backend cleanup completed")
 
     # Async protocol methods (wrap sync implementations)
     async def play(self, file_path: str) -> bool:
         """Async wrapper for play_file."""
-        return await asyncio.get_event_loop().run_in_executor(None, self.play_file, file_path)
+        return await asyncio.get_running_loop().run_in_executor(None, self.play_file, file_path)
 
     async def get_volume(self) -> int:
         """Get current volume level."""
@@ -243,10 +285,18 @@ class MacOSAudioBackend(BaseAudioBackend):
 
     async def seek(self, position_ms: int) -> bool:
         """Seek to a specific position (not implemented for pygame)."""
-        logger.log(LogLevel.WARNING, "⚠️ macOS: Seek not supported with pygame backend")
+        logger.warning("⚠️ macOS: Seek not supported with pygame backend")
         return False
 
+
     async def get_duration(self) -> Optional[int]:
-        """Get duration of current track (not available in pygame)."""
-        logger.log(LogLevel.DEBUG, "macOS: Duration not available with pygame backend")
+        """Get duration of current track.
+
+        Returns:
+            int: Duration in milliseconds or None if not available
+        """
+        if self._current_file_duration and self._current_file_duration > 0:
+            duration_ms = int(self._current_file_duration * 1000)
+            logger.debug(f"🍎 macOS: Returning duration: {duration_ms}ms ({self._current_file_duration:.1f}s)")
+            return duration_ms
         return None

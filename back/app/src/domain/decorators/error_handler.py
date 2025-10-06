@@ -14,16 +14,15 @@ import traceback
 from typing import Callable, Any, Optional, Dict
 from datetime import datetime
 
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 def handle_domain_errors(
     operation_name: Optional[str] = None,
     component: Optional[str] = None,
-    log_level: LogLevel = LogLevel.ERROR,
+    log_level: int = logging.ERROR,
     include_trace: bool = False,
     reraise: bool = True,
     default_return: Any = None,
@@ -77,7 +76,7 @@ def _handle_error(
     error: Exception,
     operation: str,
     component: str,
-    log_level: LogLevel,
+    log_level: int,
     include_trace: bool
 ) -> None:
     """Handle and log domain errors."""

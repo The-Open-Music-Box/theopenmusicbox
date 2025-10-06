@@ -15,7 +15,6 @@ from typing import Optional
 from contextlib import contextmanager
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
 
 # Resource manager functionality will be added later if needed
@@ -54,10 +53,10 @@ class BaseAudioBackend(AudioBackendProtocol):
         """
         path = Path(file_path)
         if not path.exists():
-            logger.log(LogLevel.ERROR, f"{self._backend_name}: Audio file not found: {path}")
+            logger.error(f"{self._backend_name}: Audio file not found: {path}")
             return None
         if not path.is_file():
-            logger.log(LogLevel.ERROR, f"{self._backend_name}: Path is not a file: {path}")
+            logger.error(f"{self._backend_name}: Path is not a file: {path}")
             return None
         return path
 
@@ -125,7 +124,7 @@ class BaseAudioBackend(AudioBackendProtocol):
         """
         with self._state_lock:
             self._volume = self._clamp_volume(volume)
-        logger.log(LogLevel.DEBUG, f"{self._backend_name}: Volume set to {self._volume}%")
+        logger.debug(f"{self._backend_name}: Volume set to {self._volume}%")
         return True
 
     @handle_errors("cleanup")
@@ -134,11 +133,11 @@ class BaseAudioBackend(AudioBackendProtocol):
 
         Base implementation resets state. Override in subclasses for resource cleanup.
         """
-        logger.log(LogLevel.INFO, f"🧹 Cleaning up {self._backend_name}")
+        logger.info(f"🧹 Cleaning up {self._backend_name}")
         with self._state_lock:
             self._is_playing = False
             self._current_file_path = None
-        logger.log(LogLevel.INFO, f"✅ {self._backend_name} cleanup completed")
+        logger.info(f"✅ {self._backend_name} cleanup completed")
 
     @contextmanager
     def _acquire_audio_resource(self, resource_type: str):
@@ -152,7 +151,7 @@ class BaseAudioBackend(AudioBackendProtocol):
         """
         # Implement proper resource management with tracking and cleanup
         resource_id = f"{resource_type}_{id(self)}"
-        logger.log(LogLevel.DEBUG, f"🔒 Acquiring audio resource: {resource_id}")
+        logger.debug(f"🔒 Acquiring audio resource: {resource_id}")
 
         resource = self._create_audio_resource(resource_type)
 
@@ -162,12 +161,12 @@ class BaseAudioBackend(AudioBackendProtocol):
         try:
             yield resource
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"❌ Error using audio resource {resource_id}: {e}")
+            logger.error(f"❌ Error using audio resource {resource_id}: {e}")
             raise
         finally:
             # Clean up and log resource usage
             usage_time = time.time() - start_time
-            logger.log(LogLevel.DEBUG, f"🔓 Releasing audio resource: {resource_id} (used {usage_time:.2f}s)")
+            logger.debug(f"🔓 Releasing audio resource: {resource_id} (used {usage_time:.2f}s)")
             self._cleanup_audio_resource(resource_type, resource)
 
     def _create_audio_resource(self, resource_type: str):
@@ -181,7 +180,7 @@ class BaseAudioBackend(AudioBackendProtocol):
         Returns:
             Created resource or None if failed
         """
-        logger.log(LogLevel.DEBUG, f"{self._backend_name}: Creating {resource_type} resource")
+        logger.debug(f"{self._backend_name}: Creating {resource_type} resource")
         return f"mock_{resource_type}_resource"
 
     def _cleanup_audio_resource(self, resource_type: str, resource):
@@ -193,7 +192,7 @@ class BaseAudioBackend(AudioBackendProtocol):
             resource_type: Type of resource being cleaned up
             resource: Resource instance to cleanup
         """
-        logger.log(LogLevel.DEBUG, f"{self._backend_name}: Cleaning up {resource_type} resource")
+        logger.debug(f"{self._backend_name}: Cleaning up {resource_type} resource")
         # Base implementation does nothing
         pass
 

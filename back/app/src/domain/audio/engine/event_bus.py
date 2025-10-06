@@ -9,7 +9,6 @@ from collections import defaultdict
 from typing import Dict, List, Callable, Any, Type, TypeVar
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.protocols.event_bus_protocol import EventBusProtocol, AudioEvent
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
@@ -27,14 +26,13 @@ class EventBus(EventBusProtocol):
     def subscribe(self, event_type: Type[EventType], handler: Callable[[EventType], Any]) -> None:
         """Subscribe to an event type."""
         self._subscribers[event_type].append(handler)
-        logger.log(LogLevel.DEBUG, f"Subscribed to {event_type.__name__}: {handler.__name__}")
+        logger.debug(f"Subscribed to {event_type.__name__}: {handler.__name__}")
 
     def unsubscribe(self, event_type: Type[EventType], handler: Callable[[EventType], Any]) -> None:
         """Unsubscribe from an event type."""
         if handler in self._subscribers[event_type]:
             self._subscribers[event_type].remove(handler)
-            logger.log(
-                LogLevel.DEBUG, f"Unsubscribed from {event_type.__name__}: {handler.__name__}"
+            logger.debug(f"Unsubscribed from {event_type.__name__}: {handler.__name__}"
             )
 
     @handle_errors("publish")
@@ -44,7 +42,7 @@ class EventBus(EventBusProtocol):
         subscribers = self._subscribers.get(event_type, [])
 
         if not subscribers:
-            logger.log(LogLevel.DEBUG, f"No subscribers for {event_type.__name__}")
+            logger.debug(f"No subscribers for {event_type.__name__}")
             return
 
         self._stats["events_published"] += 1
@@ -56,8 +54,7 @@ class EventBus(EventBusProtocol):
             else:
                 handler(event)
             self._stats["events_handled"] += 1
-        logger.log(
-            LogLevel.DEBUG, f"Published {event_type.__name__} to {len(subscribers)} subscribers"
+        logger.debug(f"Published {event_type.__name__} to {len(subscribers)} subscribers"
         )
 
     def get_subscriber_count(self, event_type: Type[EventType]) -> int:

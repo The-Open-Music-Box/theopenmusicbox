@@ -10,17 +10,20 @@ operations without requiring real hardware.
 """
 
 import time
-from typing import Optional
+from typing import Optional, Any
+import logging
 
 from app.src.config import config
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
-from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
+from app.src.domain.audio.backends.implementations.base_audio_backend import BaseAudioBackend
+from app.src.domain.decorators.error_handler import handle_domain_errors
 
-from .base_audio_backend import BaseAudioBackend
-from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
+def handle_errors(*dargs, **dkwargs):
+    def _decorator(func):
+        return handle_domain_errors(*dargs, **dkwargs)(func)
 
-logger = get_logger(__name__)
+    return _decorator
+
+logger = logging.getLogger(__name__)
 
 
 class MockAudioBackend(BaseAudioBackend):
@@ -30,7 +33,7 @@ class MockAudioBackend(BaseAudioBackend):
     It provides predictable behavior for testing auto-advance and playlist functionality.
     """
 
-    def __init__(self, playback_subject: Optional[PlaybackSubject] = None):
+    def __init__(self, playback_subject: Optional[Any] = None):
         """Initialize the mock audio backend."""
         super().__init__(playback_subject)
         self._track_duration = config.audio.mock_track_duration  # Simulated duration
@@ -38,7 +41,7 @@ class MockAudioBackend(BaseAudioBackend):
         self._volume = 50  # Default volume
         self._initialized = False
 
-        logger.log(LogLevel.INFO, "🧪 Mock Audio Backend initialized")
+        logger.info("🧪 Mock Audio Backend initialized")
 
     @handle_errors("initialize")
     def initialize(self) -> bool:
@@ -49,7 +52,7 @@ class MockAudioBackend(BaseAudioBackend):
         """
         with self._state_lock:
             self._initialized = True
-        logger.log(LogLevel.DEBUG, "🧪 Mock: Audio backend initialized")
+        logger.debug("🧪 Mock: Audio backend initialized")
         return True
 
     @handle_errors("shutdown")
@@ -60,7 +63,7 @@ class MockAudioBackend(BaseAudioBackend):
             self._current_file_path = None
             self._play_start_time = None
             self._initialized = False
-        logger.log(LogLevel.DEBUG, "🧪 Mock: Audio backend shutdown")
+        logger.debug("🧪 Mock: Audio backend shutdown")
 
     # AudioBackendProtocol required methods
     @handle_errors("play")
@@ -74,7 +77,7 @@ class MockAudioBackend(BaseAudioBackend):
         with self._state_lock:
             if self._is_playing:
                 self._is_playing = False
-                logger.log(LogLevel.INFO, "🧪 Mock: Playback paused")
+                logger.info("🧪 Mock: Playback paused")
                 return True
             return False
 
@@ -84,7 +87,7 @@ class MockAudioBackend(BaseAudioBackend):
         with self._state_lock:
             if not self._is_playing and self._current_file_path:
                 self._is_playing = True
-                logger.log(LogLevel.INFO, "🧪 Mock: Playback resumed")
+                logger.info("🧪 Mock: Playback resumed")
                 return True
             return False
 
@@ -95,7 +98,7 @@ class MockAudioBackend(BaseAudioBackend):
             self._is_playing = False
             self._current_file_path = None
             self._play_start_time = None
-            logger.log(LogLevel.INFO, "🧪 Mock: Playback stopped")
+            logger.info("🧪 Mock: Playback stopped")
             return True
 
     @handle_errors("set_volume")
@@ -103,7 +106,7 @@ class MockAudioBackend(BaseAudioBackend):
         """Set playback volume."""
         if 0 <= volume <= 100:
             self._volume = volume
-            logger.log(LogLevel.INFO, f"🧪 Mock: Volume set to {volume}")
+            logger.info(f"🧪 Mock: Volume set to {volume}")
             return True
         return False
 
@@ -116,13 +119,16 @@ class MockAudioBackend(BaseAudioBackend):
     async def seek(self, position_ms: int) -> bool:
         """Seek to a specific position."""
         if position_ms >= 0:
-            logger.log(LogLevel.INFO, f"🧪 Mock: Seeked to {position_ms}ms")
+            logger.info(f"🧪 Mock: Seeked to {position_ms}ms")
             return True
         return False
 
     @handle_errors("get_position")
     async def get_position(self) -> Optional[int]:
         """Get current playback position."""
+        # Update internal state to check for track completion
+        self._update_internal_state()
+
         if self._is_playing and self._play_start_time:
             elapsed = time.time() - self._play_start_time
             return int(elapsed * 1000)  # Convert to ms
@@ -135,14 +141,22 @@ class MockAudioBackend(BaseAudioBackend):
             return int(self._track_duration * 1000)  # Convert to ms
         return None
 
+    def get_duration_sync(self) -> float:
+        """Get duration of current track in seconds (for unified_audio_player compatibility)."""
+        if self._current_file_path:
+            logger.debug(f"🧪 Mock: Returning duration: {self._track_duration:.1f}s")
+            return self._track_duration
+        return 0.0
+
     # Removed duplicate is_playing method - using property below
 
     @handle_errors("play_file")
-    def play_file(self, file_path: str) -> bool:
+    def play_file(self, file_path: str, duration_ms: Optional[int] = None) -> bool:
         """Play a single audio file (simulated).
 
         Args:
             file_path: Path to the audio file to play
+            duration_ms: Optional duration hint in milliseconds
 
         Returns:
             bool: True if playback started successfully, False otherwise
@@ -154,11 +168,18 @@ class MockAudioBackend(BaseAudioBackend):
         with self._state_lock:
             # Simulate stopping current playback
             self._is_playing = False
+
+            # Use provided duration or default
+            if duration_ms and duration_ms > 0:
+                self._track_duration = duration_ms / 1000.0  # Convert to seconds
+            else:
+                self._track_duration = config.audio.mock_track_duration  # Use config default
+
             # Start "playing" the new file
             self._current_file_path = str(path)
             self._is_playing = True
             self._play_start_time = time.time()
-            logger.log(LogLevel.INFO, f"🧪 Mock: Started playing {path.name}")
+            logger.info(f"🧪 Mock: Started playing {path.name} (duration: {self._track_duration:.1f}s)")
             self._notify_playback_event("track_started", {"file_path": str(path)})
             return True
 
@@ -194,6 +215,9 @@ class MockAudioBackend(BaseAudioBackend):
         Returns:
             bool: True if backend is busy, False if idle/finished
         """
+        # Update internal state to check for track completion
+        self._update_internal_state()
+
         with self._state_lock:
             # Check if track has finished based on duration
             if self._is_playing and self._play_start_time:
@@ -213,7 +237,7 @@ class MockAudioBackend(BaseAudioBackend):
                 elapsed = time.time() - self._play_start_time
                 if elapsed >= self._track_duration:
                     self._is_playing = False
-                    logger.log(LogLevel.DEBUG, "🧪 Mock: Track finished, state updated")
+                    logger.debug("🧪 Mock: Track finished, state updated")
                     self._notify_playback_event(
                         "track_ended",
                         {
@@ -226,9 +250,9 @@ class MockAudioBackend(BaseAudioBackend):
     @handle_errors("cleanup")
     def cleanup(self) -> None:
         """Clean up audio resources (simulated)."""
-        logger.log(LogLevel.INFO, "🧪 Cleaning up mock audio backend")
+        logger.info("🧪 Cleaning up mock audio backend")
         with self._state_lock:
             self._is_playing = False
             self._current_file_path = None
             self._play_start_time = None
-        logger.log(LogLevel.INFO, "🧪 Mock audio backend cleanup completed")
+        logger.info("🧪 Mock audio backend cleanup completed")

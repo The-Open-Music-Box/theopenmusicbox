@@ -10,8 +10,7 @@ that infrastructure implementations must fulfill.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Optional
-from app.src.domain.data.models.playlist import Playlist
+from typing import List, Optional, Any
 
 
 class PlaylistRepositoryProtocol(ABC):
@@ -23,7 +22,7 @@ class PlaylistRepositoryProtocol(ABC):
     """
 
     @abstractmethod
-    async def save(self, playlist: Playlist) -> Playlist:
+    async def save(self, playlist: Any) -> Any:
         """Save a playlist and return the saved entity.
 
         Args:
@@ -35,7 +34,7 @@ class PlaylistRepositoryProtocol(ABC):
         pass
 
     @abstractmethod
-    async def find_by_id(self, playlist_id: str) -> Optional[Playlist]:
+    async def find_by_id(self, playlist_id: str) -> Optional[Any]:
         """Find a playlist by its ID.
 
         Args:
@@ -47,7 +46,7 @@ class PlaylistRepositoryProtocol(ABC):
         pass
 
     @abstractmethod
-    async def find_by_name(self, name: str) -> Optional[Playlist]:
+    async def find_by_name(self, name: str) -> Optional[Any]:
         """Find a playlist by its name.
 
         Args:
@@ -59,7 +58,7 @@ class PlaylistRepositoryProtocol(ABC):
         pass
 
     @abstractmethod
-    async def find_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Playlist]:
+    async def find_by_nfc_tag(self, nfc_tag_id: str) -> Optional[Any]:
         """Find a playlist by associated NFC tag.
 
         Args:
@@ -71,7 +70,7 @@ class PlaylistRepositoryProtocol(ABC):
         pass
 
     @abstractmethod
-    async def find_all(self, limit: int = None, offset: int = 0) -> List[Playlist]:
+    async def find_all(self, limit: int = None, offset: int = 0) -> List[Any]:
         """Find all playlists with optional pagination.
 
         Args:
@@ -84,7 +83,7 @@ class PlaylistRepositoryProtocol(ABC):
         pass
 
     @abstractmethod
-    async def update(self, playlist: Playlist) -> Playlist:
+    async def update(self, playlist: Any) -> Any:
         """Update an existing playlist.
 
         Args:
@@ -117,7 +116,7 @@ class PlaylistRepositoryProtocol(ABC):
         pass
 
     @abstractmethod
-    async def search(self, query: str, limit: int = None) -> List[Playlist]:
+    async def search(self, query: str, limit: int = None) -> List[Any]:
         """Search playlists by name or description.
 
         Args:

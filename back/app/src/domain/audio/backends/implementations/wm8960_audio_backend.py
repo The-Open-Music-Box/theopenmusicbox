@@ -18,15 +18,22 @@ from typing import Optional
 
 try:
     import pygame
-
     PYGAME_AVAILABLE = True
 except ImportError:
     PYGAME_AVAILABLE = False
 
+try:
+    import mutagen
+    from mutagen import File as MutagenFile
+    MUTAGEN_AVAILABLE = True
+except ImportError:
+    MUTAGEN_AVAILABLE = False
+    mutagen = None
+    MutagenFile = None
+
 from app.src.config import config
 from app.src.monitoring import get_logger
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
 
 from .base_audio_backend import BaseAudioBackend
@@ -48,22 +55,31 @@ class WM8960AudioBackend(BaseAudioBackend):
         self._play_start_time = None
         self._pause_time = None
 
+        # Track current file and its duration
+        self._current_file_path = None
+        self._current_file_duration = None  # in seconds
+
         # Initialize hardware
         self._initialize_wm8960_hardware()
 
         # Initialize pygame mixer for proper audio handling
+        self._pygame_initialized = False
         if PYGAME_AVAILABLE:
             # Simple default pygame initialization on startup
-            self._init_pygame_simple()
+            self._pygame_initialized = self._init_pygame_simple()
+            if not self._pygame_initialized:
+                logger.error("🔊 WM8960: Failed to initialize pygame mixer - audio device is busy or unavailable")
+                raise RuntimeError("WM8960 audio backend initialization failed: pygame mixer could not be initialized")
         else:
-            logger.log(LogLevel.WARNING, "🔊 WM8960: pygame not available - audio will not work")
+            logger.warning("🔊 WM8960: pygame not available - audio will not work")
+            raise RuntimeError("WM8960 audio backend initialization failed: pygame not available")
 
-        logger.log(LogLevel.INFO, "🔊 WM8960 Audio Backend initialized")
+        logger.info("🔊 WM8960 Audio Backend initialized successfully")
 
     @handle_errors("_init_pygame_simple")
     def _init_pygame_simple(self) -> bool:
         """Initialize pygame mixer with simple default configuration (like main branch)."""
-        logger.log(LogLevel.INFO, "🔊 WM8960: Initializing pygame mixer with simple default configuration")
+        logger.info("🔊 WM8960: Initializing pygame mixer with simple default configuration")
 
         # Clear any existing pygame state
         if pygame.mixer.get_init():
@@ -81,31 +97,30 @@ class WM8960AudioBackend(BaseAudioBackend):
         device = f'plughw:{self._audio_device.split(":")[1] if ":" in self._audio_device else "wm8960soundcard,0"}'
         os.environ['SDL_AUDIODEV'] = device
 
-        logger.log(LogLevel.INFO, f"🔊 WM8960: SDL_AUDIODRIVER={os.environ.get('SDL_AUDIODRIVER')}")
-        logger.log(LogLevel.INFO, f"🔊 WM8960: SDL_AUDIODEV={os.environ.get('SDL_AUDIODEV')}")
+        logger.info(f"🔊 WM8960: SDL_AUDIODRIVER={os.environ.get('SDL_AUDIODRIVER')}")
+        logger.info(f"🔊 WM8960: SDL_AUDIODEV={os.environ.get('SDL_AUDIODEV')}")
 
         # Use audio parameters that match WM8960 hardware capabilities
         # Based on aplay working format: 48000Hz, Signed 16 bit Little Endian, 2 channels
         pygame.mixer.pre_init(frequency=48000, size=-16, channels=2, buffer=2048)
 
-        logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer.pre_init called with freq=48000, size=-16, channels=2, buffer=2048")
+        logger.info(f"🔊 WM8960: pygame.mixer.pre_init called with freq=48000, size=-16, channels=2, buffer=2048")
 
         try:
             pygame.mixer.init()
-            logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer.init() successful")
+            logger.info(f"🔊 WM8960: pygame.mixer.init() successful")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"🔊 WM8960: pygame.mixer.init() failed: {e}")
+            logger.error(f"🔊 WM8960: pygame.mixer.init() failed: {e}")
             return False
 
         # Verify initialization
         if pygame.mixer.get_init():
             init_info = pygame.mixer.get_init()
-            logger.log(
-                LogLevel.INFO, f"🔊 WM8960: pygame mixer initialized successfully with {init_info} (simple default)"
+            logger.info(f"🔊 WM8960: pygame mixer initialized successfully with {init_info} (simple default)"
             )
             return True
         else:
-            logger.log(LogLevel.ERROR, "🔊 WM8960: pygame mixer failed to initialize")
+            logger.error("🔊 WM8960: pygame mixer failed to initialize")
             return False
 
     @handle_errors("_detect_wm8960_device")
@@ -120,7 +135,7 @@ class WM8960AudioBackend(BaseAudioBackend):
             result = subprocess.run(["aplay", "-l"], capture_output=True, text=True)
         except FileNotFoundError:
             # aplay not found (e.g., on macOS), use default
-            logger.log(LogLevel.INFO, "🔊 WM8960: aplay not found, using default device")
+            logger.info("🔊 WM8960: aplay not found, using default device")
             return "plughw:1,0"  # fallback when aplay not found
         if result.returncode == 0:
             output = result.stdout
@@ -136,8 +151,7 @@ class WM8960AudioBackend(BaseAudioBackend):
                             if card_part.isdigit():
                                 # Use plughw for better compatibility with different audio formats
                                 device = f"plughw:{card_part},0"
-                                logger.log(
-                                    LogLevel.INFO, f"🔊 WM8960: Detected audio device: {device}"
+                                logger.info(f"🔊 WM8960: Detected audio device: {device}"
                                 )
                                 return device
                             else:
@@ -146,8 +160,7 @@ class WM8960AudioBackend(BaseAudioBackend):
                                     parts[1].split(":")[1].strip().split()[0]
                                 )  # Get card name
                                 device = f"hw:{card_name},0"
-                                logger.log(
-                                    LogLevel.INFO, f"🔊 WM8960: Using card name format: {device}"
+                                logger.info(f"🔊 WM8960: Using card name format: {device}"
                                 )
                                 return device
             # Fallback: look for any card with wm8960 in name and extract number
@@ -159,12 +172,41 @@ class WM8960AudioBackend(BaseAudioBackend):
                         if card_num.isdigit():
                             # Use plughw for better format compatibility
                             device = f"plughw:{card_num},0"
-                            logger.log(LogLevel.INFO, f"🔊 WM8960: Fallback detected: {device}")
+                            logger.info(f"🔊 WM8960: Fallback detected: {device}")
                             return device
         # Final fallback
         device = "plughw:0,0"
-        logger.log(LogLevel.INFO, f"🔊 WM8960: Using fallback device: {device}")
+        logger.info(f"🔊 WM8960: Using fallback device: {device}")
         return device
+
+    def _get_file_duration(self, file_path: str) -> Optional[float]:
+        """Get the duration of an audio file using mutagen.
+
+        Args:
+            file_path: Path to the audio file
+
+        Returns:
+            float: Duration in seconds, or None if not available
+        """
+        if not MUTAGEN_AVAILABLE:
+            logger.warning("🔊 WM8960: mutagen not available for duration detection")
+            return None
+
+        try:
+            audio_file = MutagenFile(file_path)
+            if audio_file is not None and hasattr(audio_file, 'info'):
+                duration = getattr(audio_file.info, 'length', None)
+                if duration and duration > 0:
+                    logger.debug(f"🔊 WM8960: Duration detected: {duration:.1f}s for {Path(file_path).name}")
+                    return float(duration)
+                else:
+                    logger.warning(f"🔊 WM8960: Invalid duration for {Path(file_path).name}")
+            else:
+                logger.warning(f"🔊 WM8960: Could not read audio metadata for {Path(file_path).name}")
+        except Exception as e:
+            logger.warning(f"🔊 WM8960: Error reading duration for {Path(file_path).name}: {e}")
+
+        return None
 
     @handle_errors("_initialize_wm8960_hardware")
     def _initialize_wm8960_hardware(self) -> bool:
@@ -175,15 +217,16 @@ class WM8960AudioBackend(BaseAudioBackend):
         """
         # Detect the correct audio device for pygame configuration
         self._audio_device = self._detect_wm8960_device()
-        logger.log(LogLevel.INFO, f"🔊 WM8960: Detected audio device: {self._audio_device}")
+        logger.info(f"🔊 WM8960: Detected audio device: {self._audio_device}")
         return True
 
     @handle_errors("play_file")
-    def play_file(self, file_path: str) -> bool:
+    def play_file(self, file_path: str, duration_ms: Optional[int] = None) -> bool:
         """Play a single audio file through WM8960 using pygame.
 
         Args:
             file_path: Path to the audio file to play
+            duration_ms: Optional track duration in milliseconds from playlist
 
         Returns:
             bool: True if playback started successfully, False otherwise
@@ -193,44 +236,47 @@ class WM8960AudioBackend(BaseAudioBackend):
             return False
 
         with self._state_lock:
+            # Check if pygame was initialized successfully
+            if not self._pygame_initialized:
+                logger.error("🔊 WM8960: pygame mixer not initialized - cannot play audio")
+                return False
+
             # Stop current playback if any
             self._stop_current_playback()
             # Use pygame for reliable audio playback
             if not PYGAME_AVAILABLE:
-                logger.log(LogLevel.ERROR, "🔊 WM8960: pygame not available - cannot play audio")
+                logger.error("🔊 WM8960: pygame not available - cannot play audio")
                 return False
             if not pygame.mixer.get_init():
-                logger.log(
-                    LogLevel.WARNING,
-                    "🔊 WM8960: pygame mixer not initialized, attempting to initialize",
+                logger.warning("🔊 WM8960: pygame mixer not initialized, attempting to initialize",
                 )
                 if not self._init_pygame_simple():
-                    logger.log(LogLevel.ERROR, "🔊 WM8960: Failed to initialize pygame mixer")
+                    logger.error("🔊 WM8960: Failed to initialize pygame mixer")
                     return False
-            return self._play_with_pygame(str(path))
+            return self._play_with_pygame(str(path), duration_ms)
 
     @handle_errors("_play_with_pygame")
-    def _play_with_pygame(self, file_path: str) -> bool:
+    def _play_with_pygame(self, file_path: str, duration_ms: Optional[int] = None) -> bool:
         """Play audio file using pygame.mixer.music (preferred method)."""
-        logger.log(LogLevel.INFO, f"🔊 WM8960: Using pygame.mixer.music for playback of {file_path}")
+        logger.info(f"🔊 WM8960: Using pygame.mixer.music for playback of {file_path}")
 
         # Check pygame mixer state before loading
         mixer_init = pygame.mixer.get_init()
-        logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer state before load: {mixer_init}")
+        logger.info(f"🔊 WM8960: pygame.mixer state before load: {mixer_init}")
 
         try:
             # Load and play the audio file with pygame.mixer.music
-            logger.log(LogLevel.INFO, f"🔊 WM8960: Loading audio file: {file_path}")
+            logger.info(f"🔊 WM8960: Loading audio file: {file_path}")
             pygame.mixer.music.load(file_path)
-            logger.log(LogLevel.INFO, f"🔊 WM8960: Audio file loaded successfully")
+            logger.info(f"🔊 WM8960: Audio file loaded successfully")
 
-            logger.log(LogLevel.INFO, f"🔊 WM8960: Starting playback...")
+            logger.info(f"🔊 WM8960: Starting playback...")
             pygame.mixer.music.play()
-            logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer.music.play() called")
+            logger.info(f"🔊 WM8960: pygame.mixer.music.play() called")
 
             # Check if playback started
             is_busy = pygame.mixer.music.get_busy()
-            logger.log(LogLevel.INFO, f"🔊 WM8960: pygame.mixer.music.get_busy() = {is_busy}")
+            logger.info(f"🔊 WM8960: pygame.mixer.music.get_busy() = {is_busy}")
 
             self._current_file_path = file_path
             self._is_playing = True
@@ -238,11 +284,18 @@ class WM8960AudioBackend(BaseAudioBackend):
             self._play_start_time = time.time()
             self._pause_time = None
 
-            logger.log(LogLevel.INFO, f"🔊 WM8960: Playback state set - playing={self._is_playing}, busy={is_busy}")
+            # Use duration from playlist if provided, otherwise detect it from file
+            if duration_ms:
+                self._current_file_duration = duration_ms / 1000.0
+            else:
+                # Try to detect file duration automatically
+                self._current_file_duration = self._detect_file_duration(file_path)
+
+            logger.info(f"🔊 WM8960: Playback state set - playing={self._is_playing}, busy={is_busy}")
             return True
 
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"🔊 WM8960: Error during pygame playback: {e}")
+            logger.error(f"🔊 WM8960: Error during pygame playback: {e}")
             return False
 
     @handle_errors("stop_sync")
@@ -254,7 +307,7 @@ class WM8960AudioBackend(BaseAudioBackend):
         """
         with self._state_lock:
             self._stop_current_playback()
-        logger.log(LogLevel.INFO, "🔊 WM8960: Playback stopped")
+        logger.info("🔊 WM8960: Playback stopped")
         return True
 
     @handle_errors("pause_sync")
@@ -274,7 +327,7 @@ class WM8960AudioBackend(BaseAudioBackend):
                 self._is_playing = False
                 self._is_paused = True
                 self._pause_time = time.time()
-                logger.log(LogLevel.INFO, "🔊 WM8960: Playback paused")
+                logger.info("🔊 WM8960: Playback paused")
                 return True
             else:
                 return False
@@ -300,7 +353,7 @@ class WM8960AudioBackend(BaseAudioBackend):
                     pause_duration = time.time() - self._pause_time
                     self._play_start_time += pause_duration
                 self._pause_time = None
-                logger.log(LogLevel.INFO, "🔊 WM8960: Playback resumed")
+                logger.info("🔊 WM8960: Playback resumed")
                 return True
             else:
                 return False
@@ -325,15 +378,11 @@ class WM8960AudioBackend(BaseAudioBackend):
                 return 0.0
             # Validate position - should not be negative or extremely large
             if position < 0:
-                logger.log(
-                    LogLevel.WARNING,
-                    f"🔊 WM8960: Negative position detected ({position:.2f}s), resetting to 0",
+                logger.warning(f"🔊 WM8960: Negative position detected ({position:.2f}s), resetting to 0",
                 )
                 return 0.0
             elif position > 7200:  # More than 2 hours is suspicious
-                logger.log(
-                    LogLevel.WARNING,
-                    f"🔊 WM8960: Suspiciously large position ({position:.2f}s), might indicate timing issue",
+                logger.warning(f"🔊 WM8960: Suspiciously large position ({position:.2f}s), might indicate timing issue",
                 )
             return position
 
@@ -374,23 +423,19 @@ class WM8960AudioBackend(BaseAudioBackend):
                         pygame.mixer.music.play(start=position)
                         # Assume seeking worked for now - pygame doesn't give us feedback
                         seek_success = True
-                        logger.log(
-                            LogLevel.INFO,
-                            f"🔊 WM8960: Attempted seek to {position:.1f}s using play(start=)",
+                        logger.info(f"🔊 WM8960: Attempted seek to {position:.1f}s using play(start=)",
                         )
                     else:
                         # No start parameter available
                         pygame.mixer.music.play()
                         seek_success = False
-                        logger.log(
-                            LogLevel.WARNING,
-                            "🔊 WM8960: pygame.mixer.music.play() doesn't support start parameter",
+                        logger.warning("🔊 WM8960: pygame.mixer.music.play() doesn't support start parameter",
                         )
                 except Exception as e:
                     # Fallback to simple play without seeking
                     pygame.mixer.music.play()
                     seek_success = False
-                    logger.log(LogLevel.WARNING, f"🔊 WM8960: Seek failed, playing from start: {e}")
+                    logger.warning(f"🔊 WM8960: Seek failed, playing from start: {e}")
 
     @handle_errors("set_volume_sync")
     def set_volume_sync(self, volume: int) -> bool:
@@ -408,13 +453,13 @@ class WM8960AudioBackend(BaseAudioBackend):
             if PYGAME_AVAILABLE and pygame.mixer.get_init():
                 pygame_volume = self._volume / 100.0
                 pygame.mixer.music.set_volume(pygame_volume)
-                logger.log(LogLevel.DEBUG, f"🔊 WM8960: pygame volume set to {pygame_volume}")
+                logger.debug(f"🔊 WM8960: pygame volume set to {pygame_volume}")
                 # Also set system volume via ALSA
                 volume_percent = f"{self._volume}%"
                 subprocess.run(
                     ["amixer", "sset", "Master", volume_percent], check=True, capture_output=True
                 )
-                logger.log(LogLevel.DEBUG, f"🔊 WM8960: ALSA volume set to {self._volume}%")
+                logger.debug(f"🔊 WM8960: ALSA volume set to {self._volume}%")
 
     @property
     def is_paused(self) -> bool:
@@ -440,7 +485,7 @@ class WM8960AudioBackend(BaseAudioBackend):
                     self._is_playing = False
                     self._is_paused = False
                     self._play_start_time = None
-                    logger.log(LogLevel.DEBUG, "🔊 WM8960: pygame track finished")
+                    logger.debug("🔊 WM8960: pygame track finished")
 
             return self._is_playing
 
@@ -461,7 +506,7 @@ class WM8960AudioBackend(BaseAudioBackend):
                     self._is_playing = False
                     self._is_paused = False
                     self._play_start_time = None
-                    logger.log(LogLevel.DEBUG, "🔊 WM8960: Track ended, backend no longer busy")
+                    logger.debug("🔊 WM8960: Track ended, backend no longer busy")
                     return False
 
             return self._is_playing
@@ -522,7 +567,7 @@ class WM8960AudioBackend(BaseAudioBackend):
         Returns:
             bool: True if playback started successfully
         """
-        return await asyncio.get_event_loop().run_in_executor(None, self.play_file, file_path)
+        return await asyncio.get_running_loop().run_in_executor(None, self.play_file, file_path)
 
     async def get_volume(self) -> int:
         """Get current volume level.
@@ -544,32 +589,69 @@ class WM8960AudioBackend(BaseAudioBackend):
         position_s = position_ms / 1000.0
         return self.set_position(position_s)
 
-    async def get_duration(self) -> Optional[int]:
-        """Get duration of current track.
+    def get_duration(self) -> float:
+        """Get duration of current track in seconds (for unified_audio_player compatibility).
+
+        Returns:
+            float: Duration in seconds or 0.0 if not available
+        """
+        if self._current_file_duration and self._current_file_duration > 0:
+            logger.debug(f"🔊 WM8960: Returning duration: {self._current_file_duration:.1f}s")
+            return self._current_file_duration
+        return 0.0
+
+    async def get_duration_ms(self) -> Optional[int]:
+        """Get duration of current track in milliseconds (for async operations).
 
         Returns:
             int: Duration in milliseconds or None if not available
         """
-        # pygame doesn't provide easy duration access, return None for now
-        # This could be improved by using mutagen or similar library
+        if self._current_file_duration and self._current_file_duration > 0:
+            duration_ms = int(self._current_file_duration * 1000)
+            logger.debug(f"🔊 WM8960: Returning duration: {duration_ms}ms ({self._current_file_duration:.1f}s)")
+            return duration_ms
+        return None
+
+    def _detect_file_duration(self, file_path: str) -> Optional[float]:
+        """Detect duration of audio file using mutagen.
+
+        Args:
+            file_path: Path to audio file
+
+        Returns:
+            float: Duration in seconds or None if detection fails
+        """
+        try:
+            # Try to use mutagen to get file duration
+            from mutagen import File
+            audio_file = File(file_path)
+            if audio_file and hasattr(audio_file, 'info') and hasattr(audio_file.info, 'length'):
+                duration = float(audio_file.info.length)
+                logger.info(f"🔊 WM8960: Detected file duration: {duration:.1f}s for {file_path}")
+                return duration
+        except ImportError:
+            logger.warning("🔊 WM8960: mutagen not available for duration detection")
+        except Exception as e:
+            logger.debug(f"🔊 WM8960: Could not detect duration for {file_path}: {e}")
+
         return None
 
     @handle_errors("cleanup")
     def cleanup(self) -> None:
         """Clean up audio resources."""
-        logger.log(LogLevel.INFO, "🔊 Cleaning up WM8960 audio backend")
+        logger.info("🔊 Cleaning up WM8960 audio backend")
         with self._state_lock:
             self._stop_current_playback()
 
         # Clean up any SDL environment variables we might have set
         if 'SDL_AUDIODRIVER' in os.environ:
             del os.environ['SDL_AUDIODRIVER']
-            logger.log(LogLevel.DEBUG, "🔊 WM8960: Cleared SDL_AUDIODRIVER environment variable")
+            logger.debug("🔊 WM8960: Cleared SDL_AUDIODRIVER environment variable")
         if 'SDL_AUDIODEV' in os.environ:
             del os.environ['SDL_AUDIODEV']
-            logger.log(LogLevel.DEBUG, "🔊 WM8960: Cleared SDL_AUDIODEV environment variable")
+            logger.debug("🔊 WM8960: Cleared SDL_AUDIODEV environment variable")
 
-        logger.log(LogLevel.INFO, "🔊 WM8960 audio backend cleanup completed")
+        logger.info("🔊 WM8960 audio backend cleanup completed")
 
     @handle_errors("_stop_current_playback")
     def _stop_current_playback(self) -> None:
@@ -577,9 +659,10 @@ class WM8960AudioBackend(BaseAudioBackend):
         # Stop pygame.mixer.music if active
         if PYGAME_AVAILABLE and pygame.mixer.get_init():
             pygame.mixer.music.stop()
-            logger.log(LogLevel.DEBUG, "🔊 WM8960: Stopped pygame.mixer.music playback")
+            logger.debug("🔊 WM8960: Stopped pygame.mixer.music playback")
         self._is_playing = False
         self._is_paused = False
         self._play_start_time = None
         self._pause_time = None
         self._current_file_path = None
+        self._current_file_duration = None

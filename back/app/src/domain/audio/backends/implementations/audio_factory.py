@@ -15,32 +15,29 @@ from typing import Optional
 from app.src.config import config
 from app.src.domain.protocols.notification_protocol import PlaybackNotifierProtocol as PlaybackSubject
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
-from .unified_audio_player import UnifiedAudioPlayer
 from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
 
 logger = get_logger(__name__)
 
 
-def get_unified_audio_player(
+def get_audio_backend(
     playback_subject: Optional[PlaybackSubject] = None,
-) -> UnifiedAudioPlayer:
-    """Create a unified audio player with centralized playlist management.
+) -> AudioBackendProtocol:
+    """Create just the audio backend without unified player wrapper.
 
-    This is the recommended way to create audio players as it provides
-    consistent playlist behavior across all platforms.
+    This is the recommended way for new architecture using PlaybackCoordinator.
 
     Args:
         playback_subject: Optional notification service for playback events
 
     Returns:
-        UnifiedAudioPlayer: A unified audio player with centralized playlist management
+        AudioBackendProtocol: Platform-appropriate audio backend
     """
-    backend = _create_audio_backend(playback_subject)
-    # Note: playlist_controller will be injected later by Infrastructure layer
-    return UnifiedAudioPlayer(backend, playlist_controller=None, playback_subject=playback_subject)
+    return _create_audio_backend(playback_subject)
+
+
 
 
 @handle_errors("_create_audio_backend")
@@ -58,16 +55,16 @@ def _create_audio_backend(
     if config.hardware.mock_hardware:
         from .mock_audio_backend import MockAudioBackend
 
-        logger.log(LogLevel.INFO, "🧪 Creating MockAudioBackend (mock hardware mode)")
+        logger.info("🧪 Creating MockAudioBackend (mock hardware mode)")
         return MockAudioBackend(playback_subject)
 
     elif sys.platform == "darwin":
         # Use macOS-specific audio backend with Core Audio
         from .macos_audio_backend import MacOSAudioBackend
 
-        logger.log(LogLevel.INFO, "🍎 Creating MacOSAudioBackend...")
+        logger.info("🍎 Creating MacOSAudioBackend...")
         backend = MacOSAudioBackend(playback_subject)
-        logger.log(LogLevel.INFO, "✅ macOS Audio Backend initialized successfully")
+        logger.info("✅ macOS Audio Backend initialized successfully")
         return backend
 
     else:
@@ -75,13 +72,13 @@ def _create_audio_backend(
         try:
             from .wm8960_audio_backend import WM8960AudioBackend
 
-            logger.log(LogLevel.INFO, "🔊 Creating WM8960AudioBackend...")
+            logger.info("🔊 Creating WM8960AudioBackend...")
             backend = WM8960AudioBackend(playback_subject)
-            logger.log(LogLevel.INFO, "✅ WM8960 Audio Backend initialized successfully")
+            logger.info("✅ WM8960 Audio Backend initialized successfully")
             return backend
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"❌ Failed to initialize WM8960 audio: {e}")
-            logger.log(LogLevel.WARNING, "⚠️️ Falling back to MockAudioBackend")
+            logger.error(f"❌ Failed to initialize WM8960 audio: {e}")
+            logger.warning("⚠️️ Falling back to MockAudioBackend")
 
             from .mock_audio_backend import MockAudioBackend
 

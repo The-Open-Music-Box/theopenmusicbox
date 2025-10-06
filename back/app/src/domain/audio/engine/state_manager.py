@@ -8,7 +8,6 @@ import time
 from typing import Dict, Any, Optional
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.protocols.state_manager_protocol import StateManagerProtocol, PlaybackState
 
 logger = get_logger(__name__)
@@ -36,7 +35,7 @@ class StateManager(StateManagerProtocol):
             old_state = self._current_state
             self._current_state = state
             self._last_updated = time.time()
-            logger.log(LogLevel.INFO, f"State changed: {old_state.value} -> {state.value}")
+            logger.info(f"State changed: {old_state.value} -> {state.value}")
 
     def get_state_dict(self) -> Dict[str, Any]:
         """Get complete state as dictionary."""
@@ -54,14 +53,13 @@ class StateManager(StateManagerProtocol):
         """Update current track information."""
         self._track_info = track_info.copy()
         self._last_updated = time.time()
-        logger.log(LogLevel.DEBUG, f"Track info updated: {track_info.get('title', 'Unknown')}")
+        logger.debug(f"Track info updated: {track_info.get('title', 'Unknown')}")
 
     def update_playlist_info(self, playlist_info: Dict[str, Any]) -> None:
         """Update current playlist information."""
         self._playlist_info = playlist_info.copy()
         self._last_updated = time.time()
-        logger.log(
-            LogLevel.DEBUG, f"Playlist info updated: {playlist_info.get('title', 'Unknown')}"
+        logger.debug(f"Playlist info updated: {playlist_info.get('title', 'Unknown')}"
         )
 
     def update_position(self, position_seconds: float) -> None:
@@ -73,14 +71,14 @@ class StateManager(StateManagerProtocol):
         """Update current volume level."""
         self._volume = max(0, min(100, volume))
         self._last_updated = time.time()
-        logger.log(LogLevel.DEBUG, f"Volume updated: {self._volume}")
+        logger.debug(f"Volume updated: {self._volume}")
 
     def set_error(self, error_message: str) -> None:
         """Set error state with message."""
         self._last_error = error_message
         self._current_state = PlaybackState.ERROR
         self._last_updated = time.time()
-        logger.log(LogLevel.ERROR, f"Error state set: {error_message}")
+        logger.error(f"Error state set: {error_message}")
 
     def clear_error(self) -> None:
         """Clear error state."""
@@ -89,7 +87,7 @@ class StateManager(StateManagerProtocol):
             if self._current_state == PlaybackState.ERROR:
                 self._current_state = PlaybackState.STOPPED
             self._last_updated = time.time()
-            logger.log(LogLevel.INFO, "Error state cleared")
+            logger.info("Error state cleared")
 
     def get_last_error(self) -> Optional[str]:
         """Get last error message."""

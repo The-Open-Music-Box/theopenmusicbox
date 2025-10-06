@@ -4,22 +4,19 @@
 
 """NFC Association Domain Service."""
 
-from typing import Optional, Dict, List, TYPE_CHECKING
+from typing import Optional, Dict, List
 from datetime import datetime, timezone
 
 from ..entities.nfc_tag import NfcTag
 from ..entities.association_session import AssociationSession, SessionState
 from ..value_objects.tag_identifier import TagIdentifier
 from ..protocols.nfc_hardware_protocol import NfcRepositoryProtocol
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
+import logging
 
-# Type checking imports to avoid circular dependencies
-if TYPE_CHECKING:
-    from app.src.domain.repositories.playlist_repository_interface import PlaylistRepositoryProtocol
+from typing import Any
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_service_errors
 
-logger = get_logger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class NfcAssociationService:
@@ -32,7 +29,7 @@ class NfcAssociationService:
     def __init__(
         self,
         nfc_repository: NfcRepositoryProtocol,
-        playlist_repository: Optional["PlaylistRepositoryProtocol"] = None,
+        playlist_repository: Optional[Any] = None,
     ):
         """Initialize the association service.
 
@@ -45,13 +42,14 @@ class NfcAssociationService:
         self._active_sessions: Dict[str, AssociationSession] = {}
 
     async def start_association_session(
-        self, playlist_id: str, timeout_seconds: int = 60
+        self, playlist_id: str, timeout_seconds: int = 60, override_mode: bool = False
     ) -> AssociationSession:
         """Start a new association session for a playlist.
 
         Args:
             playlist_id: ID of playlist to associate with tag
             timeout_seconds: Session timeout in seconds
+            override_mode: If True, force association even if tag is already associated
 
         Returns:
             New association session
@@ -64,17 +62,25 @@ class NfcAssociationService:
 
         # Check if there's already an active session for this playlist
         existing_session = self._find_active_session_for_playlist(playlist_id)
-        if existing_session:
+        if existing_session and not override_mode:
             raise ValueError(f"Association session already active for playlist {playlist_id}")
 
+        # If override mode and existing session exists, stop it first
+        if existing_session and override_mode:
+            await self.stop_association_session(existing_session.session_id)
+            logger.info(f"🔄 Stopped existing session {existing_session.session_id} for override mode")
+
         # Create new session
-        session = AssociationSession(playlist_id=playlist_id, timeout_seconds=timeout_seconds)
+        session = AssociationSession(
+            playlist_id=playlist_id,
+            timeout_seconds=timeout_seconds,
+            override_mode=override_mode
+        )
 
         self._active_sessions[session.session_id] = session
 
-        logger.log(
-            LogLevel.INFO,
-            f"✅ Started association session {session.session_id} for playlist {playlist_id}",
+        logger.info(
+            f"✅ Started association session {session.session_id} for playlist {playlist_id} (override={override_mode})"
         )
         return session
 
@@ -127,6 +133,10 @@ class NfcAssociationService:
     ) -> Dict[str, any]:
         """Process a tag detection for a specific session.
 
+        DATABASE-FIRST ARCHITECTURE:
+        The database is the SINGLE SOURCE OF TRUTH (SSOT) for NFC associations.
+        We ALWAYS check the database first before any association operation.
+
         Args:
             tag: Detected NFC tag
             session: Association session to process for
@@ -136,45 +146,90 @@ class NfcAssociationService:
         """
         session.detect_tag(tag.identifier)
 
-        # Check if tag is already associated with another playlist
-        if tag.is_associated() and tag.get_associated_playlist_id() != session.playlist_id:
-            session.mark_duplicate(tag.get_associated_playlist_id())
-            logger.log(
-                LogLevel.WARNING,
-                f"🔄 Tag {tag.identifier} already associated with playlist {tag.get_associated_playlist_id()}",
+        # ✅ STEP 1: Check DATABASE first (SSOT - Single Source of Truth)
+        # The database is the authoritative source, especially after restarts
+        existing_playlist_id = None
+        if self._playlist_repository:
+            existing_playlist = await self._playlist_repository.find_by_nfc_tag(
+                str(tag.identifier)
+            )
+            if existing_playlist:
+                existing_playlist_id = existing_playlist.id
+                logger.info(
+                    f"🔍 Database check: Tag {tag.identifier} found associated with playlist {existing_playlist_id}"
+                )
+
+        # ✅ STEP 2: Also check memory cache (for in-session consistency)
+        # Memory is checked AFTER database to ensure we have the complete picture
+        if not existing_playlist_id and tag.is_associated():
+            existing_playlist_id = tag.get_associated_playlist_id()
+            logger.info(
+                f"🔍 Memory check: Tag {tag.identifier} found in cache with playlist {existing_playlist_id}"
             )
 
-            return {
-                "action": "duplicate_association",
-                "session_id": session.session_id,
-                "playlist_id": session.playlist_id,
-                "tag_id": str(tag.identifier),
-                "existing_playlist_id": tag.get_associated_playlist_id(),
-                "session_state": session.state.value,
-            }
+        # ✅ STEP 3: If tag is associated anywhere, handle duplicate detection
+        if existing_playlist_id:
+            is_same_playlist = existing_playlist_id == session.playlist_id
 
-        # Associate tag with playlist
+            # If override mode, force the association regardless
+            if session.override_mode:
+                logger.warning(
+                    f"⚠️ Override mode: Replacing association {tag.identifier}: {existing_playlist_id} -> {session.playlist_id}"
+                )
+                # Dissociate from old playlist and continue with new association
+                tag.dissociate_from_playlist()
+                # Continue to association below
+            else:
+                # Normal mode: return duplicate error (even if same playlist)
+                # Only mark as duplicate if session is still in LISTENING state
+                # (prevents error when tag is detected multiple times)
+                if session.state == SessionState.LISTENING:
+                    session.mark_duplicate(existing_playlist_id)
+                    logger.warning(
+                        f"🔄 Tag {tag.identifier} already associated with playlist {existing_playlist_id} (same={is_same_playlist})"
+                    )
+                else:
+                    logger.debug(
+                        f"🔄 Tag {tag.identifier} re-detected, session already in {session.state} state"
+                    )
+
+                return {
+                    "action": "duplicate_association",
+                    "session_id": session.session_id,
+                    "playlist_id": session.playlist_id,
+                    "tag_id": str(tag.identifier),
+                    "existing_playlist_id": existing_playlist_id,
+                    "is_same_playlist": is_same_playlist,
+                    "session_state": session.state.value,
+                }
+
+        # ✅ STEP 4: No existing association found, proceed with new association
+        # Update memory cache
         tag.associate_with_playlist(session.playlist_id)
         session.mark_successful()
 
-        # Save the association in NFC repository
+        # Save to memory repository (cache)
         await self._nfc_repository.save_tag(tag)
 
-        # Synchronize with playlist repository for persistence
+        # ✅ STEP 5: Synchronize with database (SSOT)
+        # This is CRITICAL - database is the authoritative source
         if self._playlist_repository:
             sync_success = await self._playlist_repository.update_nfc_tag_association(
                 session.playlist_id, str(tag.identifier)
             )
             if sync_success:
-                logger.log(
-                    LogLevel.INFO,
-                    f"🔄 NFC-Playlist sync successful for tag {tag.identifier} -> playlist {session.playlist_id}",
+                logger.info(
+                    f"🔄 NFC-Playlist sync successful for tag {tag.identifier} -> playlist {session.playlist_id}"
                 )
             else:
-                logger.log(LogLevel.WARNING, f"⚠️ NFC-Playlist sync failed for tag {tag.identifier}")
-        logger.log(
-            LogLevel.INFO,
-            f"✅ Successfully associated tag {tag.identifier} with playlist {session.playlist_id}",
+                logger.warning(f"⚠️ NFC-Playlist sync failed for tag {tag.identifier}")
+        else:
+            logger.warning(
+                f"⚠️ Playlist repository not available, association saved to memory only (will be lost on restart!)"
+            )
+
+        logger.info(
+            f"✅ Successfully associated tag {tag.identifier} with playlist {session.playlist_id}"
         )
 
         # Remove successful session from active sessions after a short delay
@@ -204,8 +259,8 @@ class NfcAssociationService:
         if not session:
             return False
 
-        session.mark_stopped()
-        logger.log(LogLevel.INFO, f"🛑 Stopped association session {session_id}")
+        session.mark_cancelled()  # Mark as cancelled instead of stopped
+        logger.info(f"🛑 Cancelled association session {session_id}")
         return True
 
     async def get_association_session(self, session_id: str) -> Optional[AssociationSession]:
@@ -243,7 +298,7 @@ class NfcAssociationService:
                 expired_count += 1
 
         for session_id in expired_sessions:
-            logger.log(LogLevel.INFO, f"🕒 Association session {session_id} timed out")
+            logger.info(f"🕒 Association session {session_id} timed out")
 
         return expired_count
 
@@ -278,9 +333,7 @@ class NfcAssociationService:
         tag.dissociate_from_playlist()
         await self._nfc_repository.save_tag(tag)
 
-        logger.log(
-            LogLevel.INFO, f"✅ Dissociated tag {tag_identifier} from playlist {old_playlist_id}"
-        )
+        logger.info(f"✅ Dissociated tag {tag_identifier} from playlist {old_playlist_id}")
         return True
 
     async def _cleanup_successful_session(self, session_id: str) -> None:
@@ -298,10 +351,8 @@ class NfcAssociationService:
         if session and session.state == SessionState.SUCCESS:
             # Remove from active sessions
             del self._active_sessions[session_id]
-            logger.log(LogLevel.INFO, f"🧹 Cleaned up successful association session {session_id}")
+            logger.info(f"🧹 Cleaned up successful association session {session_id}")
         elif session:
-            logger.log(
-                LogLevel.DEBUG, f"Session {session_id} not cleaned up - state: {session.state}"
-            )
+            logger.debug(f"Session {session_id} not cleaned up - state: {session.state}")
         else:
-            logger.log(LogLevel.DEBUG, f"Session {session_id} not found for cleanup")
+            logger.debug(f"Session {session_id} not found for cleanup")

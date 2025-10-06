@@ -7,7 +7,6 @@
 from typing import Any
 
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
 
 from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
@@ -48,15 +47,11 @@ class AudioDomainFactory:
         """
         # Domain backends already implement AudioBackendProtocol via BaseAudioBackend
         if isinstance(backend, AudioBackendProtocol):
-            logger.log(
-                LogLevel.DEBUG,
-                f"Backend already implements AudioBackendProtocol: {type(backend).__name__}",
+            logger.debug(f"Backend already implements AudioBackendProtocol: {type(backend).__name__}",
             )
             return backend
 
-        logger.log(
-            LogLevel.WARNING,
-            f"Backend {type(backend).__name__} doesn't implement AudioBackendProtocol",
+        logger.warning(f"Backend {type(backend).__name__} doesn't implement AudioBackendProtocol",
         )
         return backend
 
@@ -98,8 +93,7 @@ class AudioDomainFactory:
         Returns:
             tuple: (audio_engine, backend_adapter, playlist_manager)
         """
-        logger.log(
-            LogLevel.INFO, f"Creating complete audio system with {type(existing_backend).__name__}"
+        logger.info(f"Creating complete audio system with {type(existing_backend).__name__}"
         )
 
         # Create adapted backend
@@ -114,7 +108,7 @@ class AudioDomainFactory:
             backend, event_bus, state_manager
         )
 
-        logger.log(LogLevel.INFO, "Complete audio system created successfully")
+        logger.info("Complete audio system created successfully")
 
         return audio_engine, backend
 
@@ -126,7 +120,7 @@ class AudioDomainFactory:
         Returns:
             AudioBackendProtocol: Default audio backend
         """
-        logger.log(LogLevel.INFO, "Creating default audio backend for pure domain architecture")
+        logger.info("Creating default audio backend for pure domain architecture")
 
         import sys
         import os
@@ -140,60 +134,49 @@ class AudioDomainFactory:
         use_mock = use_mock_env in ("true", "1", "yes", "on")
 
         if use_mock:
-            logger.log(LogLevel.INFO, "🎭 Using mock audio backend (USE_MOCK_HARDWARE=true)")
+            logger.info("🎭 Using mock audio backend (USE_MOCK_HARDWARE=true)")
             from .backends.implementations.mock_audio_backend import MockAudioBackend
 
             mock_backend = MockAudioBackend(playback_subject)
-            logger.log(
-                LogLevel.INFO, f"✅ Created mock audio backend: {type(mock_backend).__name__}"
+            logger.info(f"✅ Created mock audio backend: {type(mock_backend).__name__}"
             )
             return AudioDomainFactory.create_backend_adapter(mock_backend)
 
         # Platform-specific backend selection
         if sys.platform == "darwin":
-            logger.log(LogLevel.INFO, "🍎 Detected macOS platform")
+            logger.info("🍎 Detected macOS platform")
             try:
                 from .backends.implementations.macos_audio_backend import MacOSAudioBackend
 
                 macos_backend = MacOSAudioBackend(playback_subject)
-                logger.log(
-                    LogLevel.INFO, f"✅ Created macOS audio backend: {type(macos_backend).__name__}"
+                logger.info(f"✅ Created macOS audio backend: {type(macos_backend).__name__}"
                 )
                 return AudioDomainFactory.create_backend_adapter(macos_backend)
             except ImportError as e:
-                logger.log(
-                    LogLevel.WARNING,
-                    f"⚠️ macOS audio backend failed ({e}), falling back to mock"
+                logger.warning(f"⚠️ macOS audio backend failed ({e}), falling back to mock"
                 )
                 from .backends.implementations.mock_audio_backend import MockAudioBackend
 
                 fallback_backend = MockAudioBackend(playback_subject)
-                logger.log(
-                    LogLevel.INFO,
-                    f"✅ Created fallback mock backend: {type(fallback_backend).__name__}",
+                logger.info(f"✅ Created fallback mock backend: {type(fallback_backend).__name__}",
                 )
                 return AudioDomainFactory.create_backend_adapter(fallback_backend)
 
         elif sys.platform == "linux":
-            logger.log(LogLevel.INFO, "🐧 Detected Linux platform")
+            logger.info("🐧 Detected Linux platform")
             from .backends.implementations.wm8960_audio_backend import WM8960AudioBackend
 
             wm8960_backend = WM8960AudioBackend(playback_subject)
-            logger.log(
-                LogLevel.INFO, f"✅ Created WM8960 audio backend: {type(wm8960_backend).__name__}"
+            logger.info(f"✅ Created WM8960 audio backend: {type(wm8960_backend).__name__}"
             )
             return AudioDomainFactory.create_backend_adapter(wm8960_backend)
 
         else:
-            logger.log(
-                LogLevel.WARNING,
-                f"⚠️ Unsupported platform {sys.platform}, falling back to mock backend",
+            logger.warning(f"⚠️ Unsupported platform {sys.platform}, falling back to mock backend",
             )
             from .backends.implementations.mock_audio_backend import MockAudioBackend
 
             fallback_backend = MockAudioBackend(playback_subject)
-            logger.log(
-                LogLevel.INFO,
-                f"✅ Created fallback mock backend: {type(fallback_backend).__name__}",
+            logger.info(f"✅ Created fallback mock backend: {type(fallback_backend).__name__}",
             )
             return AudioDomainFactory.create_backend_adapter(fallback_backend)

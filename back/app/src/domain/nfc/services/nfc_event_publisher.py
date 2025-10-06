@@ -20,7 +20,6 @@ from ..events.nfc_events import (
 )
 from ..value_objects.tag_identifier import TagIdentifier
 from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
 
 logger = get_logger(__name__)
 
@@ -48,7 +47,7 @@ class NfcEventPublisher:
             self._event_handlers[event_type] = []
 
         self._event_handlers[event_type].append(handler)
-        logger.log(LogLevel.DEBUG, f"📡 Subscribed handler to {event_type} events")
+        logger.debug(f"📡 Subscribed handler to {event_type} events")
 
     def unsubscribe(self, event_type: str, handler: Callable[[NfcDomainEvent], None]) -> bool:
         """Unsubscribe from a specific event type.
@@ -65,7 +64,7 @@ class NfcEventPublisher:
 
         try:
             self._event_handlers[event_type].remove(handler)
-            logger.log(LogLevel.DEBUG, f"📡 Unsubscribed handler from {event_type} events")
+            logger.debug(f"📡 Unsubscribed handler from {event_type} events")
             return True
         except ValueError:
             return False
@@ -79,18 +78,14 @@ class NfcEventPublisher:
         self._published_events.append(event)
 
         handlers = self._event_handlers.get(event.event_type, [])
-        logger.log(
-            LogLevel.DEBUG,
-            f"📡 Publishing {event.event_type} event to {len(handlers)} handlers"
+        logger.debug(f"📡 Publishing {event.event_type} event to {len(handlers)} handlers"
         )
 
         for handler in handlers:
             try:
                 handler(event)
             except Exception as e:
-                logger.log(
-                    LogLevel.ERROR,
-                    f"❌ Error in event handler for {event.event_type}: {e}"
+                logger.error(f"❌ Error in event handler for {event.event_type}: {e}"
                 )
 
     def publish_tag_detected(

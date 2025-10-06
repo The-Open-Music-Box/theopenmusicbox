@@ -9,15 +9,19 @@ and provides compatibility layers for legacy code.
 """
 
 from typing import Any, Dict
+import logging
 
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
-from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
+# Direct imports instead of dynamic imports
+from app.src.domain.audio.container import audio_domain_container
+from app.src.domain.audio.factory import AudioDomainFactory
+from app.src.domain.decorators.error_handler import handle_domain_errors
 
-from .audio.container import audio_domain_container
-from .audio.factory import AudioDomainFactory
+logger = logging.getLogger(__name__)
 
-logger = get_logger(__name__)
+
+def handle_errors(*dargs, **dkwargs):
+    """Proxy to domain error handler for backward compatibility."""
+    return handle_domain_errors(*dargs, **dkwargs)
 
 
 class DomainBootstrap:
@@ -38,25 +42,22 @@ class DomainBootstrap:
             existing_backend: Existing audio backend to adapt
         """
         if self._is_initialized:
-            logger.log(LogLevel.WARNING, "DomainBootstrap already initialized")
+            logger.warning("DomainBootstrap already initialized")
             return
 
-        logger.log(LogLevel.INFO, "🚀 Initializing domain architecture...")
+        logger.info("🚀 Initializing domain architecture...")
         if existing_backend:
             audio_domain_container.initialize(existing_backend)
-            logger.log(
-                LogLevel.DEBUG, f"Audio domain initialized with {type(existing_backend).__name__}"
-            )
+            logger.debug(f"Audio domain initialized with {type(existing_backend).__name__}")
         else:
             default_backend = AudioDomainFactory.create_default_backend()
             audio_domain_container.initialize(default_backend)
-            logger.log(
-                LogLevel.DEBUG,
-                f"Pure domain audio initialized with {type(default_backend).__name__}",
+            logger.debug(
+                f"Pure domain audio initialized with {type(default_backend).__name__}"
             )
 
         self._is_initialized = True
-        logger.log(LogLevel.INFO, "✅ Domain bootstrap initialized")
+        logger.info("✅ Domain bootstrap initialized")
 
     # MARK: - Lifecycle Management
 
@@ -64,16 +65,16 @@ class DomainBootstrap:
     async def start(self) -> None:
         """Start all domain services."""
         if not self._is_initialized:
-            logger.log(LogLevel.ERROR, "❌ DomainBootstrap not initialized")
+            logger.error("❌ DomainBootstrap not initialized")
             raise RuntimeError("DomainBootstrap not initialized")
             return
 
         if audio_domain_container.is_initialized:
             await audio_domain_container.start()
         else:
-            logger.log(LogLevel.WARNING, "⚠️ Audio domain not initialized, skipping start")
+            logger.warning("⚠️ Audio domain not initialized, skipping start")
         # Note: unified_controller has been moved to application layer
-        logger.log(LogLevel.INFO, "🚀 Domain services started")
+        logger.info("🚀 Domain services started")
 
     @handle_errors(operation_name="stop", component="domain.bootstrap")
     async def stop(self) -> None:
@@ -86,9 +87,9 @@ class DomainBootstrap:
             # Note: unified_controller has been moved to application layer
             if audio_domain_container.is_initialized:
                 await audio_domain_container.stop()
-            logger.log(LogLevel.DEBUG, "Domain services stopped")
+            logger.debug("Domain services stopped")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error stopping domain services: {e}")
+            logger.error(f"Error stopping domain services: {e}")
             # Don't re-raise during shutdown to prevent recursion
         finally:
             self._is_stopping = False
@@ -102,7 +103,7 @@ class DomainBootstrap:
         # Note: unified_controller has been moved to application layer
         audio_domain_container.cleanup()
         self._is_initialized = False
-        logger.log(LogLevel.DEBUG, "Domain cleanup completed")
+        logger.debug("Domain cleanup completed")
 
     # MARK: - Public Properties
 
@@ -128,7 +129,6 @@ class DomainBootstrap:
                     else False
                 ),
             },
-            # Note: unified_controller has been moved to application layer
         }
 
     # MARK: Internal Methods
@@ -136,44 +136,46 @@ class DomainBootstrap:
     def _setup_error_callbacks(self) -> None:
         """Setup error handling callbacks (domain-level only)."""
         # Domain-level error handling without infrastructure dependencies
-        logger.log(LogLevel.DEBUG, "Domain error callbacks setup completed")
+        logger.debug("Domain error callbacks setup completed")
 
     def _handle_audio_error(self, error_record) -> None:
         """Handle audio-specific errors with recovery strategies."""
-        logger.log(LogLevel.WARNING, f"🎵 Audio error handled: {error_record.message}")
+        logger.warning(f"🎵 Audio error handled: {error_record.message}")
 
         # Implement audio recovery strategies based on error type
         if "connection" in error_record.message.lower():
-            logger.log(LogLevel.INFO, "🔄 Attempting audio backend reconnection...")
+            logger.info("🔄 Attempting audio backend reconnection...")
             # Note: Actual recovery would require access to audio container
             # In a real implementation, we'd inject recovery service here
         elif "timeout" in error_record.message.lower():
-            logger.log(LogLevel.INFO, "⏱️ Audio timeout detected, attempting restart...")
+            logger.info("⏱️ Audio timeout detected, attempting restart...")
         else:
-            logger.log(LogLevel.INFO, "🛠️ General audio error recovery initiated...")
+            logger.info("🛠️ General audio error recovery initiated...")
 
     def _handle_critical_error(self, error_record) -> None:
         """Handle critical errors with emergency procedures."""
-        logger.log(LogLevel.ERROR, f"🔥 Critical error handled: {error_record.message}")
+        logger.error(f"🔥 Critical error handled: {error_record.message}")
 
         # Implement emergency procedures for critical errors
-        logger.log(LogLevel.ERROR, "🚨 Initiating emergency procedures...")
+        logger.error("🚨 Initiating emergency procedures...")
 
         # Log critical error for administrator notification
-        logger.log(LogLevel.CRITICAL, f"ALERT: Critical system error - {error_record.message}")
+        logger.critical(f"ALERT: Critical system error - {error_record.message}")
 
         # Attempt to save current state before potential shutdown
         try:
-            logger.log(LogLevel.INFO, "💾 Attempting to save current application state...")
+            logger.info("💾 Attempting to save current application state...")
             # Note: State saving would require access to state services
             # In a real implementation, we'd inject state persistence service here
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"❌ Failed to save state: {e}")
+            logger.error(f"❌ Failed to save state: {e}")
 
         # Consider graceful degradation rather than immediate shutdown
-        logger.log(LogLevel.WARNING, "🔒 Entering safe mode operation...")
+        logger.warning("🔒 Entering safe mode operation...")
 
 
 # MARK: - Global Instance
-
+# Note: DomainBootstrap should be retrieved from DI container
+# Use: container.get("domain_bootstrap") or get_domain_bootstrap()
+# Legacy global instance kept for backward compatibility during transition
 domain_bootstrap = DomainBootstrap()

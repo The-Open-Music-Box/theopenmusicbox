@@ -2,23 +2,25 @@
 # This file is part of TheOpenMusicBox and is licensed for non-commercial use only.
 # See the LICENSE file for details.
 
-"""Dependency injection container for the audio domain."""
+"""Dependency injection container for the audio domain.
+
+Provides centralized audio component initialization and lifecycle management.
+"""
 
 from typing import Optional, Any
+import logging
 
-from app.src.monitoring import get_logger
-from app.src.monitoring.logging.log_level import LogLevel
-from app.src.domain.decorators.error_handler import handle_domain_errors as handle_errors
+from app.src.domain.decorators.error_handler import handle_domain_errors
+from app.src.domain.audio.factory import AudioDomainFactory
 
-from app.src.domain.protocols.audio_backend_protocol import AudioBackendProtocol
-from app.src.domain.protocols.audio_engine_protocol import AudioEngineProtocol
-# PlaylistManagerProtocol removed - use data domain services
-from app.src.domain.protocols.event_bus_protocol import EventBusProtocol
-from app.src.domain.protocols.state_manager_protocol import StateManagerProtocol
+logger = logging.getLogger(__name__)
 
-from .factory import AudioDomainFactory
 
-logger = get_logger(__name__)
+def handle_errors(*dargs, **dkwargs):
+    def _decorator(func):
+        return handle_domain_errors(*dargs, **dkwargs)(func)
+
+    return _decorator
 
 
 class AudioDomainContainer:
@@ -31,14 +33,14 @@ class AudioDomainContainer:
     # MARK: - Initialization
 
     def __init__(self):
-        self._audio_engine: Optional[AudioEngineProtocol] = None
-        self._backend: Optional[AudioBackendProtocol] = None
+        self._audio_engine: Optional[Any] = None
+        self._backend: Optional[Any] = None
         # Playlist manager removed - use data domain services
-        self._event_bus: Optional[EventBusProtocol] = None
-        self._state_manager: Optional[StateManagerProtocol] = None
+        self._event_bus: Optional[Any] = None
+        self._state_manager: Optional[Any] = None
 
         self._is_initialized = False
-        logger.log(LogLevel.INFO, "AudioDomainContainer created")
+        logger.info("AudioDomainContainer created")
 
     @handle_errors("initialize")
     def initialize(self, existing_backend: Any) -> None:
@@ -48,7 +50,7 @@ class AudioDomainContainer:
             existing_backend: Existing audio backend implementation
         """
         if self._is_initialized:
-            logger.log(LogLevel.WARNING, "Container already initialized")
+            logger.warning("Container already initialized")
             return
 
         # Create complete audio system
@@ -61,7 +63,7 @@ class AudioDomainContainer:
         self._event_bus = audio_engine.event_bus
         self._state_manager = audio_engine.state_manager
         self._is_initialized = True
-        logger.log(LogLevel.INFO, "AudioDomainContainer initialized successfully")
+        logger.info("AudioDomainContainer initialized successfully")
 
     # MARK: - Lifecycle Management
 
@@ -71,7 +73,7 @@ class AudioDomainContainer:
             raise RuntimeError("Container not initialized")
 
         await self._audio_engine.start()
-        logger.log(LogLevel.INFO, "Audio domain started")
+        logger.info("Audio domain started")
 
     async def stop(self) -> None:
         """Stop the audio system."""
@@ -80,9 +82,9 @@ class AudioDomainContainer:
 
         try:
             await self._audio_engine.stop()
-            logger.log(LogLevel.INFO, "Audio domain stopped")
+            logger.info("Audio domain stopped")
         except Exception as e:
-            logger.log(LogLevel.ERROR, f"Error stopping audio engine during shutdown: {e}")
+            logger.error(f"Error stopping audio engine during shutdown: {e}")
             # Don't re-raise during shutdown to prevent recursion
 
     @handle_errors("cleanup")
@@ -95,19 +97,19 @@ class AudioDomainContainer:
         if self._backend:
             self._backend.cleanup()
         self._is_initialized = False
-        logger.log(LogLevel.INFO, "AudioDomainContainer cleanup completed")
+        logger.info("AudioDomainContainer cleanup completed")
 
     # MARK: - Component Access
 
     @property
-    def audio_engine(self) -> AudioEngineProtocol:
+    def audio_engine(self) -> Any:
         """Get the audio engine."""
         if not self._is_initialized:
             raise RuntimeError("Container not initialized")
         return self._audio_engine
 
     @property
-    def backend(self) -> AudioBackendProtocol:
+    def backend(self) -> Any:
         """Get the audio backend."""
         if not self._is_initialized:
             raise RuntimeError("Container not initialized")
@@ -116,14 +118,14 @@ class AudioDomainContainer:
     # Playlist manager property removed - use data domain services
 
     @property
-    def event_bus(self) -> EventBusProtocol:
+    def event_bus(self) -> Any:
         """Get the event bus."""
         if not self._is_initialized:
             raise RuntimeError("Container not initialized")
         return self._event_bus
 
     @property
-    def state_manager(self) -> StateManagerProtocol:
+    def state_manager(self) -> Any:
         """Get the state manager."""
         if not self._is_initialized:
             raise RuntimeError("Container not initialized")
@@ -136,4 +138,7 @@ class AudioDomainContainer:
 
 
 # Global container instance
+# Note: AudioDomainContainer lifecycle is managed via domain_bootstrap.initialize()
+# This instance is initialized and started through the bootstrap process
+# Legacy global instance for backward compatibility
 audio_domain_container = AudioDomainContainer()
