@@ -159,6 +159,12 @@ run_pytest() {
     local test_path=$1
     local description=$2
 
+    # Prefer project venv Python if available
+    local PYTHON_BIN="python3"
+    if [ -x "venv/bin/python" ]; then
+        PYTHON_BIN="venv/bin/python"
+    fi
+
     # Check if test path contains multiple paths (space-separated)
     if [[ "$test_path" == *" "* ]]; then
         # Multiple paths - just try to run pytest directly
@@ -172,8 +178,9 @@ run_pytest() {
             return 0
         fi
 
-        # Count tests in the path
-        local test_count=$(find $test_path -name "test_*.py" 2>/dev/null | wc -l | xargs)
+        # Count tests in the path (robustly, avoid xargs/sysconf issues)
+        local test_count=$(find "$test_path" -name "test_*.py" 2>/dev/null | wc -l | tr -d '[:space:]')
+        test_count=${test_count:-0}
         if [ "$test_count" -eq 0 ]; then
             if [ "$QUIET_MODE" != true ]; then
                 print_status $YELLOW "⚠️ $description - SKIPPED (no tests found in $test_path)"
@@ -191,7 +198,7 @@ run_pytest() {
     fi
 
     # Build command
-    local cmd="$WARNING_ENV python3 -m pytest $test_path $PYTEST_VERBOSITY $PYTEST_OUTPUT $WARNING_FLAGS"
+    local cmd="$WARNING_ENV $PYTHON_BIN -m pytest $test_path $PYTEST_VERBOSITY $PYTEST_OUTPUT $WARNING_FLAGS"
 
     # Execute command
     if eval $cmd; then
@@ -226,12 +233,9 @@ main() {
         # Business Logic Mode (Fast, Focused)
         print_header "🎯 Business Logic Test Suite"
 
-        # Core business logic tests
-        if run_pytest "tests/test_playlist_application_service_core_logic.py" "Core Business Logic (7 tests)"; then
-            TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
-        else
-            FAILED_TESTS=$((FAILED_TESTS + 1))
-        fi
+        # Core business logic tests (integrated into main test suite)
+        # Note: test_playlist_application_service_core_logic.py was removed during DDD migration cleanup
+        # Core business logic is now tested via tests/unit/application/test_data_application_service.py
 
         # End-to-end business tests
         if run_pytest "" "End-to-End Integration (6 tests)"; then
@@ -246,11 +250,8 @@ main() {
             print_status $PURPLE "📊 Running combined business logic suite..."
         fi
 
-        if run_pytest "tests/test_playlist_application_service_core_logic.py " "Combined Business Logic Suite (13 tests)"; then
-            TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
-        else
-            FAILED_TESTS=$((FAILED_TESTS + 1))
-        fi
+        # Combined business logic suite (obsolete test removed during DDD migration)
+        # Business logic validation is now covered by comprehensive test suite
 
     else
         # Full Test Suite Mode (Comprehensive)
@@ -283,7 +284,13 @@ main() {
             print_status $YELLOW "⚠️  Integration tests may timeout on slow systems (${INTEGRATION_TIMEOUT}s limit)"
         fi
 
-        if timeout ${INTEGRATION_TIMEOUT}s bash -c "$WARNING_ENV python3 -m pytest app/tests/integration/ $PYTEST_VERBOSITY $PYTEST_OUTPUT $WARNING_FLAGS"; then
+        # Prefer project venv Python if available
+        local PYTHON_BIN="python3"
+        if [ -x "venv/bin/python" ]; then
+            PYTHON_BIN="venv/bin/python"
+        fi
+
+        if timeout ${INTEGRATION_TIMEOUT}s bash -c "$WARNING_ENV $PYTHON_BIN -m pytest app/tests/integration/ $PYTEST_VERBOSITY $PYTEST_OUTPUT $WARNING_FLAGS"; then
             if [ "$QUIET_MODE" != true ]; then
                 print_status $GREEN "✅ App Integration Tests - PASSED"
             fi
@@ -324,11 +331,8 @@ main() {
             print_status $PURPLE "🎯 Final validation of critical business logic..."
         fi
 
-        if run_pytest "tests/test_playlist_application_service_core_logic.py " "Critical Business Logic Validation"; then
-            TOTAL_TESTS_RUN=$((TOTAL_TESTS_RUN + 1))
-        else
-            FAILED_TESTS=$((FAILED_TESTS + 1))
-        fi
+        # Critical business logic validation (obsolete test removed during DDD migration)
+        # Critical business logic is now validated via DDD application service tests
     fi
 
     # Final results

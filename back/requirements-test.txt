@@ -26,3 +26,6 @@ isort>=5.12.0
 
 # FastAPI testing
 fastapi[test]>=0.100.0
+
+# Architecture testing
+networkx>=3.0
