@@ -46,8 +46,8 @@ jobs:
       run: |
         cd back
         python -m pip install --upgrade pip
-        # Install application dependencies
-        pip install fastapi uvicorn python-socketio aiohttp mutagen
+        # Install application dependencies (all required for running the server)
+        pip install fastapi uvicorn python-socketio aiohttp mutagen python-dotenv
         # Install test dependencies
         pip install -r requirements-test.txt
         # Install contract validation dependencies
@@ -57,19 +57,6 @@ jobs:
       run: |
         cd front
         npm ci
-
-    - name: Setup backend database
-      run: |
-        cd back
-        # Initialize test database
-        export USE_MOCK_HARDWARE=true
-        python -c "
-        import os
-        os.environ['USE_MOCK_HARDWARE'] = 'true'
-        from app.main import create_app
-        app = create_app()
-        print('Backend setup completed')
-        "
 
     - name: Start backend server
       run: |
