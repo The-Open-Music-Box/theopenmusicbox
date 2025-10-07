@@ -46,9 +46,12 @@ jobs:
       run: |
         cd back
         python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        # Install application dependencies
+        pip install fastapi uvicorn python-socketio aiohttp mutagen
+        # Install test dependencies
+        pip install -r requirements-test.txt
         # Install contract validation dependencies
-        pip install pytest jsonschema requests python-socketio-client
+        pip install jsonschema
 
     - name: Install Node.js dependencies
       run: |
