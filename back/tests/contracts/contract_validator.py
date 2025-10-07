@@ -975,6 +975,10 @@ if __name__ == "__main__":
 
         # Output results
         if args.output:
+            # Create parent directory if it doesn't exist
+            import os
+            os.makedirs(os.path.dirname(args.output), exist_ok=True)
+
             with open(args.output, 'w') as f:
                 json.dump(report, f, indent=2)
             print(f"Validation report saved to {args.output}")
