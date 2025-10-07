@@ -46,8 +46,8 @@ jobs:
       run: |
         cd back
         python -m pip install --upgrade pip
-        # Install application dependencies (all required for running the server)
-        pip install fastapi uvicorn python-socketio aiohttp mutagen python-dotenv
+        # Install application dependencies
+        pip install -r requirements.txt
         # Install test dependencies
         pip install -r requirements-test.txt
         # Install contract validation dependencies
