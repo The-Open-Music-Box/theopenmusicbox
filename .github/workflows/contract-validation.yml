@@ -8,6 +8,7 @@ on:
   schedule:
     # Run daily at 2 AM UTC to catch any drift
     - cron: '0 2 * * *'
+  workflow_dispatch:  # Allow manual triggering from GitHub UI
 
 env:
   USE_MOCK_HARDWARE: true
