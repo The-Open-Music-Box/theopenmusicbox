@@ -19,18 +19,6 @@ jobs:
     name: API & Socket.IO Contract Validation
     runs-on: ubuntu-latest
 
-    services:
-      # We'll start the backend service for contract testing
-      backend:
-        image: python:3.11
-        ports:
-          - 8000:8000
-        options: >-
-          --health-cmd "curl --fail http://localhost:8000/api/health || exit 1"
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 5
-
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -86,8 +74,8 @@ jobs:
         cd back
         export USE_MOCK_HARDWARE=true
         export ENVIRONMENT=test
-        # Start server in background
-        python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 &
+        # Start server in background (use app_sio for Socket.IO support)
+        python -m uvicorn app.main:app_sio --host 0.0.0.0 --port 8000 &
         echo $! > backend.pid
         # Wait for server to be ready
         timeout 60 bash -c 'until curl -f http://localhost:8000/api/health; do sleep 2; done'
@@ -102,6 +90,8 @@ jobs:
           --api-url http://localhost:8000 \
           --socket-url http://localhost:8000 \
           --output ./contract-reports \
+          --wait-server \
+          --skip-setup \
           --fail-fast
 
     - name: Upload contract validation reports

@@ -275,12 +275,30 @@ check_dependencies() {
             return 1
         fi
 
-        # Check if in virtual environment or if packages are available
+        # Check if packages are available (try venv first, then global)
         cd "$BACKEND_DIR"
-        if ! (source venv/bin/activate && python -c "import pytest, jsonschema, requests, socketio" 2>/dev/null); then
+        local packages_available=false
+
+        # Try with venv if it exists
+        if [[ -f "venv/bin/activate" ]]; then
+            if source venv/bin/activate && python -c "import pytest, jsonschema, requests, socketio" 2>/dev/null; then
+                packages_available=true
+            fi
+        else
+            # Try global installation
+            if python -c "import pytest, jsonschema, requests, socketio" 2>/dev/null; then
+                packages_available=true
+            fi
+        fi
+
+        if [[ "$packages_available" != true ]]; then
             if [[ "$SKIP_SETUP" != true ]]; then
                 log_info "Installing Python dependencies..."
-                source venv/bin/activate && pip install pytest jsonschema requests python-socketio-client aiohttp
+                if [[ -f "venv/bin/activate" ]]; then
+                    source venv/bin/activate && pip install pytest jsonschema requests python-socketio-client aiohttp
+                else
+                    pip install pytest jsonschema requests python-socketio-client aiohttp
+                fi
                 cd - > /dev/null
             else
                 log_error "Required Python packages not found. Run without --skip-setup or install manually."
@@ -324,15 +342,21 @@ run_backend_validation() {
     # Set environment variables for mock hardware if needed
     export USE_MOCK_HARDWARE="${USE_MOCK_HARDWARE:-true}"
 
-    # Activate virtual environment and run the Python contract validator
-    if source venv/bin/activate && python tests/contracts/contract_validator.py \
+    # Activate virtual environment if it exists, then run the Python contract validator
+    if [[ -f "venv/bin/activate" ]]; then
+        source venv/bin/activate
+    fi
+
+    if python tests/contracts/contract_validator.py \
         --api-url "$API_URL" \
         --socketio-url "$SOCKETIO_URL" \
         --output "$BACKEND_REPORT"; then
         log_success "Backend validation completed successfully"
+        cd - > /dev/null
         return 0
     else
         log_error "Backend validation failed"
+        cd - > /dev/null
         if [[ "$FAIL_FAST" == true ]]; then
             exit 1
         fi
@@ -346,47 +370,21 @@ run_frontend_validation() {
 
     cd "$FRONTEND_DIR"
 
-    # Create a test runner script for frontend validation
-    cat > test_contracts.js << EOF
-const ContractValidator = require('./src/tests/contracts/contractValidator.js');
+    # Run frontend contract validation using vitest
+    log_info "Running frontend contract tests with vitest..."
 
-async function runValidation() {
-    const validator = new ContractValidator('$API_URL', '$SOCKETIO_URL');
+    # Set environment variables for the test
+    export VITE_API_URL="$API_URL"
+    export VITE_SOCKET_URL="$SOCKETIO_URL"
 
-    try {
-        const report = await validator.validateAllContracts();
-
-        // Write report to file
-        const fs = require('fs');
-        fs.writeFileSync('$FRONTEND_REPORT', JSON.stringify(report, null, 2));
-
-        // Print summary
-        validator.printSummary(report);
-
-        // Exit with appropriate code
-        if (report.summary.failed > 0 || report.summary.errors > 0) {
-            process.exit(1);
-        } else {
-            console.log('✅ All frontend contract validations passed!');
-            process.exit(0);
-        }
-    } catch (error) {
-        console.error('❌ Frontend validation error:', error);
-        process.exit(1);
-    }
-}
-
-runValidation();
-EOF
-
-    # Run the frontend validation
-    if node test_contracts.js; then
+    # Run the contract tests and save results
+    if npm run test:contracts -- --reporter=json --outputFile="$FRONTEND_REPORT"; then
         log_success "Frontend validation completed successfully"
-        rm test_contracts.js
+        cd - > /dev/null
         return 0
     else
         log_error "Frontend validation failed"
-        rm -f test_contracts.js
+        cd - > /dev/null
         if [[ "$FAIL_FAST" == true ]]; then
             exit 1
         fi
