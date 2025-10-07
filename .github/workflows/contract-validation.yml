@@ -71,6 +71,9 @@ jobs:
 
     - name: Run contract validation
       run: |
+        # Create report directory
+        mkdir -p ./contract-reports
+
         # Make validation script executable
         chmod +x scripts/validate_contracts.sh
 
