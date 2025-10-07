@@ -237,7 +237,16 @@ async def lifespan(fastapi_app):
         logger.log(LogLevel.INFO, "✅ Application shutdown completed")
 
 
-_fastapi_app = FastAPI(lifespan=lifespan)
+from app.src.config.openapi_config import get_openapi_config, customize_openapi_schema
+
+# Create FastAPI app with enhanced OpenAPI configuration
+openapi_config = get_openapi_config()
+_fastapi_app = FastAPI(
+    lifespan=lifespan,
+    **openapi_config
+)
+
+# Add CORS middleware
 _fastapi_app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -245,6 +254,23 @@ _fastapi_app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Customize OpenAPI schema with additional information
+# Save reference to original openapi method before overriding
+_original_openapi = _fastapi_app.openapi
+
+def custom_openapi():
+    """Generate customized OpenAPI schema."""
+    if _fastapi_app.openapi_schema:
+        return _fastapi_app.openapi_schema
+
+    # Call the ORIGINAL openapi method (not the overridden one)
+    openapi_schema = _original_openapi()
+    customized_schema = customize_openapi_schema(openapi_schema)
+    _fastapi_app.openapi_schema = customized_schema
+    return _fastapi_app.openapi_schema
+
+_fastapi_app.openapi = custom_openapi
 
 # Wrap FastAPI app with Socket.IO and export as 'app_sio' for uvicorn
 app_sio = socketio.ASGIApp(sio, other_asgi_app=_fastapi_app)
