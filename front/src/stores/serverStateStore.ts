@@ -3,20 +3,8 @@ import { ref, reactive, readonly, computed } from 'vue'
 import socketService from '@/services/socketService'
 import { SOCKET_EVENTS } from '@/constants/apiRoutes'
 import { logger } from '@/utils/logger'
-// NOTE: This store uses legacy Track type - conversion needed for trackFieldAccessor functions
-// import { getTrackNumber, filterTracksByNumbers } from '@/utils/trackFieldAccessor'
-
-interface Track {
-  id?: string
-  number: number
-  title: string
-  filename: string
-  duration?: number
-  artist?: string
-  album?: string
-  file_size?: number
-  created_at?: string
-}
+import type { Track } from '@/components/files/types'
+import { getTrackNumber, filterTracksByNumbers } from '@/utils/trackFieldAccessor'
 
 interface Playlist {
   id: string
@@ -598,13 +586,13 @@ export const useServerStateStore = defineStore('serverState', () => {
     if (playlistId && trackNumbers && Array.isArray(trackNumbers)) {
       const playlist = playlists.value.find(p => p.id === playlistId)
       if (playlist && playlist.tracks) {
-        // Use legacy filtering logic (serverStateStore uses different Track type)
-        playlist.tracks = playlist.tracks.filter(track => !trackNumbers.includes(track.number))
+        // Use trackFieldAccessor helper for unified field access
+        playlist.tracks = filterTracksByNumbers(playlist.tracks, trackNumbers)
         logger.debug(`[ServerState] Removed ${trackNumbers.length} tracks from playlist ${playlistId}`)
       }
 
       if (currentPlaylist.value?.id === playlistId && currentPlaylist.value?.tracks) {
-        currentPlaylist.value.tracks = currentPlaylist.value.tracks.filter(track => !trackNumbers.includes(track.number))
+        currentPlaylist.value.tracks = filterTracksByNumbers(currentPlaylist.value.tracks, trackNumbers)
       }
     }
 
@@ -626,11 +614,12 @@ export const useServerStateStore = defineStore('serverState', () => {
           playlist.tracks = []
         }
         // Add track if not already present
-        if (!playlist.tracks.find(t => t.number === track.number)) {
+        const trackNumber = getTrackNumber(track)
+        if (!playlist.tracks.find(t => getTrackNumber(t) === trackNumber)) {
           playlist.tracks.push(track)
           // Sort tracks by number to maintain order
-          playlist.tracks.sort((a, b) => a.number - b.number)
-          logger.debug(`[ServerState] Added track ${track.number} to playlist ${playlistId}`)
+          playlist.tracks.sort((a, b) => getTrackNumber(a) - getTrackNumber(b))
+          logger.debug(`[ServerState] Added track ${trackNumber} to playlist ${playlistId}`)
         }
       }
 
@@ -638,9 +627,10 @@ export const useServerStateStore = defineStore('serverState', () => {
         if (!currentPlaylist.value.tracks) {
           currentPlaylist.value.tracks = []
         }
-        if (currentPlaylist.value.tracks && !currentPlaylist.value.tracks.find(t => t.number === track.number)) {
+        const trackNumber = getTrackNumber(track)
+        if (currentPlaylist.value.tracks && !currentPlaylist.value.tracks.find(t => getTrackNumber(t) === trackNumber)) {
           currentPlaylist.value.tracks.push(track)
-          currentPlaylist.value.tracks.sort((a, b) => a.number - b.number)
+          currentPlaylist.value.tracks.sort((a, b) => getTrackNumber(a) - getTrackNumber(b))
         }
       }
     }

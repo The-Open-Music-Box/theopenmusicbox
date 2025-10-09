@@ -13,12 +13,13 @@ import { logger } from '@/utils/logger'
 import socketService from '@/services/socketService'
 import { SOCKET_EVENTS } from '@/constants/apiRoutes'
 import apiService from '@/services/apiService'
-import { 
-  filterTrackByNumber, 
+import {
+  filterTrackByNumber,
   filterTracksByNumbers,
   validateTracksForDrag,
   createTrackIndexMap,
-  findTrackByNumberSafe 
+  findTrackByNumberSafe,
+  getTrackNumber
 } from '@/utils/trackFieldAccessor'
 import { handleDragError, DragContext } from '@/utils/dragOperationErrorHandler'
 
@@ -70,7 +71,7 @@ export const useUnifiedPlaylistStore = defineStore('unifiedPlaylist', () => {
   const getTrackByNumber = computed(() => {
     return (playlistId: string, trackNumber: number): Track | undefined => {
       const playlistTracks = tracks.value.get(playlistId) || []
-      return playlistTracks.find(t => (t.track_number || t.number) === trackNumber)
+      return playlistTracks.find(t => getTrackNumber(t) === trackNumber)
     }
   })
 
@@ -597,15 +598,15 @@ export const useUnifiedPlaylistStore = defineStore('unifiedPlaylist', () => {
       // Update tracks with proper track_numbers from backend
       if (playlist.tracks && Array.isArray(playlist.tracks)) {
         // Sort tracks by track_number to ensure correct order
-        const sortedTracks = playlist.tracks.slice().sort((a: any, b: any) => 
-          (a.track_number || a.number || 0) - (b.track_number || b.number || 0)
+        const sortedTracks = playlist.tracks.slice().sort((a: any, b: any) =>
+          getTrackNumber(a) - getTrackNumber(b)
         )
         tracks.value.set(playlist.id, sortedTracks)
-        
-        logger.debug('Updated tracks with WebSocket data', { 
-          playlistId: playlist.id, 
+
+        logger.debug('Updated tracks with WebSocket data', {
+          playlistId: playlist.id,
           tracksCount: sortedTracks.length,
-          firstTrackNumber: sortedTracks[0]?.track_number || sortedTracks[0]?.number
+          firstTrackNumber: sortedTracks[0] ? getTrackNumber(sortedTracks[0]) : 0
         })
       }
     }
@@ -613,19 +614,19 @@ export const useUnifiedPlaylistStore = defineStore('unifiedPlaylist', () => {
 
   function handleTrackAdded(data: any): void {
     if (!data.playlist_id || !data.track) return
-    
+
     logger.debug('Received track added event', { playlistId: data.playlist_id })
-    
+
     const playlistTracks = tracks.value.get(data.playlist_id) || []
-    const trackNumber = data.track.track_number || data.track.number
-    
+    const trackNumber = getTrackNumber(data.track)
+
     // Check if track already exists
-    if (!playlistTracks.find(t => (t.track_number || t.number) === trackNumber)) {
+    if (!playlistTracks.find(t => getTrackNumber(t) === trackNumber)) {
       const updatedTracks = [...playlistTracks, data.track].sort(
-        (a, b) => (a.track_number || a.number || 0) - (b.track_number || b.number || 0)
+        (a, b) => getTrackNumber(a) - getTrackNumber(b)
       )
       tracks.value.set(data.playlist_id, updatedTracks)
-      
+
       // Update playlist track count
       const playlist = playlists.value.get(data.playlist_id)
       if (playlist) {
@@ -639,15 +640,17 @@ export const useUnifiedPlaylistStore = defineStore('unifiedPlaylist', () => {
 
   function handleTrackUpdate(trackData: any): void {
     if (!trackData?.id) return
-    
+
     logger.debug('Received track update', { trackId: trackData.id })
-    
+
+    const trackDataNumber = getTrackNumber(trackData)
+
     // Find and update the track across all playlists
     for (const [playlistId, playlistTracks] of tracks.value.entries()) {
-      const trackIndex = playlistTracks.findIndex(t => 
-        (t.track_number || t.number) === (trackData.track_number || trackData.number)
+      const trackIndex = playlistTracks.findIndex(t =>
+        getTrackNumber(t) === trackDataNumber
       )
-      
+
       if (trackIndex !== -1) {
         const updatedTracks = [...playlistTracks]
         updatedTracks[trackIndex] = trackData
