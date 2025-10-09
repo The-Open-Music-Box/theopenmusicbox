@@ -85,17 +85,6 @@ export interface PlayList extends BaseContent {
 }
 
 /**
- * Legacy playlist format for backward compatibility
- */
-export interface LegacyPlayList {
-  id: string;
-  title: string;
-  description?: string;
-  tracks: Track[];
-  lastPlayed?: Date;
-}
-
-/**
  * Basic audio file properties
  */
 export interface AudioFile {
@@ -123,19 +112,4 @@ export interface Hook extends BaseContent {
   idtagnfc: string;
   path: string;
   created_at: string;
-}
-
-/**
- * Convert a modern playlist to legacy format
- * @param playlist - Modern playlist format
- * @returns Legacy playlist format
- */
-export function playlistToLegacy(playlist: PlayList): LegacyPlayList {
-  return {
-    id: playlist.id,
-    title: playlist.title,
-    description: playlist.description,
-    tracks: playlist.tracks,
-    lastPlayed: playlist.last_played ? new Date(playlist.last_played * 1000) : undefined
-  };
 }

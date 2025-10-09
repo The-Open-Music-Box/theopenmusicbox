@@ -99,12 +99,6 @@ export interface PlaylistLite {
   server_seq: number;
 }
 
-// Legacy alias for backward compatibility
-export type PlaylistOut = Playlist;
-
-// Legacy alias for backward compatibility
-export type TrackOut = Track;
-
 // Playback state enum (matches backend)
 export enum PlaybackState {
   PLAYING = 'playing',
@@ -290,13 +284,4 @@ export interface PlaylistsIndexOperation {
   type: 'upsert' | 'delete';
   item?: PlaylistsIndexItem; // Present for upsert operations
   id?: string; // Present for delete operations
-}
-
-// Legacy playlist response (for backward compatibility)
-export interface LegacyPlaylistsResponse {
-  playlists: any[];
-  page: number;
-  page_size: number;
-  total: number;
-  server_seq: number;
 }
