@@ -369,7 +369,7 @@ class WebSocketStateHandlers:
         # Post-connection state synchronization
         @self.sio.on("client:request_current_state")
         @handle_http_errors()
-        async def handle_request_current_state(sid, data):
+        async def handle_request_current_state(sid, data=None):
             """Handle client request for current state synchronization."""
             logger.info(f"🔄 Client {sid} requesting current state sync")
             # Get current player state and broadcast to specific client
