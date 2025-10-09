@@ -13,13 +13,14 @@ export default defineConfig({
       'src/services/__tests__/**/*.test.ts',
       'src/services/socket/__tests__/**/*.test.ts',
       'src/unit/**/*.test.ts',
+      // Re-enabling src/tests/unit to fix legacy field names
+      'src/tests/unit/**/*.test.ts',
       // Include contract tests
       'src/tests/contracts/**/*.contract.test.ts'
     ],
     exclude: [
-      // Exclude corrupted legacy tests for now (to be replaced)
+      // Exclude integration and e2e tests (for future enablement)
       'src/tests/integration/**',
-      'src/tests/unit/**',
       'src/**/__e2e__/**'
     ],
     coverage: {

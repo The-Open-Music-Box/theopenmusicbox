@@ -27,16 +27,16 @@ export interface MockPlayerState {
 }
 
 export interface MockTrack {
-  number: number
+  id?: string
+  track_number: number
   title: string
   artist?: string
   album?: string
   filename: string
-  duration?: string
-  duration_ms?: number
+  duration_ms: number
   file_size?: number
   created_at?: string
-  id?: string
+  file_path?: string
 }
 
 export interface MockPlaylist {
@@ -54,13 +54,14 @@ export interface MockPlaylist {
  * Factory for creating mock tracks
  */
 export const createMockTrack = (overrides: Partial<MockTrack> = {}): MockTrack => ({
-  number: 1,
+  id: 'test-track-1',
+  track_number: 1,
   title: 'Test Track',
   artist: 'Test Artist',
   album: 'Test Album',
   filename: 'test.mp3',
-  duration: '3:00',
   duration_ms: 180000,
+  file_path: '/tracks/test.mp3',
   ...overrides
 })
 
@@ -143,7 +144,7 @@ export const createMockUnifiedPlaylistStore = () => {
     }),
     getTrackByNumber: vi.fn((playlistId: string, trackNumber: number) => {
       const playlist = mockPlaylists.find(p => p.id === playlistId)
-      return playlist?.tracks?.find(t => t.number === trackNumber)
+      return playlist?.tracks?.find(t => t.track_number === trackNumber)
     }),
     hasPlaylistData: vi.fn((id: string) => mockPlaylists.some(p => p.id === id)),
     hasTracksData: vi.fn((id: string) => {
@@ -280,10 +281,10 @@ export const setupGlobalMocks = () => {
 
   // Mock track field accessors
   const mockTrackAccessors = {
-    getTrackNumber: vi.fn((track: any) => track?.number || track?.track_number || 1),
+    getTrackNumber: vi.fn((track: any) => track?.track_number || 1),
     getTrackDurationMs: vi.fn((track: any) => track?.duration_ms || 180000),
     findTrackByNumber: vi.fn((tracks: any[], number: number) =>
-      tracks.find(t => (t.number || t.track_number) === number)
+      tracks.find(t => t.track_number === number)
     )
   }
 
