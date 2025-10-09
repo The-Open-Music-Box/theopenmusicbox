@@ -41,9 +41,9 @@ interface MockTrack {
 }
 
 // Mock the Track type import
-
 vi.mock('@/components/files/types', () => ({
-  Track: {}))
+  Track: {}
+}))
 
 describe('trackFieldAccessor', () => {
   beforeEach(() => {

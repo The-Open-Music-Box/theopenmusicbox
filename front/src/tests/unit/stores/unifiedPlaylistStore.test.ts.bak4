@@ -65,21 +65,8 @@ vi.mock('@/utils/trackFieldAccessor', () => ({
   filterTrackByNumber: vi.fn((tracks, number) => tracks.find(t => (t.track_number || t.number) === number)),
   filterTracksByNumbers: vi.fn((tracks, numbers) => tracks.filter(t => numbers.includes(t.track_number || t.number))),
   validateTracksForDrag: vi.fn(() => ({ isValid: true })),
-  createTrackIndexMap: vi.fn((tracks) => {
-    // Create proper index map for O(1) lookups
-    const map = new Map()
-    tracks.forEach(track => {
-      const trackNumber = track.track_number || track.number
-      if (trackNumber) {
-        map.set(trackNumber, track)
-      }
-    })
-    return map
-  }),
-  findTrackByNumberSafe: vi.fn((tracks, number) => {
-    const track = tracks.find(t => (t.track_number || t.number) === number)
-    return { track: track || null, index: track ? tracks.indexOf(track) : -1 }
-  })
+  createTrackIndexMap: vi.fn(() => new Map()),
+  findTrackByNumberSafe: vi.fn((tracks, number) => tracks.find(t => (t.track_number || t.number) === number))
 }))
 
 // Mock drag error handler
@@ -160,8 +147,7 @@ describe('unifiedPlaylistStore', () => {
       const error = new Error('Failed to load playlists')
       mockApiService.getPlaylists.mockRejectedValue(error)
 
-      // Store throws error after setting error state
-      await expect(store.loadAllPlaylists()).rejects.toThrow()
+      await store.loadAllPlaylists()
 
       expect(store.error).toBe('Failed to load playlists')
       expect(store.isLoading).toBe(false)
@@ -240,8 +226,8 @@ describe('unifiedPlaylistStore', () => {
         description: 'First playlist',
         track_count: 2,
         tracks: [
-          { id: 't1', track_number: 1, title: 'Track 1', filename: 'track1.mp3' },
-          { id: 't2', track_number: 2, title: 'Track 2', filename: 'track2.mp3' }
+          { id: 't1', number: 1, title: 'Track 1', filename: 'track1.mp3' },
+          { id: 't2', number: 2, title: 'Track 2', filename: 'track2.mp3' }
         ]
       }
 
@@ -255,22 +241,19 @@ describe('unifiedPlaylistStore', () => {
 
     it('should handle track loading errors', async () => {
       const error = new Error('Failed to load tracks')
-      mockApiService.getPlaylist.mockRejectedValue(error)
+      mockApiService.getPlaylistTracks.mockRejectedValue(error)
 
-      // Store throws error without setting error state for track loading
-      await expect(store.loadPlaylistTracks('pl1')).rejects.toThrow()
+      await store.loadPlaylistTracks('pl1')
+
+      expect(store.error).toBe('Failed to load tracks')
     })
 
     it('should get tracks for playlist', async () => {
-      const mockPlaylist = {
-        id: 'pl1',
-        title: 'Playlist 1',
-        tracks: [
-          { id: 't1', track_number: 1, title: 'Track 1', filename: 'track1.mp3' }
-        ]
-      }
+      const mockTracks = [
+        { id: 't1', number: 1, title: 'Track 1', filename: 'track1.mp3' }
+      ]
 
-      mockApiService.getPlaylist.mockResolvedValue(mockPlaylist)
+      mockApiService.getPlaylistTracks.mockResolvedValue(mockTracks)
       await store.loadPlaylistTracks('pl1')
 
       const tracks = store.getTracksForPlaylist('pl1')
@@ -279,16 +262,12 @@ describe('unifiedPlaylistStore', () => {
     })
 
     it('should get track by number', async () => {
-      const mockPlaylist = {
-        id: 'pl1',
-        title: 'Playlist 1',
-        tracks: [
-          { id: 't1', track_number: 1, title: 'Track 1', filename: 'track1.mp3' },
-          { id: 't2', track_number: 2, title: 'Track 2', filename: 'track2.mp3' }
-        ]
-      }
+      const mockTracks = [
+        { id: 't1', number: 1, title: 'Track 1', filename: 'track1.mp3' },
+        { id: 't2', number: 2, title: 'Track 2', filename: 'track2.mp3' }
+      ]
 
-      mockApiService.getPlaylist.mockResolvedValue(mockPlaylist)
+      mockApiService.getPlaylistTracks.mockResolvedValue(mockTracks)
       await store.loadPlaylistTracks('pl1')
 
       const track = store.getTrackByNumber('pl1', 2)
@@ -307,39 +286,25 @@ describe('unifiedPlaylistStore', () => {
     })
 
     it('should reorder tracks', async () => {
-      // First load some tracks so reorderTracks has data to work with
-      const mockPlaylist = {
-        id: 'pl1',
-        title: 'Playlist 1',
-        tracks: [
-          { id: 't1', track_number: 1, title: 'Track 1', filename: 'track1.mp3' },
-          { id: 't2', track_number: 2, title: 'Track 2', filename: 'track2.mp3' }
-        ]
-      }
-      mockApiService.getPlaylist.mockResolvedValue(mockPlaylist)
-      await store.loadPlaylistTracks('pl1')
-
       mockApiService.reorderTracks.mockResolvedValue({ success: true })
 
-      // Store expects newOrder as an array of track numbers
-      await store.reorderTracks('pl1', [2, 1])
+      await store.reorderTracks('pl1', 1, 2)
 
-      // API is called with track IDs, not numbers
-      expect(mockApiService.reorderTracks).toHaveBeenCalledWith('pl1', ['t2', 't1'])
+      expect(mockApiService.reorderTracks).toHaveBeenCalledWith('pl1', 1, 2)
     })
 
     it('should move track between playlists', async () => {
-      mockApiService.moveTrackBetweenPlaylists.mockResolvedValue({ success: true })
+      mockApiService.moveTrack.mockResolvedValue({ success: true })
 
       await store.moveTrackBetweenPlaylists('pl1', 'pl2', 1, 2)
 
-      expect(mockApiService.moveTrackBetweenPlaylists).toHaveBeenCalledWith('pl1', 'pl2', 1, 2)
+      expect(mockApiService.moveTrack).toHaveBeenCalledWith('pl1', 'pl2', 1, 2)
     })
 
     it('should clear tracks for playlist', () => {
       // Set some tracks first using optimistic updates
       store.setTracksOptimistic('pl1', [
-        { id: 't1', track_number: 1, title: 'Track 1', filename: 'track1.mp3' }
+        { id: 't1', number: 1, title: 'Track 1', filename: 'track1.mp3' }
       ])
 
       expect(store.getTracksForPlaylist('pl1')).toHaveLength(1)
@@ -359,14 +324,10 @@ describe('unifiedPlaylistStore', () => {
       mockApiService.getPlaylists.mockResolvedValue(mockPlaylists)
       await store.loadAllPlaylists()
 
-      const mockPlaylist = {
-        id: 'pl1',
-        title: 'Playlist 1',
-        tracks: [
-          { id: 't1', track_number: 1, title: 'Track 1', filename: 'track1.mp3' }
-        ]
-      }
-      mockApiService.getPlaylist.mockResolvedValue(mockPlaylist)
+      const mockTracks = [
+        { id: 't1', number: 1, title: 'Track 1', filename: 'track1.mp3' }
+      ]
+      mockApiService.getPlaylistTracks.mockResolvedValue(mockTracks)
       await store.loadPlaylistTracks('pl1')
     })
 
@@ -416,9 +377,8 @@ describe('unifiedPlaylistStore', () => {
       const error = new Error('Test error')
       mockApiService.getPlaylists.mockRejectedValue(error)
 
-      // First call throws error
-      await expect(store.loadAllPlaylists()).rejects.toThrow()
-      expect(store.error).toBe('Failed to load playlists')
+      await store.loadAllPlaylists()
+      expect(store.error).toBe('Test error')
 
       // Error should be cleared on successful operation
       mockApiService.getPlaylists.mockResolvedValue([])
@@ -442,13 +402,10 @@ describe('unifiedPlaylistStore', () => {
 
       const firstSync = store.lastSync
 
-      // Add small delay to ensure different timestamp
-      await new Promise(resolve => setTimeout(resolve, 10))
-
       // Force sync should reload even if recently synced
       await store.forceSync()
 
-      expect(store.lastSync).toBeGreaterThanOrEqual(firstSync)
+      expect(store.lastSync).toBeGreaterThan(firstSync)
     })
   })
 
@@ -456,18 +413,12 @@ describe('unifiedPlaylistStore', () => {
     it('should provide optimized track lookups', async () => {
       const mockTracks = Array.from({ length: 100 }, (_, i) => ({
         id: `t${i}`,
-        track_number: i + 1,
+        number: i + 1,
         title: `Track ${i + 1}`,
         filename: `track${i + 1}.mp3`
       }))
 
-      const mockPlaylist = {
-        id: 'pl1',
-        title: 'Playlist 1',
-        tracks: mockTracks
-      }
-
-      mockApiService.getPlaylist.mockResolvedValue(mockPlaylist)
+      mockApiService.getPlaylistTracks.mockResolvedValue(mockTracks)
       await store.loadPlaylistTracks('pl1')
 
       const startTime = performance.now()
@@ -480,7 +431,7 @@ describe('unifiedPlaylistStore', () => {
 
     it('should handle optimistic updates', () => {
       const tracks = [
-        { id: 't1', track_number: 1, title: 'Track 1', filename: 'track1.mp3' }
+        { id: 't1', number: 1, title: 'Track 1', filename: 'track1.mp3' }
       ]
 
       store.setTracksOptimistic('pl1', tracks)
@@ -491,16 +442,20 @@ describe('unifiedPlaylistStore', () => {
   })
 
   describe('Cleanup', () => {
-    it('should cleanup WebSocket listeners', async () => {
-      // cleanup() only removes WebSocket listeners, it doesn't clear state
-      // This is intentional - state persists for potential reuse
+    it('should cleanup store state', () => {
+      // Add some data first
+      store.setTracksOptimistic('pl1', [
+        { id: 't1', number: 1, title: 'Track 1', filename: 'track1.mp3' }
+      ])
 
-      const socketService = (await import('@/services/socketService')).default
+      expect(store.getAllPlaylists).toHaveLength(0) // No playlists added in this test
+      expect(store.getTracksForPlaylist('pl1')).toHaveLength(1)
 
       store.cleanup()
 
-      // Verify WebSocket listeners are removed
-      expect(socketService.off).toHaveBeenCalled()
+      expect(store.getAllPlaylists).toHaveLength(0)
+      expect(store.getTracksForPlaylist('pl1')).toHaveLength(0)
+      expect(store.isInitialized).toBe(false)
     })
   })
 })
