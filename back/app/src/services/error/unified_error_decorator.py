@@ -512,8 +512,7 @@ class ErrorTracker:
         }
 
 
-# Global error tracker instance
-# Note: ErrorTracker should be retrieved from DI container
+# Removed Global Instance
+# error_tracker global instance has been removed in favor of dependency injection
 # Use: container.get("error_tracker")
-# Legacy global instance kept for backward compatibility during transition
-error_tracker = ErrorTracker()
+# Migration completed: All code now uses DI

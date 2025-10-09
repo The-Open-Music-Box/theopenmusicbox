@@ -23,7 +23,6 @@ from app.src.services.error.unified_error_decorator import handle_errors
 from app.src.services.broadcasting.unified_broadcasting_service import UnifiedBroadcastingService
 
 # Domain-driven architecture imports (PURE DDD - No Legacy)
-from app.src.domain.bootstrap import domain_bootstrap
 from app.src.dependencies import get_data_application_service
 from app.src.application.services.nfc_application_service import NfcApplicationService
 
@@ -124,6 +123,10 @@ class Application:
                 logger.debug(f"Could not get audio backend from DI container: {e}")
 
         # Initialize domain bootstrap with detected audio backend (or None for pure domain)
+        from app.src.infrastructure.di.container import get_container
+        container = get_container()
+        domain_bootstrap = container.get("domain_bootstrap")
+
         if not domain_bootstrap.is_initialized:
             domain_bootstrap.initialize(existing_backend=container_audio)
             logger.info("✅ Pure Domain Application initialized successfully")
@@ -471,6 +474,10 @@ class Application:
                 logger.warning("⚠️ Playlist controller not available for cleanup")
 
             # Clean up domain bootstrap
+            from app.src.infrastructure.di.container import get_container
+            container = get_container()
+            domain_bootstrap = container.get("domain_bootstrap")
+
             if hasattr(domain_bootstrap, "stop") and domain_bootstrap.is_initialized:
                 await domain_bootstrap.stop()
                 logger.info("✅ Domain bootstrap stopped")

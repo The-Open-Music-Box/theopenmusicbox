@@ -206,13 +206,21 @@ def register_core_infrastructure_services():
         ServiceErrorHandlerProtocol,
     )
     from app.src.config.app_config import AppConfig
-    from app.src.domain.bootstrap import domain_bootstrap
+    from app.src.domain.bootstrap import DomainBootstrap
 
     # Register configuration
     container.register_factory("config", lambda: AppConfig(), ServiceLifetime.SINGLETON)
 
-    # Register domain bootstrap (singleton instance)
-    container.register_singleton("domain_bootstrap", domain_bootstrap)
+    # Register domain bootstrap (singleton instance - create new instance instead of using global)
+    def domain_bootstrap_factory():
+        return DomainBootstrap()
+    container.register_factory("domain_bootstrap", domain_bootstrap_factory, ServiceLifetime.SINGLETON)
+
+    # Register audio domain container (use existing domain-internal instance)
+    def audio_domain_container_factory():
+        from app.src.domain.audio.container import audio_domain_container
+        return audio_domain_container
+    container.register_factory("audio_domain_container", audio_domain_container_factory, ServiceLifetime.SINGLETON)
 
     # Register infrastructure services
     def player_state_service_factory():
@@ -227,7 +235,8 @@ def register_core_infrastructure_services():
 
     def monitoring_config_factory():
         from app.src.config.monitoring_config import MonitoringConfig
-        return MonitoringConfig()
+        app_config = container.get("config")
+        return MonitoringConfig(app_config=app_config)
     container.register_factory("monitoring_config", monitoring_config_factory, ServiceLifetime.SINGLETON)
 
     # Register error handling infrastructure

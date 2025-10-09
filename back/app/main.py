@@ -28,7 +28,6 @@ from app.src.core.application import Application
 from app.src.monitoring import get_logger
 from app.src.monitoring.logging.log_level import LogLevel
 from app.src.routes.factories.api_routes_state import init_api_routes_state
-from app.src.domain.bootstrap import domain_bootstrap
 from app.src.infrastructure.error_handling.unified_error_handler import (
     UnifiedErrorHandler,
     ErrorCategory,
@@ -110,6 +109,10 @@ async def _start_domain_bootstrap():
     - State management
     - Event bus
     """
+    from app.src.infrastructure.di.container import get_container
+    container = get_container()
+    domain_bootstrap = container.get("domain_bootstrap")
+
     if domain_bootstrap.is_initialized:
         await domain_bootstrap.start()
         logger.log(LogLevel.INFO, "✅ Domain bootstrap started (includes physical controls)")
@@ -159,6 +162,10 @@ async def _cleanup_domain():
     - State management
     - Background tasks
     """
+    from app.src.infrastructure.di.container import get_container
+    container = get_container()
+    domain_bootstrap = container.get("domain_bootstrap")
+
     if domain_bootstrap.is_initialized:
         await domain_bootstrap.stop()
         domain_bootstrap.cleanup()

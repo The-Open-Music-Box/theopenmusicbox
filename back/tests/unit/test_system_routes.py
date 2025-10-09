@@ -69,6 +69,17 @@ class TestSystemRoutes:
         # Set up mocks on app
         mock_app.container = mock_container
 
+        # Ensure infrastructure DI container has domain_bootstrap registered
+        from app.src.infrastructure.di.container import get_container
+        from app.src.domain.bootstrap import DomainBootstrap
+        from app.src.domain.audio.container import AudioDomainContainer
+
+        infra_container = get_container()
+        if not infra_container.has("domain_bootstrap"):
+            infra_container.register_singleton("domain_bootstrap", DomainBootstrap())
+        if not infra_container.has("audio_domain_container"):
+            infra_container.register_singleton("audio_domain_container", AudioDomainContainer())
+
         system_routes = SystemRoutes(mock_app)
         system_routes.register()
 

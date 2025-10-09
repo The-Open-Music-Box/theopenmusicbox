@@ -137,8 +137,8 @@ class AudioDomainContainer:
         return self._is_initialized
 
 
-# Global container instance
-# Note: AudioDomainContainer lifecycle is managed via domain_bootstrap.initialize()
-# This instance is initialized and started through the bootstrap process
-# Legacy global instance for backward compatibility
+# Domain-internal instance
+# This instance is managed by domain_bootstrap and is internal to the domain layer
+# External code should access via DI: container.get("audio_domain_container")
+# Lifecycle is managed via domain_bootstrap.initialize()
 audio_domain_container = AudioDomainContainer()

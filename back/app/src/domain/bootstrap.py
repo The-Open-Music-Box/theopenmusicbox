@@ -174,8 +174,7 @@ class DomainBootstrap:
         logger.warning("🔒 Entering safe mode operation...")
 
 
-# MARK: - Global Instance
-# Note: DomainBootstrap should be retrieved from DI container
+# MARK: - Removed Global Instance
+# domain_bootstrap global instance has been removed in favor of dependency injection
 # Use: container.get("domain_bootstrap") or get_domain_bootstrap()
-# Legacy global instance kept for backward compatibility during transition
-domain_bootstrap = DomainBootstrap()
+# Migration completed: All code now uses DI

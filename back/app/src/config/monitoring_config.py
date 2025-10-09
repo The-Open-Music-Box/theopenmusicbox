@@ -10,18 +10,23 @@ from typing import Optional
 class MonitoringConfig:
     """Centralized configuration for all monitoring components.
 
-    Uses lazy loading to avoid circular dependencies during module initialization.
+    Uses dependency injection to get app config.
     """
 
-    def __init__(self):
-        """Initialize monitoring config with lazy loading."""
-        self._app_config = None
+    def __init__(self, app_config=None):
+        """Initialize monitoring config with app config injection.
+
+        Args:
+            app_config: AppConfig instance. Required for proper initialization.
+        """
+        if app_config is None:
+            # For backward compatibility during transition, create a new instance
+            from app.src.config.app_config import AppConfig
+            app_config = AppConfig()
+        self._app_config = app_config
 
     def _get_config(self):
-        """Lazy load the app config to avoid circular dependencies."""
-        if self._app_config is None:
-            from app.src.config.app_config import config
-            self._app_config = config
+        """Get the app config."""
         return self._app_config
 
     @property
@@ -92,15 +97,7 @@ class MonitoringConfig:
         return component_rules.get(component_name, self.event_monitoring_enabled)
 
 
-# Global monitoring configuration instance
-# Note: MonitoringConfig should be retrieved from DI container
+# Removed Global Instance
+# monitoring_config global instance has been removed in favor of dependency injection
 # Use: container.get("monitoring_config") or get_monitoring_config()
-# Legacy global instance kept for backward compatibility during transition
-import warnings
-warnings.warn(
-    "Global 'monitoring_config' instance is deprecated. Use dependency injection instead. "
-    "This global will be removed in v2.0 (Q2 2026)",
-    DeprecationWarning,
-    stacklevel=2
-)
-monitoring_config = MonitoringConfig()
+# Migration completed: All code now uses DI

@@ -17,7 +17,6 @@ from app.src.application.services.data_application_service import DataApplicatio
 from app.src.application.services.audio_application_service import AudioApplicationService
 from app.src.application.services.nfc_application_service import NfcApplicationService
 from app.src.application.services.upload_application_service import UploadApplicationService
-from app.src.domain.audio.container import audio_domain_container
 from app.src.domain.audio.engine.state_manager import StateManager
 from app.src.infrastructure.nfc.nfc_factory import NfcFactory
 from app.src.infrastructure.upload.upload_factory import UploadFactory
@@ -106,9 +105,13 @@ def register_application_services(container: ApplicationContainer) -> None:
     container.register_factory("data_application_service", data_application_service_factory)
 
     def audio_application_service_factory():
+        # Get audio domain container from infrastructure DI
+        infra_container = get_infrastructure_container()
+        audio_domain_container = infra_container.get("audio_domain_container")
+
         # Initialize audio domain container if needed
         if not audio_domain_container.is_initialized:
-            domain_bootstrap = container.get("domain_bootstrap")
+            domain_bootstrap = infra_container.get("domain_bootstrap")
             if not domain_bootstrap.is_initialized:
                 domain_bootstrap.initialize()
 
@@ -142,8 +145,12 @@ def register_application_services(container: ApplicationContainer) -> None:
     def playback_coordinator_factory():
         # Create playback coordinator directly to avoid circular import
         from app.src.application.controllers.playback_coordinator_controller import PlaybackCoordinator
-        from app.src.domain.bootstrap import domain_bootstrap
-        from app.src.domain.audio.container import audio_domain_container
+        from app.src.infrastructure.di.container import get_container
+
+        # Get dependencies from DI container
+        infra_container = get_container()
+        domain_bootstrap = infra_container.get("domain_bootstrap")
+        audio_domain_container = infra_container.get("audio_domain_container")
 
         # Initialize domain if not already done
         if not domain_bootstrap.is_initialized:

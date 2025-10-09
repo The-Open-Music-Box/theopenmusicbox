@@ -25,9 +25,13 @@ def create_playback_coordinator(socketio=None):
         PlaybackCoordinator instance
     """
     from app.src.application.controllers.playback_coordinator_controller import PlaybackCoordinator
-    from app.src.domain.bootstrap import domain_bootstrap
-    from app.src.domain.audio.container import audio_domain_container
+    from app.src.infrastructure.di.container import get_container
     from app.src.dependencies import get_data_playlist_service
+
+    # Get dependencies from DI container
+    container = get_container()
+    domain_bootstrap = container.get("domain_bootstrap")
+    audio_domain_container = container.get("audio_domain_container")
 
     # Initialize domain if not already done
     if not domain_bootstrap.is_initialized:
