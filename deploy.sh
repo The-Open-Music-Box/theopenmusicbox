@@ -127,9 +127,43 @@ save_ssh_target() {
     fi
 }
 
+# Update git submodules to latest version
+update_submodules() {
+    print_header "📦 Updating Git Submodules"
+
+    cd "${PROJECT_ROOT}" || exit 1
+
+    if [ "$VERBOSE" = true ]; then
+        print_status $BLUE "🔄 Initializing and updating submodules..."
+    fi
+
+    # Initialize submodules if not already done
+    if ! git submodule init; then
+        print_status $YELLOW "⚠️  No submodules to initialize (this is OK)"
+    fi
+
+    # Update submodules to latest commit from their remote
+    if git submodule update --remote --merge; then
+        print_status $GREEN "✅ Submodules updated successfully"
+
+        if [ "$VERBOSE" = true ]; then
+            # Show submodule status
+            print_status $BLUE "📋 Submodule status:"
+            git submodule status
+        fi
+    else
+        print_status $YELLOW "⚠️  Submodule update had issues (may be OK if no submodules exist)"
+    fi
+
+    echo ""
+}
+
 # Run comprehensive test suite
 run_tests() {
     print_header "🧪 Running Comprehensive Test Suite"
+
+    # Update submodules before running tests (especially contracts)
+    update_submodules
 
     local test_args=""
     if [ "$VERBOSE" = true ]; then
