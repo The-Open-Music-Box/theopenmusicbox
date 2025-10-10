@@ -281,12 +281,12 @@ check_dependencies() {
 
         # Try with venv if it exists
         if [[ -f "venv/bin/activate" ]]; then
-            if source venv/bin/activate && python -c "import pytest, jsonschema, requests, socketio" 2>/dev/null; then
+            if source venv/bin/activate && python3 -c "import pytest, jsonschema, requests, socketio" 2>/dev/null; then
                 packages_available=true
             fi
         else
             # Try global installation
-            if python -c "import pytest, jsonschema, requests, socketio" 2>/dev/null; then
+            if python3 -c "import pytest, jsonschema, requests, socketio" 2>/dev/null; then
                 packages_available=true
             fi
         fi
@@ -347,7 +347,7 @@ run_backend_validation() {
         source venv/bin/activate
     fi
 
-    if python tests/contracts/contract_validator.py \
+    if python3 tests/contracts/contract_validator.py \
         --api-url "$API_URL" \
         --socketio-url "$SOCKETIO_URL" \
         --output "$BACKEND_REPORT"; then
