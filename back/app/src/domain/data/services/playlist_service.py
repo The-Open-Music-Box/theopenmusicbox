@@ -113,7 +113,7 @@ class PlaylistService:
         # Create Playlist entity
         playlist_entity = Playlist(
             id=playlist_id,
-            name=name,
+            title=name,  # Map name parameter to title field (contract compliance)
             description=description or '',
             tracks=[],  # New playlists start with no tracks
         )

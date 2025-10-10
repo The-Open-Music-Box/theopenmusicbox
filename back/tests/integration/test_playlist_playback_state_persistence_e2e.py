@@ -78,7 +78,7 @@ class TestPlaylistPlaybackStatePersistence:
         from app.src.application.controllers.playlist_state_manager_controller import Playlist, Track
         test_playlist = Playlist(
             id="test-playlist-123",
-            name="Test Playlist",
+            title="Test Playlist",
             tracks=[
                 Track(
                     id="track-1",
@@ -117,7 +117,7 @@ class TestPlaylistPlaybackStatePersistence:
         from app.src.application.controllers.playlist_state_manager_controller import Playlist, Track
         test_playlist = Playlist(
             id="test-playlist-456",
-            name="Control Test Playlist",
+            title="Control Test Playlist",
             tracks=[
                 Track(
                     id="track-1",
@@ -166,7 +166,7 @@ class TestPlaylistPlaybackStatePersistence:
             for i in range(1, 4)
         ]
 
-        test_playlist = Playlist(id="nav-test", name="Navigation Test", tracks=tracks)
+        test_playlist = Playlist(id="nav-test", title="Navigation Test", tracks=tracks)
         coordinator.playlist_controller.load_playlist_data(test_playlist)
 
         # Set to first track (without actual playback)
@@ -204,7 +204,7 @@ class TestPlaylistPlaybackStatePersistence:
         from app.src.application.controllers.playlist_state_manager_controller import Playlist, Track
         test_playlist = Playlist(
             id="status-test-789",
-            name="Status Test Playlist",
+            title="Status Test Playlist",
             tracks=[
                 Track(id="track-1", title="Test Track", filename="test.mp3",
                       duration_ms=180000, file_path="/fake/test.mp3")

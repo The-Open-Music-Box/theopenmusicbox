@@ -221,29 +221,29 @@ class TestPlaylistDomainEntity:
     def test_playlist_creation(self):
         """Test basic playlist creation."""
         playlist = Playlist(
-            name="Test Playlist",
+            title="Test Playlist",
             description="A test playlist",
             id="playlist-123"
         )
-        
-        assert playlist.name == "Test Playlist"
+
+        assert playlist.title == "Test Playlist"
         assert playlist.description == "A test playlist"
         assert playlist.id == "playlist-123"
         assert len(playlist.tracks) == 0
     
     def test_playlist_api_compatibility(self):
         """Test API compatibility properties."""
-        playlist = Playlist(name="My Playlist")
+        playlist = Playlist(title="My Playlist")
         
         # Test title alias
         assert playlist.title == "My Playlist"
         
         playlist.title = "Updated Playlist"
-        assert playlist.name == "Updated Playlist"
+        assert playlist.title == "Updated Playlist"
     
     def test_playlist_track_management_domain_behavior(self):
         """Test domain behavior for track management."""
-        playlist = Playlist(name="Test Playlist")
+        playlist = Playlist(title="Test Playlist")
         
         track1 = Track(
             track_number=1,
@@ -269,7 +269,7 @@ class TestPlaylistDomainEntity:
     
     def test_playlist_auto_number_business_rule(self):
         """Test business rule: auto-assign track numbers."""
-        playlist = Playlist(name="Test Playlist")
+        playlist = Playlist(title="Test Playlist")
         
         # Track with number 0 should be auto-assigned
         track = Track(
@@ -287,7 +287,7 @@ class TestPlaylistDomainEntity:
     def test_playlist_validation_business_rule(self):
         """Test domain business rule: playlist validation."""
         # Valid playlist
-        valid_playlist = Playlist(name="Valid Playlist")
+        valid_playlist = Playlist(title="Valid Playlist")
         valid_track = Track(
             track_number=1,
             title="Valid Track",
@@ -299,11 +299,11 @@ class TestPlaylistDomainEntity:
         assert valid_playlist.is_valid() is True
         
         # Invalid playlist: empty name
-        invalid_playlist = Playlist(name="")
+        invalid_playlist = Playlist(title="")
         assert invalid_playlist.is_valid() is False
         
         # Invalid playlist: contains invalid track
-        invalid_playlist2 = Playlist(name="Invalid Playlist")
+        invalid_playlist2 = Playlist(title="Invalid Playlist")
         invalid_track = Track(
             track_number=-1,
             title="",
@@ -316,7 +316,7 @@ class TestPlaylistDomainEntity:
     
     def test_playlist_domain_services(self):
         """Test domain services for playlist operations."""
-        playlist = Playlist(name="Service Test Playlist")
+        playlist = Playlist(title="Service Test Playlist")
         
         track1 = Track(track_number=1, title="Track 1", filename="t1.mp3", file_path="/t1.mp3")
         track2 = Track(track_number=2, title="Track 2", filename="t2.mp3", file_path="/t2.mp3")
@@ -335,7 +335,7 @@ class TestPlaylistDomainEntity:
     
     def test_playlist_normalization_business_rule(self):
         """Test business rule: track number normalization."""
-        playlist = Playlist(name="Normalize Test")
+        playlist = Playlist(title="Normalize Test")
         
         # Add tracks with non-sequential numbers
         track1 = Track(track_number=5, title="Track 5", filename="t5.mp3", file_path="/t5.mp3")
@@ -354,7 +354,7 @@ class TestPlaylistDomainEntity:
     
     def test_playlist_duration_calculation_domain_service(self):
         """Test domain service: total duration calculation."""
-        playlist = Playlist(name="Duration Test")
+        playlist = Playlist(title="Duration Test")
         
         track1 = Track(track_number=1, title="Track 1", filename="t1.mp3", 
                       file_path="/t1.mp3", duration_ms=180000)  # 3 minutes
@@ -373,7 +373,7 @@ class TestPlaylistDomainEntity:
         
         playlist = Playlist.from_files("Factory Test", file_paths, description="Created by factory")
         
-        assert playlist.name == "Factory Test"
+        assert playlist.title == "Factory Test"
         assert playlist.description == "Created by factory"
         assert len(playlist.tracks) == 3
         assert playlist.tracks[0].title == "song1"
@@ -383,11 +383,11 @@ class TestPlaylistDomainEntity:
     def test_playlist_display_name_domain_service(self):
         """Test domain service for display name formatting."""
         # Empty playlist
-        empty_playlist = Playlist(name="Empty")
+        empty_playlist = Playlist(title="Empty")
         assert empty_playlist.get_display_name() == "Empty (empty)"
         
         # Playlist with tracks
-        playlist = Playlist(name="My Songs")
+        playlist = Playlist(title="My Songs")
         track = Track(track_number=1, title="Song", filename="song.mp3", file_path="/song.mp3")
         playlist.add_track(track)
         
@@ -395,7 +395,7 @@ class TestPlaylistDomainEntity:
     
     def test_playlist_reordering_edge_cases(self):
         """Test edge cases for playlist reordering methods."""
-        playlist = Playlist(name="Reorder Test")
+        playlist = Playlist(title="Reorder Test")
         
         # Test empty playlist methods
         assert playlist.get_track_numbers() == []
@@ -415,7 +415,7 @@ class TestPlaylistDomainEntity:
     
     def test_playlist_normalize_empty_behavior(self):
         """Test normalize behavior on empty playlist."""
-        playlist = Playlist(name="Empty Normalize")
+        playlist = Playlist(title="Empty Normalize")
         
         # Should not crash on empty playlist
         playlist.normalize_track_numbers()
@@ -423,7 +423,7 @@ class TestPlaylistDomainEntity:
     
     def test_playlist_get_track_by_position_edge_cases(self):
         """Test get_track_by_position edge cases."""
-        playlist = Playlist(name="Position Test")
+        playlist = Playlist(title="Position Test")
         
         # Empty playlist
         assert playlist.get_track_by_position(0) is None
@@ -445,7 +445,7 @@ class TestPlaylistDomainEntity:
     
     def test_playlist_total_duration_edge_cases(self):
         """Test total duration calculation edge cases."""
-        playlist = Playlist(name="Duration Test")
+        playlist = Playlist(title="Duration Test")
         
         # Empty playlist should have 0 duration
         assert playlist.get_total_duration_ms() == 0

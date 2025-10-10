@@ -231,7 +231,7 @@ class TestPureSQLitePlaylistRepository:
         # Verify result
         assert result is not None
         assert result.id == 'playlist-1'
-        assert result.name == 'NFC Playlist'
+        assert result.title == 'NFC Playlist'
         assert result.nfc_tag_id == nfc_tag_id
         assert len(result.tracks) == 1
         assert result.tracks[0].title == 'Track 1'

@@ -160,7 +160,7 @@ class TestNfcWorkflowE2E:
         playlist_id = str(uuid.uuid4())
         playlist = Playlist(
             id=playlist_id,
-            name=f"Test Workflow Playlist {uuid.uuid4().hex[:8]}",
+            title=f"Test Workflow Playlist {uuid.uuid4().hex[:8]}",
             description="Test playlist for workflow tests",
             nfc_tag_id=None,
             tracks=[
@@ -283,7 +283,7 @@ class TestNfcWorkflowE2E:
 
         playlist_b = Playlist(
             id=playlist_b_id,
-            name=f"Override Target Playlist {uuid.uuid4().hex[:8]}",
+            title=f"Override Target Playlist {uuid.uuid4().hex[:8]}",
             description="Target for override test",
             nfc_tag_id=None,
             tracks=[

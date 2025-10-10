@@ -148,7 +148,7 @@ class TestNfcAssociationToPlaybackE2E:
 
         playlist = Playlist(
             id=playlist_id,
-            name=f"Test Music Playlist {uuid.uuid4().hex[:8]}",
+            title=f"Test Music Playlist {uuid.uuid4().hex[:8]}",
             description="Test playlist for association workflow",
             nfc_tag_id=None,  # No tag initially
             tracks=[
@@ -234,7 +234,7 @@ class TestNfcAssociationToPlaybackE2E:
         # Create playlist
         playlist = Playlist(
             id=playlist_id,
-            name=f"Persistent Test {uuid.uuid4().hex[:8]}",
+            title=f"Persistent Test {uuid.uuid4().hex[:8]}",
             description="Test persistence",
             nfc_tag_id=None,
             tracks=[]

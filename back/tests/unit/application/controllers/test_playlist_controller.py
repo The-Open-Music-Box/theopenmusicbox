@@ -172,7 +172,7 @@ class TestDataConversion:
 
         assert playlist is not None
         assert playlist.id == "pl-123"
-        assert playlist.name == "Test Playlist"
+        assert playlist.title == "Test Playlist"
         assert len(playlist.tracks) == 1
 
     def test_convert_playlist_without_id_fails(self, controller):
@@ -189,7 +189,7 @@ class TestDataConversion:
 
         playlist = controller._convert_to_domain_playlist(playlist_data)
 
-        assert playlist.name == "Playlist pl-123"
+        assert playlist.title == "Playlist pl-123"
 
     def test_convert_track_data(self, controller):
         """Test converting track data to domain object."""
@@ -240,7 +240,7 @@ class TestTrackNavigation:
         # Load test playlist
         playlist = Playlist(
             id="pl-1",
-            name="Test",
+            title="Test",
             tracks=[
                 Track(id="t1", title="Song 1", filename="s1.mp3", duration_ms=180000),
                 Track(id="t2", title="Song 2", filename="s2.mp3", duration_ms=200000),
@@ -348,7 +348,7 @@ class TestStateQueries:
 
         playlist = Playlist(
             id="pl-1",
-            name="Test Playlist",
+            title="Test Playlist",
             tracks=[
                 Track(id="t1", title="Song 1", filename="s1.mp3", duration_ms=180000),
                 Track(id="t2", title="Song 2", filename="s2.mp3", duration_ms=200000),
@@ -393,7 +393,7 @@ class TestStateQueries:
     def test_has_tracks_false(self):
         """Test has_tracks when playlist is empty."""
         ctrl = PlaylistController(Mock(), Mock())
-        playlist = Playlist(id="pl-1", name="Empty", tracks=[])
+        playlist = Playlist(id="pl-1", title="Empty", tracks=[])
         ctrl._state_manager.set_playlist(playlist)
 
         assert ctrl.has_tracks() is False
@@ -408,7 +408,7 @@ class TestDirectPlaylistLoading:
 
         playlist = Playlist(
             id="pl-test",
-            name="Direct Load",
+            title="Direct Load",
             tracks=[Track(id="t1", title="Song", filename="song.mp3", duration_ms=180000)]
         )
 
@@ -450,7 +450,7 @@ class TestErrorHandling:
         controller = PlaylistController(Mock(), Mock())
         controller._state_manager.set_playlist = Mock(side_effect=Exception("Error"))
 
-        playlist = Playlist(id="pl-1", name="Test", tracks=[])
+        playlist = Playlist(id="pl-1", title="Test", tracks=[])
         success = controller.load_playlist_data(playlist)
 
         assert success is False

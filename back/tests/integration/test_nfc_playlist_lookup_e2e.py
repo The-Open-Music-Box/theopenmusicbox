@@ -64,7 +64,7 @@ class TestNfcPlaylistLookupE2E:
         # Create playlist entity with tracks
         playlist = Playlist(
             id=playlist_id,
-            name=f"Test NFC Playlist {uuid.uuid4().hex[:8]}",
+            title=f"Test NFC Playlist {uuid.uuid4().hex[:8]}",
             description="Test playlist for NFC lookup",
             nfc_tag_id=test_nfc_tag,
             tracks=[
@@ -96,7 +96,7 @@ class TestNfcPlaylistLookupE2E:
             # ASSERT: Verify playlist was found and has correct data
             assert result is not None, f"Playlist not found for NFC tag {test_nfc_tag}"
             assert result['id'] == playlist_id
-            assert result['title'] == playlist.name or result['name'] == playlist.name
+            assert result['title'] == playlist.title or result['name'] == playlist.title
             assert result['nfc_tag_id'] == test_nfc_tag
             assert 'tracks' in result
             assert len(result['tracks']) == 2
@@ -144,7 +144,7 @@ class TestNfcPlaylistLookupE2E:
 
         playlist = Playlist(
             id=playlist_id,
-            name=f"Direct Test Playlist {uuid.uuid4().hex[:8]}",
+            title=f"Direct Test Playlist {uuid.uuid4().hex[:8]}",
             description="Test playlist",
             nfc_tag_id=test_nfc_tag,
             tracks=[]
@@ -193,7 +193,7 @@ class TestNfcPlaylistLookupE2E:
 
             playlist = Playlist(
                 id=playlist_id,
-                name=f"Test NFC Broadcast Playlist {uuid.uuid4().hex[:8]}",
+                title=f"Test NFC Broadcast Playlist {uuid.uuid4().hex[:8]}",
                 description="Test playlist for Socket.IO broadcast",
                 nfc_tag_id=test_nfc_tag,
                 tracks=[

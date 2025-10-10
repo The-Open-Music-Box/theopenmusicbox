@@ -73,7 +73,7 @@ def mock_playlist():
     playlist = Mock()
     playlist.id = "pl-123"
     playlist.title = "Test Playlist"
-    playlist.name = "Test Playlist"
+    playlist.title = "Test Playlist"
 
     track1 = Mock()
     track1.file_path = "/music/song1.mp3"

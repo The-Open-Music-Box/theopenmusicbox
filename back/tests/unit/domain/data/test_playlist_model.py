@@ -19,9 +19,9 @@ class TestPlaylistConstruction:
 
     def test_create_playlist_minimal(self):
         """Test creating playlist with minimal required fields."""
-        playlist = Playlist(name="Test Playlist")
+        playlist = Playlist(title="Test Playlist")
 
-        assert playlist.name == "Test Playlist"
+        assert playlist.title == "Test Playlist"
         assert playlist.tracks == []
         assert playlist.description is None
         assert playlist.id is None
@@ -31,7 +31,7 @@ class TestPlaylistConstruction:
         """Test creating playlist with all fields."""
         tracks = [Track.from_file("/path/to/song.mp3", 1)]
         playlist = Playlist(
-            name="Full Playlist",
+            title="Full Playlist",
             tracks=tracks,
             description="A complete playlist",
             id="playlist-123",
@@ -39,7 +39,7 @@ class TestPlaylistConstruction:
             path="/playlists/full"
         )
 
-        assert playlist.name == "Full Playlist"
+        assert playlist.title == "Full Playlist"
         assert len(playlist.tracks) == 1
         assert playlist.description == "A complete playlist"
         assert playlist.id == "playlist-123"
@@ -48,17 +48,17 @@ class TestPlaylistConstruction:
 
     def test_title_property_alias(self):
         """Test title property is aliased to name."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
 
         assert playlist.title == "Test"
-        assert playlist.title == playlist.name
+        assert playlist.title == playlist.title
 
     def test_title_setter(self):
         """Test title setter updates name."""
-        playlist = Playlist(name="Original")
+        playlist = Playlist(title="Original")
         playlist.title = "Updated"
 
-        assert playlist.name == "Updated"
+        assert playlist.title == "Updated"
         assert playlist.title == "Updated"
 
 
@@ -69,20 +69,20 @@ class TestPlaylistFactoryMethods:
         """Test creating playlist from API data using title parameter."""
         playlist = Playlist.from_api_data(title="API Playlist", description="From API")
 
-        assert playlist.name == "API Playlist"
+        assert playlist.title == "API Playlist"
         assert playlist.description == "From API"
 
     def test_from_api_data_with_name(self):
         """Test creating playlist from API data using name parameter."""
         playlist = Playlist.from_api_data(name="Named Playlist")
 
-        assert playlist.name == "Named Playlist"
+        assert playlist.title == "Named Playlist"
 
     def test_from_api_data_title_precedence(self):
         """Test title takes precedence over name when both provided."""
         playlist = Playlist.from_api_data(title="Title", name="Name")
 
-        assert playlist.name == "Title"
+        assert playlist.title == "Title"
 
     def test_from_api_data_no_name_raises_error(self):
         """Test creating playlist without title or name raises ValueError."""
@@ -94,7 +94,7 @@ class TestPlaylistFactoryMethods:
         file_paths = ["/music/song1.mp3", "/music/song2.mp3", "/music/song3.mp3"]
         playlist = Playlist.from_files("File Playlist", file_paths)
 
-        assert playlist.name == "File Playlist"
+        assert playlist.title == "File Playlist"
         assert len(playlist.tracks) == 3
         assert playlist.tracks[0].track_number == 1
         assert playlist.tracks[1].track_number == 2
@@ -105,7 +105,7 @@ class TestPlaylistFactoryMethods:
         """Test creating playlist from empty file list."""
         playlist = Playlist.from_files("Empty", [])
 
-        assert playlist.name == "Empty"
+        assert playlist.title == "Empty"
         assert playlist.tracks == []
 
 
@@ -114,7 +114,7 @@ class TestPlaylistTrackOperations:
 
     def test_add_track_with_number(self):
         """Test adding track with explicit track number."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track = Track.from_file("/music/song.mp3", 5)
 
         playlist.add_track(track)
@@ -124,7 +124,7 @@ class TestPlaylistTrackOperations:
 
     def test_add_track_auto_number(self):
         """Test adding track with auto-assigned number."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track1 = Track.from_file("/music/song1.mp3", 1)
         track2 = Track.from_file("/music/song2.mp3", 0)  # Will be auto-numbered
 
@@ -135,7 +135,7 @@ class TestPlaylistTrackOperations:
 
     def test_add_track_maintains_sort_order(self):
         """Test adding tracks maintains sorted order."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track3 = Track.from_file("/music/song3.mp3", 3)
         track1 = Track.from_file("/music/song1.mp3", 1)
         track2 = Track.from_file("/music/song2.mp3", 2)
@@ -209,7 +209,7 @@ class TestPlaylistQueries:
 
     def test_get_first_track_empty_playlist(self):
         """Test getting first track from empty playlist."""
-        playlist = Playlist(name="Empty")
+        playlist = Playlist(title="Empty")
 
         first = playlist.get_first_track()
 
@@ -217,7 +217,7 @@ class TestPlaylistQueries:
 
     def test_get_first_track_non_sequential_numbers(self):
         """Test getting first track with non-sequential numbering."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track5 = Track.from_file("/s5.mp3", 5)
         track3 = Track.from_file("/s3.mp3", 3)
         playlist.tracks = [track5, track3]
@@ -253,7 +253,7 @@ class TestPlaylistQueries:
 
     def test_get_track_numbers(self):
         """Test getting all track numbers sorted."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         playlist.tracks = [
             Track.from_file("/s3.mp3", 3),
             Track.from_file("/s1.mp3", 1),
@@ -279,7 +279,7 @@ class TestPlaylistQueries:
 
     def test_get_min_track_number(self):
         """Test getting minimum track number."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         playlist.tracks = [
             Track.from_file("/s5.mp3", 5),
             Track.from_file("/s2.mp3", 2),
@@ -290,13 +290,13 @@ class TestPlaylistQueries:
 
     def test_get_min_track_number_empty(self):
         """Test getting minimum track number from empty playlist."""
-        playlist = Playlist(name="Empty")
+        playlist = Playlist(title="Empty")
 
         assert playlist.get_min_track_number() is None
 
     def test_get_max_track_number(self):
         """Test getting maximum track number."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         playlist.tracks = [
             Track.from_file("/s5.mp3", 5),
             Track.from_file("/s2.mp3", 2),
@@ -307,13 +307,13 @@ class TestPlaylistQueries:
 
     def test_get_max_track_number_empty(self):
         """Test getting maximum track number from empty playlist."""
-        playlist = Playlist(name="Empty")
+        playlist = Playlist(title="Empty")
 
         assert playlist.get_max_track_number() is None
 
     def test_is_empty_true(self):
         """Test checking if playlist is empty."""
-        playlist = Playlist(name="Empty")
+        playlist = Playlist(title="Empty")
 
         assert playlist.is_empty() is True
 
@@ -335,7 +335,7 @@ class TestPlaylistBusinessRules:
 
     def test_normalize_track_numbers_sequential(self):
         """Test normalizing track numbers."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track5 = Track.from_file("/s5.mp3", 5)
         track10 = Track.from_file("/s10.mp3", 10)
         track20 = Track.from_file("/s20.mp3", 20)
@@ -350,7 +350,7 @@ class TestPlaylistBusinessRules:
 
     def test_normalize_track_numbers_preserves_order(self):
         """Test normalization preserves original order."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track5 = Track.from_file("/five.mp3", 5)
         track20 = Track.from_file("/twenty.mp3", 20)
         track10 = Track.from_file("/ten.mp3", 10)
@@ -365,7 +365,7 @@ class TestPlaylistBusinessRules:
 
     def test_normalize_track_numbers_empty_playlist(self):
         """Test normalizing empty playlist doesn't crash."""
-        playlist = Playlist(name="Empty")
+        playlist = Playlist(title="Empty")
 
         playlist.normalize_track_numbers()  # Should not raise
 
@@ -379,14 +379,14 @@ class TestPlaylistBusinessRules:
 
     def test_is_valid_empty_name(self):
         """Test playlist with empty name is invalid."""
-        playlist = Playlist(name="  ")
+        playlist = Playlist(title="  ")
         playlist.tracks = [Track.from_file("/song.mp3", 1)]
 
         assert playlist.is_valid() is False
 
     def test_is_valid_invalid_track(self):
         """Test playlist with invalid track is invalid."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         invalid_track = Track(
             track_number=0,  # Invalid: must be > 0
             title="",
@@ -399,7 +399,7 @@ class TestPlaylistBusinessRules:
 
     def test_is_valid_empty_playlist(self):
         """Test empty playlist with valid name is still valid."""
-        playlist = Playlist(name="Empty but Valid")
+        playlist = Playlist(title="Empty but Valid")
 
         assert playlist.is_valid() is True
 
@@ -409,7 +409,7 @@ class TestPlaylistCalculations:
 
     def test_get_total_duration_all_tracks_have_duration(self):
         """Test total duration when all tracks have duration."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track1 = Track.from_file("/s1.mp3", 1)
         track1.duration_ms = 180000  # 3 minutes
         track2 = Track.from_file("/s2.mp3", 2)
@@ -422,7 +422,7 @@ class TestPlaylistCalculations:
 
     def test_get_total_duration_some_tracks_missing_duration(self):
         """Test total duration when some tracks missing duration."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track1 = Track.from_file("/s1.mp3", 1)
         track1.duration_ms = 180000
         track2 = Track.from_file("/s2.mp3", 2)
@@ -435,7 +435,7 @@ class TestPlaylistCalculations:
 
     def test_get_total_duration_empty_playlist(self):
         """Test total duration of empty playlist."""
-        playlist = Playlist(name="Empty")
+        playlist = Playlist(title="Empty")
 
         total = playlist.get_total_duration_ms()
 
@@ -452,7 +452,7 @@ class TestPlaylistCalculations:
 
     def test_get_display_name_empty(self):
         """Test display name for empty playlist."""
-        playlist = Playlist(name="Empty Playlist")
+        playlist = Playlist(title="Empty Playlist")
 
         display_name = playlist.get_display_name()
 
@@ -472,7 +472,7 @@ class TestPlaylistEdgeCases:
 
     def test_add_same_track_multiple_times(self):
         """Test adding same track multiple times."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         track = Track.from_file("/song.mp3", 1)
 
         playlist.add_track(track)
@@ -483,7 +483,7 @@ class TestPlaylistEdgeCases:
 
     def test_track_numbers_with_gaps(self):
         """Test playlist handles track numbers with gaps."""
-        playlist = Playlist(name="Test")
+        playlist = Playlist(title="Test")
         playlist.tracks = [
             Track.from_file("/s1.mp3", 1),
             Track.from_file("/s10.mp3", 10),
@@ -497,9 +497,9 @@ class TestPlaylistEdgeCases:
 
     def test_special_characters_in_name(self):
         """Test playlist name with special characters."""
-        playlist = Playlist(name="Test's 'Awesome' Playlist! 🎵")
+        playlist = Playlist(title="Test's 'Awesome' Playlist! 🎵")
 
-        assert playlist.name == "Test's 'Awesome' Playlist! 🎵"
+        assert playlist.title == "Test's 'Awesome' Playlist! 🎵"
         assert playlist.is_valid() is True
 
     def test_very_long_playlist(self):

@@ -455,7 +455,7 @@ class TestCanReorder:
 
     def test_can_reorder_empty_playlist(self, service):
         """Test cannot reorder empty playlist."""
-        playlist = Playlist(name="Empty")
+        playlist = Playlist(title="Empty")
 
         can_reorder, reason = service.can_reorder(playlist)
 

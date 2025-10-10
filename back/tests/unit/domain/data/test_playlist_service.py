@@ -69,11 +69,11 @@ class TestPlaylistService:
         """Test getting playlists with data."""
         # Create Playlist entities
         playlist_entities = [
-            Playlist(id="playlist-1", name="Test Playlist 1", tracks=[
+            Playlist(id="playlist-1", title="Test Playlist 1", tracks=[
                 Track(track_number=1, title="Track 1", filename="path1.mp3", file_path="/fake/path1.mp3", id="track-1"),
                 Track(track_number=2, title="Track 2", filename="path2.mp3", file_path="/fake/path2.mp3", id="track-2")
             ]),
-            Playlist(id="playlist-2", name="Test Playlist 2", tracks=[
+            Playlist(id="playlist-2", title="Test Playlist 2", tracks=[
                 Track(track_number=1, title="Track 3", filename="path3.mp3", file_path="/fake/path3.mp3", id="track-3"),
                 Track(track_number=2, title="Track 4", filename="path4.mp3", file_path="/fake/path4.mp3", id="track-4")
             ])
@@ -95,7 +95,7 @@ class TestPlaylistService:
         """Test getting a single playlist that exists."""
         playlist_entity = Playlist(
             id="playlist-1",
-            name="Test Playlist",
+            title="Test Playlist",
             tracks=[Track(track_number=1, title="Track 1", filename="path.mp3", file_path="/fake/path.mp3", id="track-1")]
         )
 
@@ -150,8 +150,8 @@ class TestPlaylistService:
         fresh_playlist_repo = AsyncMock()
         playlist_id = 'playlist-1'
         updates = {'name': 'Updated Title'}
-        existing_entity = Playlist(name="Old Title", tracks=[], id=playlist_id)
-        updated_entity = Playlist(name="Updated Title", tracks=[], id=playlist_id)
+        existing_entity = Playlist(title="Old Title", tracks=[], id=playlist_id)
+        updated_entity = Playlist(title="Updated Title", tracks=[], id=playlist_id)
 
         # Configure mocks to return entities
         fresh_playlist_repo.find_by_id.side_effect = [existing_entity, updated_entity]
@@ -221,7 +221,7 @@ class TestPlaylistService:
         nfc_tag_id = 'nfc-123'
         playlist_entity = Playlist(
             id='playlist-1',
-            name='NFC Playlist',
+            title='NFC Playlist',
             nfc_tag_id=nfc_tag_id,
             tracks=[Track(track_number=1, title='Track 1', filename='track1.mp3', file_path='/fake/track1.mp3', id='track-1')]
         )

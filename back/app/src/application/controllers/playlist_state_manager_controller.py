@@ -40,14 +40,14 @@ class Track:
 class Playlist:
     """Represents a playlist."""
     id: str
-    name: str
+    title: str
     tracks: List[Track] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert playlist to dictionary."""
         return {
             "id": self.id,
-            "name": self.name,
+            "title": self.title,
             "tracks": [track.to_dict() for track in self.tracks],
             "total_tracks": len(self.tracks)
         }
@@ -96,7 +96,7 @@ class PlaylistStateManager:
             self._generate_shuffle_order()
 
         logger.info(
-            f"Playlist '{playlist.name}' set with {len(playlist.tracks)} tracks, starting at index {self._current_track_index}"
+            f"Playlist '{playlist.title}' set with {len(playlist.tracks)} tracks, starting at index {self._current_track_index}"
         )
         return True
 

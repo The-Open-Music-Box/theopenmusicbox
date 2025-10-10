@@ -103,7 +103,7 @@ class PlaylistController:
             success = self._state_manager.set_playlist(playlist)
             if success:
                 logger.info(
-                    f"✅ Playlist '{playlist.name}' loaded with {len(valid_tracks)} valid tracks"
+                    f"✅ Playlist '{playlist.title}' loaded with {len(valid_tracks)} valid tracks"
                 )
 
             return success
@@ -142,7 +142,8 @@ class PlaylistController:
         """
         try:
             playlist_id = playlist_data.get("id")
-            playlist_name = playlist_data.get("name", f"Playlist {playlist_id}")
+            # Support both 'title' and 'name' for backward compatibility during data conversion
+            playlist_title = playlist_data.get("title") or playlist_data.get("name", f"Playlist {playlist_id}")
             tracks_data = playlist_data.get("tracks", [])
 
             if not playlist_id:
@@ -158,7 +159,7 @@ class PlaylistController:
 
             return Playlist(
                 id=str(playlist_id),
-                name=playlist_name,
+                title=playlist_title,
                 tracks=tracks
             )
 
@@ -312,7 +313,8 @@ class PlaylistController:
 
         return {
             "playlist_id": state["playlist"]["id"] if state["playlist"] else None,
-            "playlist_name": state["playlist"]["name"] if state["playlist"] else None,
+            # Return as 'playlist_name' for API backward compatibility
+            "playlist_name": state["playlist"]["title"] if state["playlist"] else None,
             "current_track": state["current_track"],
             "current_track_number": state["current_track_number"],
             "total_tracks": state["total_tracks"],

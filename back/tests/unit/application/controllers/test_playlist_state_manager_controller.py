@@ -36,7 +36,7 @@ class TestTrackDataclass:
     def test_create_track_with_optional_fields(self):
         """Test creating track with all fields."""
         track = Track(
-            id="track-1",
+            id="track-2",
             title="Test Song",
             filename="test.mp3",
             duration_ms=180000,
@@ -70,10 +70,10 @@ class TestPlaylistDataclass:
 
     def test_create_empty_playlist(self):
         """Test creating empty playlist."""
-        playlist = Playlist(id="pl-1", name="Test Playlist")
+        playlist = Playlist(id="pl-1", title="Test Playlist")
 
         assert playlist.id == "pl-1"
-        assert playlist.name == "Test Playlist"
+        assert playlist.title == "Test Playlist"
         assert playlist.tracks == []
 
     def test_create_playlist_with_tracks(self):
@@ -83,7 +83,7 @@ class TestPlaylistDataclass:
             Track(id="t2", title="Song 2", filename="s2.mp3")
         ]
 
-        playlist = Playlist(id="pl-1", name="Test", tracks=tracks)
+        playlist = Playlist(id="pl-1", title="Test", tracks=tracks)
 
         assert len(playlist.tracks) == 2
 
@@ -93,12 +93,12 @@ class TestPlaylistDataclass:
             Track(id="t1", title="Song 1", filename="s1.mp3"),
             Track(id="t2", title="Song 2", filename="s2.mp3")
         ]
-        playlist = Playlist(id="pl-1", name="Test", tracks=tracks)
+        playlist = Playlist(id="pl-1", title="Test", tracks=tracks)
 
         result = playlist.to_dict()
 
         assert result["id"] == "pl-1"
-        assert result["name"] == "Test"
+        assert result["title"] == "Test"
         assert result["total_tracks"] == 2
         assert len(result["tracks"]) == 2
 
@@ -130,7 +130,7 @@ class TestPlaylistManagement:
         """Create sample playlist."""
         return Playlist(
             id="pl-1",
-            name="Test Playlist",
+            title="Test Playlist",
             tracks=[
                 Track(id="t1", title="Song 1", filename="s1.mp3"),
                 Track(id="t2", title="Song 2", filename="s2.mp3"),
@@ -155,7 +155,7 @@ class TestPlaylistManagement:
 
     def test_set_empty_playlist_fails(self, manager):
         """Test setting empty playlist fails."""
-        empty_playlist = Playlist(id="pl-1", name="Empty", tracks=[])
+        empty_playlist = Playlist(id="pl-1", title="Empty", tracks=[])
 
         success = manager.set_playlist(empty_playlist)
 
@@ -187,7 +187,7 @@ class TestTrackNavigation:
         mgr = PlaylistStateManager()
         playlist = Playlist(
             id="pl-1",
-            name="Test",
+            title="Test",
             tracks=[
                 Track(id="t1", title="Song 1", filename="s1.mp3"),
                 Track(id="t2", title="Song 2", filename="s2.mp3"),
@@ -274,7 +274,7 @@ class TestRepeatMode:
         mgr = PlaylistStateManager()
         playlist = Playlist(
             id="pl-1",
-            name="Test",
+            title="Test",
             tracks=[
                 Track(id="t1", title="Song 1", filename="s1.mp3"),
                 Track(id="t2", title="Song 2", filename="s2.mp3"),
@@ -328,7 +328,7 @@ class TestShuffleMode:
         mgr = PlaylistStateManager()
         playlist = Playlist(
             id="pl-1",
-            name="Test",
+            title="Test",
             tracks=[
                 Track(id=f"t{i}", title=f"Song {i}", filename=f"s{i}.mp3")
                 for i in range(1, 11)  # 10 tracks
@@ -389,7 +389,7 @@ class TestStateQueries:
         mgr = PlaylistStateManager()
         playlist = Playlist(
             id="pl-1",
-            name="Test Playlist",
+            title="Test Playlist",
             tracks=[
                 Track(id="t1", title="Song 1", filename="s1.mp3"),
                 Track(id="t2", title="Song 2", filename="s2.mp3"),
@@ -457,7 +457,7 @@ class TestEdgeCases:
         manager = PlaylistStateManager()
         playlist = Playlist(
             id="pl-1",
-            name="Single",
+            title="Single",
             tracks=[Track(id="t1", title="Song", filename="s.mp3")]
         )
         manager.set_playlist(playlist)

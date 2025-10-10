@@ -18,60 +18,48 @@ class Playlist:
     and rules related to playlists according to Domain-Driven Design principles.
 
     Attributes:
-        name: Name of the playlist
+        title: Title of the playlist (contract-compliant field name)
         tracks: List of tracks in the playlist
         description: Optional description of the playlist
         id: Optional unique identifier
         nfc_tag_id: Optional NFC tag associated with the playlist
     """
 
-    name: str
+    title: str
     tracks: List[Track] = field(default_factory=list)
     description: Optional[str] = None
     id: Optional[str] = None
     nfc_tag_id: Optional[str] = None
     path: Optional[str] = None
 
-    def __post_init__(self):
-        """Handle API compatibility for title parameter."""
-        # If no name but title was somehow passed, this will be handled by the factory methods
-
-    # Domain property alias for API compatibility
-    @property
-    def title(self) -> str:
-        """API compatibility property for frontend integration."""
-        return self.name
-
-    @title.setter
-    def title(self, value: str) -> None:
-        """API compatibility setter for frontend integration."""
-        self.name = value
-
     @classmethod
     def from_api_data(cls, title: Optional[str] = None, name: Optional[str] = None, **kwargs) -> "Playlist":
         """Domain factory method: Create a playlist from API data.
 
         Args:
-            title: API title parameter (for API compatibility)
-            name: Domain name parameter
+            title: Playlist title (contract-compliant field name)
+            name: Legacy parameter for backward compatibility (maps to title)
             **kwargs: Additional attributes to set on the playlist
 
         Returns:
             A new Playlist domain entity
+
+        Raises:
+            ValueError: If neither title nor name is provided
         """
-        # Handle API compatibility: title parameter maps to name
-        playlist_name = title or name
-        if not playlist_name:
+        # Contract compliance: prefer 'title', but accept 'name' for backward compatibility
+        playlist_title = title or name
+        if not playlist_title or not playlist_title.strip():
             raise ValueError("Either title or name must be provided")
 
-        return cls(name=playlist_name, **kwargs)
+        return cls(title=playlist_title, **kwargs)
 
     @classmethod
-    def from_files(cls, name: str, file_paths: List[str], **kwargs) -> "Playlist":
+    def from_files(cls, title: str, file_paths: List[str], **kwargs) -> "Playlist":
         """Domain factory method: Create a playlist from a list of file paths.
 
         Args:
-            name: Name of the playlist
+            title: Title of the playlist
             file_paths: List of file paths to create tracks from
             **kwargs: Additional attributes to set on the playlist
 
@@ -79,7 +67,7 @@ class Playlist:
             A new Playlist domain entity
         """
         tracks = [Track.from_file(file_path, idx + 1) for idx, file_path in enumerate(file_paths)]
-        return cls(name=name, tracks=tracks, **kwargs)
+        return cls(title=title, tracks=tracks, **kwargs)
 
     def get_track(self, number: int) -> Optional[Track]:
         """Domain service: Get track by number (1-based index).
@@ -231,7 +219,7 @@ class Playlist:
         Returns:
             True if playlist has valid data, False otherwise
         """
-        return bool(self.name.strip()) and all(track.is_valid() for track in self.tracks)
+        return bool(self.title.strip()) and all(track.is_valid() for track in self.tracks)
 
     def get_total_duration_ms(self) -> Optional[int]:
         """Domain service: Calculate total duration of all tracks.
@@ -245,12 +233,12 @@ class Playlist:
         return sum(durations)
 
     def get_display_name(self) -> str:
-        """Domain service: Get formatted display name.
+        """Domain service: Get formatted display title.
 
         Returns:
-            Formatted name for display purposes
+            Formatted title for display purposes
         """
         track_count = len(self.tracks)
         if track_count == 0:
-            return f"{self.name} (empty)"
-        return f"{self.name} ({track_count} tracks)"
+            return f"{self.title} (empty)"
+        return f"{self.title} ({track_count} tracks)"

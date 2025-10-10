@@ -60,7 +60,7 @@ class PureSQLitePlaylistRepository(PlaylistRepositoryProtocol):
 
         # Save playlist data with consistent path generation
         from app.src.utils.path_utils import normalize_folder_name
-        path = normalize_folder_name(playlist.name)
+        path = normalize_folder_name(playlist.title)
 
         playlist_command = """
             INSERT OR REPLACE INTO playlists
@@ -69,7 +69,7 @@ class PureSQLitePlaylistRepository(PlaylistRepositoryProtocol):
         """
         playlist_params = (
             playlist.id,
-            playlist.name,
+            playlist.title,
             playlist.description,
             playlist.nfc_tag_id,
             path,
@@ -117,7 +117,7 @@ class PureSQLitePlaylistRepository(PlaylistRepositoryProtocol):
         # Execute all operations in a single transaction
         self._db_service.execute_batch(operations, f"save_playlist_{playlist.id}")
 
-        logger.info(f"✅ Saved playlist: {playlist.name}")
+        logger.info(f"✅ Saved playlist: {playlist.title}")
         return playlist
 
     async def find_by_id(self, playlist_id: str) -> Optional[Playlist]:
@@ -572,7 +572,7 @@ class PureSQLitePlaylistRepository(PlaylistRepositoryProtocol):
         # Build playlist domain entity
         playlist = Playlist(
             id=playlist_row["id"],
-            name=playlist_row["title"],  # Legacy schema uses 'title'
+            title=playlist_row["title"],  # Contract-compliant field mapping
             description=playlist_row["description"],
             nfc_tag_id=playlist_row["nfc_tag_id"],
             path=playlist_row["path"],
