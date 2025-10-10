@@ -135,15 +135,25 @@ class SystemAPIRoutes:
                     else:
                         health_status = "unhealthy"
 
+                # Get server_seq from state manager (required by contract v3.1.0)
+                state_manager = None
+                server_seq = 0
+                if container:
+                    state_manager = getattr(container, "state_manager", None)
+                    if state_manager and hasattr(state_manager, "get_global_sequence"):
+                        server_seq = state_manager.get_global_sequence()
+
                 health_data = {
                     "status": health_status,
                     "services": services,
                     "timestamp": time.time(),
+                    "server_seq": server_seq,
                 }
 
                 return UnifiedResponseService.success(
                     message=f"System health check completed - status: {health_status}",
-                    data=health_data
+                    data=health_data,
+                    server_seq=server_seq
                 )
 
             except Exception as e:
@@ -188,16 +198,27 @@ class SystemAPIRoutes:
                     except Exception:
                         pass
 
+                # Get server_seq from state manager (required by contract v3.1.0)
+                container = getattr(request.app, "container", None)
+                state_manager = None
+                server_seq = 0
+                if container:
+                    state_manager = getattr(container, "state_manager", None)
+                    if state_manager and hasattr(state_manager, "get_global_sequence"):
+                        server_seq = state_manager.get_global_sequence()
+
                 from fastapi.responses import JSONResponse
                 return JSONResponse(content={
                     "status": "success",
                     "message": "System information retrieved successfully",
                     "timestamp": time.time(),
+                    "server_seq": server_seq,
                     "data": {
                         "system_info": system_info,
-                        "version": "3.0.0",
+                        "version": "3.1.0",
                         "hostname": system_info.get("hostname", "localhost"),
-                        "uptime": 3600  # System uptime in seconds
+                        "uptime": 3600,  # System uptime in seconds
+                        "server_seq": server_seq
                     }
                 })
 
