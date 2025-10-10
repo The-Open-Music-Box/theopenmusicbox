@@ -50,6 +50,11 @@ class TestSystemRoutes:
         mock.gpio = Mock()
         mock.led_hat = Mock()
 
+        # Create state_manager mock (required for contract v3.1.0)
+        state_manager_mock = Mock()
+        state_manager_mock.get_global_sequence = Mock(return_value=42)
+        mock.state_manager = state_manager_mock
+
         # Ensure audio_controller attribute exists for backwards compatibility
         mock.audio_controller = Mock()
         mock.audio_controller.is_available.return_value = True
