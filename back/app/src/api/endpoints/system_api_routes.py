@@ -207,6 +207,17 @@ class SystemAPIRoutes:
                     if state_manager and hasattr(state_manager, "get_global_sequence"):
                         server_seq = state_manager.get_global_sequence()
 
+                # Read application version from VERSION file
+                import os
+                version = "0.4.1"  # Default fallback
+                version_file = os.path.join(os.path.dirname(__file__), "../../../../../VERSION")
+                try:
+                    if os.path.exists(version_file):
+                        with open(version_file, 'r') as f:
+                            version = f.read().strip()
+                except Exception:
+                    pass  # Use default version on error
+
                 from fastapi.responses import JSONResponse
                 return JSONResponse(content={
                     "status": "success",
@@ -215,7 +226,8 @@ class SystemAPIRoutes:
                     "server_seq": server_seq,
                     "data": {
                         "system_info": system_info,
-                        "version": "3.1.0",
+                        "version": version,
+                        "contract_version": "3.1.0",
                         "hostname": system_info.get("hostname", "localhost"),
                         "uptime": 3600,  # System uptime in seconds
                         "server_seq": server_seq
